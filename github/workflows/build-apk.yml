@@ -1,0 +1,92 @@
+name: Build APK Android, Instalador PC e Web PWA
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Gerar APK Android
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Preparar www do Capacitor
+        run: |
+          chmod +x scripts/prepare-capacitor-www.sh
+          ./scripts/prepare-capacitor-www.sh
+      - name: Instalar dependências Capacitor
+        working-directory: ./capacitor-android
+        run: npm install
+      - name: Adicionar Android se necessário
+        working-directory: ./capacitor-android
+        run: |
+          if [ ! -d "android" ]; then npx cap add android; fi
+      - name: Sincronizar Capacitor
+        working-directory: ./capacitor-android
+        run: npx cap sync android
+      - name: Copiar overrides Android
+        run: |
+          if [ -d capacitor-android/android-overrides ]; then
+            cp -R capacitor-android/android-overrides/* capacitor-android/android/app/src/main/ || true
+          fi
+      - name: Build APK Debug
+        working-directory: ./capacitor-android/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Renomear APK
+        run: |
+          cd capacitor-android/android/app/build/outputs/apk/debug
+          mv app-debug.apk thIAguinhoSAAS-${{ github.run_number }}.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: thIAguinhoSAAS-ANDROID-APK
+          path: capacitor-android/android/app/build/outputs/apk/debug/*.apk
+          retention-days: 30
+
+  build-windows:
+    name: Gerar instalador Windows PC
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar dependências
+        run: npm install
+      - name: Gerar instalador Windows sem publicar release
+        run: npm run pc:win
+        env:
+          GH_TOKEN: ''
+      - uses: actions/upload-artifact@v4
+        with:
+          name: thIAguinhoSAAS-WINDOWS-PC
+          path: dist-pc/**
+          retention-days: 30
+
+  build-web:
+    name: Gerar pacote Web/PWA
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preparar pacote web
+        run: |
+          mkdir -p web-pwa
+          shopt -s extglob
+          cp -R *.html js css assets data firebase service-worker.js manifest.json web-pwa/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: thIAguinhoSAAS-WEB-PWA
+          path: web-pwa/**
+          retention-days: 30
