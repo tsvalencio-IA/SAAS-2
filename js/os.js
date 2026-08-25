@@ -9344,13 +9344,17 @@ async function _ciliaProcessarPDF(file) {
 }
 
 // ============================================================
-// UX O.S. CLIENTE COMUM / FROTISTA — LANÇAMENTO RÁPIDO DE PEÇAS
-// Camada aditiva: não remove nem substitui o lançamento detalhado existente.
-// Cliente oficial/governo é explicitamente excluído desta camada.
+// UX O.S. CLIENTE COMUM / FROTISTA — LANÇAMENTO CONTÍNUO NO JARVIS
+// Somente gestor/gerente/admin. Cliente oficial não entra neste fluxo.
+// Pesquisa 100% local sobre J.estoque + catálogo já carregado do cliente.
 // ============================================================
-(function instalarUsabilidadePecasClienteComumOS(){
+(function instalarLancamentoContinuoPecasJarvis(){
   'use strict';
 
+  function uxRoleGestaoOS(){
+    const role = String(window.J?.role || sessionStorage.getItem('j_role') || '').toLowerCase();
+    return ['admin','gestor','gerente','superadmin'].includes(role);
+  }
   function uxClienteAtualOS(){
     const id = document.getElementById('osCliente')?.value || '';
     return (window.J?.clientes || []).find(c => String(c.id) === String(id)) || null;
@@ -9377,31 +9381,29 @@ async function _ciliaProcessarPDF(file) {
     const c = cli || uxClienteAtualOS();
     return !!c && !uxClienteProtegidoOS() && (c.frotista === true || String(c.categoriaComercial || '').toLowerCase() === 'frotista');
   }
-  function uxModeloKeyOS(v){
-    const vei = v || uxVeiculoAtualOS() || {};
-    return normalizarBuscaPecaOS([vei.marca, vei.modelo].filter(Boolean).join(' '));
-  }
-  function uxModeloLabelOS(v){
-    const vei = v || uxVeiculoAtualOS() || {};
-    return [vei.marca, vei.modelo].filter(Boolean).join(' ').trim() || vei.placa || 'veículo';
-  }
-  function uxTabelaPrecosOS(cli){
+  function uxCatalogoOS(cli){
     const c = cli || uxClienteAtualOS();
-    return Array.isArray(c?.tabelaPrecosOS) ? c.tabelaPrecosOS.slice() : [];
+    const atual = Array.isArray(c?.catalogoPecasFrotista) ? c.catalogoPecasFrotista.slice() : [];
+    if (atual.length) return atual;
+    // Compatibilidade com a primeira versão: não perde preços já cadastrados.
+    const legado = Array.isArray(c?.tabelaPrecosOS) ? c.tabelaPrecosOS : [];
+    return legado.map(p => ({
+      id: p.id,
+      grupo: p.grupo || 'Peças cadastradas',
+      categoria: p.categoria || p.descricao || p.desc || '',
+      descricao: p.descricao || p.desc || '',
+      codigos: [p.codigo].filter(Boolean),
+      qtdPadrao: p.qtdPadrao || 1,
+      venda: p.venda || 0,
+      aplicacaoTipo: p.veiculoIdReferencia ? 'veiculo' : (p.veiculoModeloKey ? 'modelo' : 'todos'),
+      aplicacaoValor: p.veiculoIdReferencia || p.veiculoModeloKey || '*',
+      veiculoId: p.veiculoIdReferencia || '',
+      veiculoModeloKey: p.veiculoModeloKey || '',
+      veiculoModelo: p.veiculoModelo || ''
+    }));
   }
-  function uxPresetDoVeiculoOS(preset, veiculo){
-    if (!preset) return false;
-    const v = veiculo || uxVeiculoAtualOS();
-    if (!v) return false;
-    const key = uxModeloKeyOS(v);
-    const pk = normalizarBuscaPecaOS(preset.veiculoModeloKey || preset.modeloKey || '');
-    if (pk) return pk === key;
-    if (preset.veiculoId) return String(preset.veiculoId) === String(v.id);
-    return false;
-  }
-  function uxToastOS(msg, tipo){
-    if (typeof window.toast === 'function') window.toast(msg, tipo || 'ok');
-    else if (tipo === 'err') alert(msg);
+  function uxNormOS(v){
+    return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   }
   function uxEscOS(v){
     return typeof escOS === 'function' ? escOS(v) : String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -9409,318 +9411,339 @@ async function _ciliaProcessarPDF(file) {
   function uxDinheiroOS(v){
     return typeof moedaOS === 'function' ? moedaOS(v) : ('R$ ' + numBR(v || 0).toFixed(2).replace('.', ','));
   }
-  function uxRemoverLinhaVaziaOS(){
-    if (document.querySelector('#containerPecasOS .cilia-peca-wrap')) return;
-    const rows = osRowsDiretas('containerPecasOS');
-    const ultima = rows[rows.length - 1];
-    if (ultima && !osPecaLinhaPreenchida(ultima) && !ultima.dataset.origemNFItemKey && !ultima.dataset.origemNFVinculada) ultima.remove();
+  function uxModeloKeyVeiculoOS(v){
+    const vei = v || uxVeiculoAtualOS() || {};
+    return uxNormOS([vei.marca, vei.modelo].filter(Boolean).join(' ').trim() || vei.modelo || '');
   }
-  function uxAcharEstoqueParaPresetOS(preset){
+  function uxCatalogoAplicavelOS(item, vei){
+    if (!item) return false;
+    const tipo = String(item.aplicacaoTipo || 'todos').toLowerCase();
+    if (tipo === 'todos' || !tipo) return true;
+    if (!vei) return false;
+    const valor = String(item.aplicacaoValor || '');
+    if (tipo === 'veiculo') return String(item.veiculoId || valor) === String(vei.id || '');
+    if (tipo === 'modelo') return uxNormOS(item.veiculoModeloKey || valor || item.veiculoModelo) === uxModeloKeyVeiculoOS(vei);
+    return true;
+  }
+  function uxCodigosItemOS(item){
+    const arr = Array.isArray(item?.codigos) ? item.codigos : [item?.codigo].filter(Boolean);
+    return Array.from(new Set(arr.map(x => String(x || '').trim()).filter(Boolean)));
+  }
+  function uxTextoItemOS(item){
+    return uxNormOS([item?.grupo, item?.categoria, item?.descricao, ...uxCodigosItemOS(item)].filter(Boolean).join(' '));
+  }
+  function uxEstoqueDisponivelOS(p){
+    return numBR(p?.qtd || 0) > 0;
+  }
+  function uxAcharEstoquePorCatalogoOS(item, termoRaw){
     const estoque = window.J?.estoque || [];
-    const id = String(preset?.estoqueId || '');
-    if (id) {
-      const exato = estoque.find(p => String(p.id) === id && numBR(p.qtd || 0) > 0);
-      if (exato) return exato;
+    const codigos = uxCodigosItemOS(item).map(uxNormOS).filter(Boolean);
+    const termo = uxNormOS(termoRaw || '');
+    // Se o gestor digitou um código específico equivalente, prioriza esse código.
+    if (termo) {
+      const exatoDigitado = estoque.find(p => uxEstoqueDisponivelOS(p) && codigos.includes(uxNormOS(codigoPecaEstoqueOS(p))) && uxNormOS(codigoPecaEstoqueOS(p)) === termo);
+      if (exatoDigitado) return exatoDigitado;
     }
-    const cod = normalizarBuscaPecaOS(preset?.codigo || '');
-    const desc = normalizarBuscaPecaOS(preset?.descricao || preset?.desc || '');
-    return estoque.find(p => {
-      if (numBR(p?.qtd || 0) <= 0) return false;
-      const pcod = normalizarBuscaPecaOS(codigoPecaEstoqueOS(p));
-      const pdesc = normalizarBuscaPecaOS(p?.desc || p?.descricao || '');
-      return (cod && pcod === cod) || (desc && pdesc && (pdesc === desc || pdesc.includes(desc) || desc.includes(pdesc)));
-    }) || null;
+    return estoque.find(p => uxEstoqueDisponivelOS(p) && codigos.includes(uxNormOS(codigoPecaEstoqueOS(p)))) || null;
   }
-
-  function uxInstalarAcaoPrecoLinhaOS(row){
-    if (!row || row.classList?.contains('cilia-peca-wrap')) return;
-    const antiga = row.querySelector('.os-preco-frotista-acoes');
-    const cli = uxClienteAtualOS();
-    if (!uxFrotistaOS(cli) || uxClienteProtegidoOS()) {
-      antiga?.remove();
-      return;
-    }
-    if (antiga) return;
-    const box = document.createElement('div');
-    box.className = 'os-preco-frotista-acoes';
-    box.style.cssText = 'grid-column:1/-1;display:flex;justify-content:flex-end;gap:7px;align-items:center;margin-top:2px;';
-    box.innerHTML = `<span style="font-family:var(--fm);font-size:.59rem;color:var(--muted);">Preço do modelo ${uxEscOS(uxModeloLabelOS())}</span><button type="button" class="btn-outline os-salvar-preco-frota" style="padding:6px 9px;font-size:.6rem;">SALVAR PREÇO DO FROTISTA</button>`;
-    box.querySelector('button')?.addEventListener('click', () => window.salvarPrecoFrotistaLinhaOS?.(row));
-    row.appendChild(box);
+  function uxToastOS(msg, tipo){
+    if (typeof window.toast === 'function') window.toast(msg, tipo || 'ok');
+    else if (tipo === 'err') alert(msg);
   }
-
-  function uxInstalarAcoesPrecosOS(){
+  function uxLimparLinhasVaziasOS(){
     const cont = document.getElementById('containerPecasOS');
-    if (!cont) return;
-    Array.from(cont.children || []).forEach(uxInstalarAcaoPrecoLinhaOS);
-  }
-
-  async function uxPersistirTabelaOS(cli, tabela, mensagem){
-    if (!cli || uxClienteProtegidoOS()) return false;
-    try {
-      await window.J.db.collection('clientes').doc(cli.id).update({
-        tabelaPrecosOS: tabela,
-        updatedAt: new Date().toISOString()
-      });
-      cli.tabelaPrecosOS = tabela;
-      try { window.audit?.('CLIENTES', mensagem || `Atualizou tabela de preços do frotista ${cli.nome || cli.id}`); } catch (_) {}
-      return true;
-    } catch (e) {
-      console.error('[OS UX Frotista] Falha ao salvar tabela', e);
-      uxToastOS('Não foi possível salvar a tabela de preços do cliente.', 'err');
-      return false;
-    }
-  }
-
-  window.salvarPrecoFrotistaLinhaOS = async function(row){
-    const cli = uxClienteAtualOS();
-    const vei = uxVeiculoAtualOS();
-    if (!cli || uxClienteProtegidoOS()) return;
-    if (!uxFrotistaOS(cli)) {
-      uxToastOS('Este recurso é exclusivo para cliente cadastrado como Frotista.', 'warn');
-      return;
-    }
-    if (!vei) {
-      uxToastOS('Selecione o veículo antes de salvar um preço do frotista.', 'warn');
-      return;
-    }
-    if (!row) return;
-    const sel = row.querySelector('.peca-sel');
-    const opt = sel?.options?.[sel.selectedIndex];
-    const estoqueId = sel?.value && sel.value !== '__avulsa__' ? sel.value : '';
-    const descricao = descricaoPecaLinhaOS(row, opt, estoqueId) || row.querySelector('.peca-desc-livre')?.value?.trim() || '';
-    const codigo = row.querySelector('.peca-codigo')?.value?.trim() || row.dataset.pecaCodigo || opt?.dataset?.codigo || '';
-    const venda = numBR(row.querySelector('.peca-venda')?.value || 0);
-    const custo = numBR(row.querySelector('.peca-custo')?.value || 0);
-    const qtdPadrao = numBR(row.querySelector('.peca-qtd')?.value || 1) || 1;
-    if ((!descricao && !codigo) || venda <= 0) {
-      uxToastOS('Informe a peça e o valor de venda antes de salvar o preço do frotista.', 'warn');
-      return;
-    }
-    const modeloKey = uxModeloKeyOS(vei);
-    const codigoKey = normalizarBuscaPecaOS(codigo);
-    const descricaoKey = normalizarBuscaPecaOS(descricao);
-    const tabela = uxTabelaPrecosOS(cli);
-    let idx = tabela.findIndex(p => {
-      if (normalizarBuscaPecaOS(p.veiculoModeloKey || '') !== modeloKey) return false;
-      const pc = normalizarBuscaPecaOS(p.codigo || '');
-      const pd = normalizarBuscaPecaOS(p.descricao || p.desc || '');
-      return (codigoKey && pc === codigoKey) || (!codigoKey && descricaoKey && pd === descricaoKey);
+    if (!cont || cont.querySelector('.cilia-peca-wrap')) return;
+    osRowsDiretas('containerPecasOS').forEach(row => {
+      if (!osPecaLinhaPreenchida(row) && !row.dataset.origemNFItemKey && !row.dataset.origemNFVinculada) row.remove();
     });
-    const anterior = idx >= 0 ? tabela[idx] : null;
-    const registro = Object.assign({}, anterior || {}, {
-      id: anterior?.id || ('tp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7)),
-      veiculoModeloKey: modeloKey,
-      veiculoModelo: uxModeloLabelOS(vei),
-      veiculoIdReferencia: vei.id || '',
-      codigo,
-      descricao,
-      venda,
-      custo,
-      qtdPadrao,
-      estoqueId,
-      updatedAt: new Date().toISOString(),
-      createdAt: anterior?.createdAt || new Date().toISOString()
-    });
-    if (idx >= 0) tabela[idx] = registro;
-    else tabela.push(registro);
-    if (await uxPersistirTabelaOS(cli, tabela, `${idx >= 0 ? 'Atualizou' : 'Criou'} preço frotista ${descricao || codigo} / ${registro.veiculoModelo}`)) {
-      uxToastOS(`${idx >= 0 ? 'Preço atualizado' : 'Preço salvo'} para ${registro.veiculoModelo}: ${descricao || codigo} — ${uxDinheiroOS(venda)}.`, 'ok');
-      window.atualizarUsabilidadePecasOS?.();
-    }
-  };
-
-  window.excluirPrecoFrotistaOS = async function(id){
-    const cli = uxClienteAtualOS();
-    if (!cli || !uxFrotistaOS(cli) || uxClienteProtegidoOS()) return;
-    const tabela = uxTabelaPrecosOS(cli);
-    const item = tabela.find(p => String(p.id) === String(id));
-    if (!item) return;
-    if (!window.confirm(`Excluir o preço pré-definido de "${item.descricao || item.codigo || 'peça'}"?`)) return;
-    const nova = tabela.filter(p => String(p.id) !== String(id));
-    if (await uxPersistirTabelaOS(cli, nova, `Excluiu preço frotista ${item.descricao || item.codigo || id}`)) {
-      uxToastOS('Preço pré-definido removido.', 'ok');
-      window.atualizarUsabilidadePecasOS?.();
-    }
-  };
-
-  function uxAdicionarLinhaRapidaOS(item){
-    if (!item || uxClienteProtegidoOS()) return;
-    uxRemoverLinhaVaziaOS();
-    let payload = null;
-    if (item.tipo === 'estoque') {
-      const p = item.item;
-      payload = {
-        estoqueId: p.id || '',
-        codigo: codigoPecaEstoqueOS(p),
-        codigoExibicao: codigoPecaEstoqueOS(p),
-        desc: p.desc || p.descricao || '',
-        descricaoExibicao: p.desc || p.descricao || '',
-        qtd: 1,
-        custo: valorCompraPecaEstoqueOS(p),
-        venda: numBR(p.venda || p.precoVenda || 0),
-        fornecedor: fornecedorPecaEstoqueOS(p),
-        nf: nfPecaEstoqueOS(p),
-        dataCompra: dataCompraPecaEstoqueOS(p),
-        baixarEstoqueReal: true
-      };
-    } else if (item.tipo === 'preset') {
-      const preset = item.item;
-      const estoque = uxAcharEstoqueParaPresetOS(preset);
-      if (estoque) {
-        payload = {
-          estoqueId: estoque.id || '',
-          codigo: preset.codigo || codigoPecaEstoqueOS(estoque),
-          codigoExibicao: preset.codigo || codigoPecaEstoqueOS(estoque),
-          desc: preset.descricao || estoque.desc || estoque.descricao || '',
-          descricaoExibicao: preset.descricao || estoque.desc || estoque.descricao || '',
-          qtd: numBR(preset.qtdPadrao || 1) || 1,
-          custo: numBR(preset.custo || valorCompraPecaEstoqueOS(estoque)),
-          venda: numBR(preset.venda || 0),
-          fornecedor: fornecedorPecaEstoqueOS(estoque),
-          nf: nfPecaEstoqueOS(estoque),
-          dataCompra: dataCompraPecaEstoqueOS(estoque),
-          baixarEstoqueReal: true
-        };
+  }
+  function uxAplicarVisualCompactoLinhasOS(){
+    const painel = document.getElementById('osPecasContinuasUX');
+    const detalhado = painel?.dataset.modoDetalhado === '1';
+    osRowsDiretas('containerPecasOS').forEach(row => {
+      if (row.dataset.pecaAvulsa === '1' || row.classList?.contains('cilia-peca-wrap')) return;
+      const busca = row.querySelector('.peca-busca-estoque');
+      const sel = row.querySelector('.peca-sel');
+      if (!busca || !sel) return;
+      if (!row.dataset.thiaGridOriginal) row.dataset.thiaGridOriginal = row.style.gridTemplateColumns || '';
+      if (detalhado) {
+        busca.style.display = busca.dataset.thiaDisplayOriginal || '';
+        sel.style.display = sel.dataset.thiaDisplayOriginal || '';
+        row.style.gridTemplateColumns = row.dataset.thiaGridOriginal || row.style.gridTemplateColumns;
       } else {
-        payload = {
-          avulsa: true,
-          codigo: preset.codigo || '',
-          codigoExibicao: preset.codigo || '',
-          desc: preset.descricao || '',
-          descricaoExibicao: preset.descricao || '',
-          qtd: numBR(preset.qtdPadrao || 1) || 1,
-          custo: numBR(preset.custo || 0),
-          venda: numBR(preset.venda || 0)
-        };
+        if (busca.dataset.thiaDisplayOriginal === undefined) busca.dataset.thiaDisplayOriginal = busca.style.display || '';
+        if (sel.dataset.thiaDisplayOriginal === undefined) sel.dataset.thiaDisplayOriginal = sel.style.display || '';
+        busca.style.display = 'none';
+        sel.style.display = 'none';
+        row.style.gridTemplateColumns = 'minmax(90px,.32fr) minmax(250px,1.25fr) 58px 82px 82px 135px 32px';
       }
-    } else if (item.tipo === 'avulsa') {
-      payload = { avulsa: true, codigo: '', desc: item.descricao || '', qtd: 1, custo: 0, venda: 0 };
+    });
+    const btn = document.getElementById('osModoDetalhadoPecasUX');
+    if (btn) btn.textContent = detalhado ? 'VOLTAR AO MODO RÁPIDO' : 'MODO DETALHADO';
+  }
+
+  function uxOcultarAcionadoresAntigosOS(){
+    if (!uxRoleGestaoOS() || uxClienteProtegidoOS()) return;
+    const modal = document.getElementById('modalOS') || document;
+    modal.querySelectorAll('button,[role="button"]').forEach(btn => {
+      const on = String(btn.getAttribute('onclick') || '');
+      if (!on.includes('adicionarPecaOS')) return;
+      if (btn.dataset.thiaOcultoLancamentoContinuo === '1') return;
+      btn.dataset.thiaOcultoLancamentoContinuo = '1';
+      btn.dataset.thiaDisplayAnterior = btn.style.display || '';
+      btn.style.display = 'none';
+    });
+  }
+  function uxRestaurarAcionadoresAntigosOS(){
+    const modal = document.getElementById('modalOS') || document;
+    modal.querySelectorAll('[data-thia-oculto-lancamento-continuo="1"]').forEach(btn => {
+      btn.style.display = btn.dataset.thiaDisplayAnterior || '';
+      delete btn.dataset.thiaOcultoLancamentoContinuo;
+      delete btn.dataset.thiaDisplayAnterior;
+    });
+  }
+  function uxPayloadEstoqueOS(p, vendaOverride, qtdOverride){
+    return {
+      estoqueId: p.id || '',
+      codigo: codigoPecaEstoqueOS(p),
+      codigoExibicao: codigoPecaEstoqueOS(p),
+      desc: p.desc || p.descricao || '',
+      descricaoExibicao: p.desc || p.descricao || '',
+      qtd: qtdOverride || 1,
+      custo: valorCompraPecaEstoqueOS(p),
+      venda: vendaOverride > 0 ? vendaOverride : numBR(p.venda || p.precoVenda || 0),
+      fornecedor: fornecedorPecaEstoqueOS(p),
+      nf: nfPecaEstoqueOS(p),
+      dataCompra: dataCompraPecaEstoqueOS(p),
+      baixarEstoqueReal: true
+    };
+  }
+  function uxPayloadCatalogoOS(item, termoRaw, qtdOverride, vendaOverride){
+    const estoque = uxAcharEstoquePorCatalogoOS(item, termoRaw);
+    const qtd = qtdOverride || numBR(item?.qtdPadrao || 1) || 1;
+    const venda = vendaOverride > 0 ? vendaOverride : numBR(item?.venda || 0);
+    if (estoque) {
+      const p = uxPayloadEstoqueOS(estoque, venda, qtd);
+      p.descricaoExibicao = item.categoria || item.descricao || p.descricaoExibicao;
+      p.desc = item.categoria || item.descricao || p.desc;
+      p.catalogoFrotistaId = item.id || '';
+      p.catalogoFrotistaGrupo = item.grupo || '';
+      return p;
     }
-    if (!payload) return;
+    const codigos = uxCodigosItemOS(item);
+    return {
+      avulsa: true,
+      codigo: codigos[0] || '',
+      codigoExibicao: codigos[0] || '',
+      desc: item.categoria || item.descricao || '',
+      descricaoExibicao: item.categoria || item.descricao || '',
+      qtd,
+      custo: 0,
+      venda,
+      catalogoFrotistaId: item.id || '',
+      catalogoFrotistaGrupo: item.grupo || ''
+    };
+  }
+  function uxPayloadAvulsoOS(desc, qtd, venda){
+    return { avulsa:true, codigo:'', codigoExibicao:'', desc:desc || '', descricaoExibicao:desc || '', qtd:qtd || 1, custo:0, venda:venda || 0 };
+  }
+  function uxAdicionarPayloadOS(payload){
+    if (!payload || uxClienteProtegidoOS()) return;
+    uxLimparLinhasVaziasOS();
     window.renderPecaOSRow?.(payload);
+    uxAplicarVisualCompactoLinhasOS();
     window.calcOSTotal?.();
     setTimeout(() => {
-      osGarantirProximaLinha('peca');
-      uxInstalarAcoesPrecosOS();
-      const busca = document.getElementById('osBuscaPecaRapidaUX');
+      uxLimparLinhasVaziasOS();
+      uxAplicarVisualCompactoLinhasOS();
+      const busca = document.getElementById('osBuscaPecaContinuaUX');
+      const qtd = document.getElementById('osQtdPecaContinuaUX');
+      const venda = document.getElementById('osVendaPecaContinuaUX');
       if (busca) busca.value = '';
-      window.atualizarUsabilidadePecasOS?.();
-    }, 20);
+      if (qtd) qtd.value = '1';
+      if (venda) venda.value = '';
+      window.__THIA_OS_PECAS_CONTINUAS__ = new Map();
+      window.__THIA_OS_PECAS_CONTINUAS_PRIMEIRO__ = '';
+      uxRenderResultadosOS();
+      busca?.focus?.();
+    }, 10);
   }
-
-  window.lancarPecaRapidaOS = function(chave){
-    const item = window.__THIA_OS_UX_PECAS__?.get?.(String(chave));
-    if (item) uxAdicionarLinhaRapidaOS(item);
+  function uxValorCampoOS(id){
+    return numBR(document.getElementById(id)?.value || 0);
+  }
+  function uxLancarItemOS(itemWrap){
+    if (!itemWrap) return;
+    const termo = String(document.getElementById('osBuscaPecaContinuaUX')?.value || '').trim();
+    const qtd = Math.max(uxValorCampoOS('osQtdPecaContinuaUX') || 1, 0.01);
+    const vendaManual = uxValorCampoOS('osVendaPecaContinuaUX');
+    let payload = null;
+    if (itemWrap.tipo === 'catalogo') payload = uxPayloadCatalogoOS(itemWrap.item, termo, qtd, vendaManual);
+    else if (itemWrap.tipo === 'estoque') payload = uxPayloadEstoqueOS(itemWrap.item, vendaManual, qtd);
+    else if (itemWrap.tipo === 'avulsa') payload = uxPayloadAvulsoOS(itemWrap.descricao || termo, qtd, vendaManual);
+    uxAdicionarPayloadOS(payload);
+  }
+  window.lancarPecaContinuaOS = function(chave){
+    const item = window.__THIA_OS_PECAS_CONTINUAS__?.get?.(String(chave));
+    if (item) uxLancarItemOS(item);
+  };
+  window.lancarDigitadoPecaContinuaOS = function(){
+    const termo = String(document.getElementById('osBuscaPecaContinuaUX')?.value || '').trim();
+    if (!termo) { uxToastOS('Digite a peça que deseja lançar.', 'warn'); return; }
+    const primeiro = String(window.__THIA_OS_PECAS_CONTINUAS_PRIMEIRO__ || '');
+    const item = primeiro ? window.__THIA_OS_PECAS_CONTINUAS__?.get?.(primeiro) : null;
+    if (item) uxLancarItemOS(item);
+    else uxLancarItemOS({ tipo:'avulsa', descricao:termo });
   };
 
-  function uxRenderResultadosOS(){
-    const box = document.getElementById('osPecasRapidasResultadosUX');
-    const input = document.getElementById('osBuscaPecaRapidaUX');
-    if (!box || !input) return;
-    if (uxClienteProtegidoOS()) { box.innerHTML = ''; return; }
-    const termoRaw = String(input.value || '').trim();
-    const termo = normalizarBuscaPecaOS(termoRaw);
+  function uxGruposCatalogoOS(catalogo){
+    return Array.from(new Set(catalogo.map(x => String(x.grupo || '').trim()).filter(Boolean))).sort((a,b) => a.localeCompare(b,'pt-BR'));
+  }
+  function uxRenderGruposOS(){
+    const box = document.getElementById('osGruposPecaContinuaUX');
+    if (!box) return;
     const cli = uxClienteAtualOS();
     const vei = uxVeiculoAtualOS();
-    const presets = (uxFrotistaOS(cli) && vei ? uxTabelaPrecosOS(cli).filter(p => uxPresetDoVeiculoOS(p, vei)) : [])
-      .filter(p => !termo || normalizarBuscaPecaOS([p.codigo, p.descricao, p.veiculoModelo].filter(Boolean).join(' ')).includes(termo))
-      .slice(0, 12);
-    const estoque = termo ? pecasEstoqueFiltradasOS(termoRaw, '', false).slice(0, 8) : [];
+    if (!uxFrotistaOS(cli)) { box.innerHTML = ''; return; }
+    const catalogo = uxCatalogoOS(cli).filter(item => uxCatalogoAplicavelOS(item, vei));
+    const grupos = uxGruposCatalogoOS(catalogo);
+    box.innerHTML = grupos.length ? `<button type="button" class="btn-outline os-grupo-peca-ux" data-grupo="" style="padding:5px 8px;font-size:.61rem;">TODOS</button>` + grupos.map(g => `<button type="button" class="btn-outline os-grupo-peca-ux" data-grupo="${uxEscOS(g)}" style="padding:5px 8px;font-size:.61rem;">${uxEscOS(g)}</button>`).join('') : '';
+    box.querySelectorAll('.os-grupo-peca-ux').forEach(btn => btn.addEventListener('click', () => {
+      box.dataset.grupoAtivo = btn.dataset.grupo || '';
+      box.querySelectorAll('.os-grupo-peca-ux').forEach(b => b.style.borderColor = '');
+      btn.style.borderColor = 'var(--cyan)';
+      uxRenderResultadosOS();
+      document.getElementById('osBuscaPecaContinuaUX')?.focus?.();
+    }));
+  }
+  function uxRenderResultadosOS(){
+    const box = document.getElementById('osResultadosPecaContinuaUX');
+    const input = document.getElementById('osBuscaPecaContinuaUX');
+    if (!box || !input || uxClienteProtegidoOS() || !uxRoleGestaoOS()) return;
+    const termoRaw = String(input.value || '').trim();
+    const termo = uxNormOS(termoRaw);
+    const cli = uxClienteAtualOS();
+    const vei = uxVeiculoAtualOS();
+    const grupoAtivo = String(document.getElementById('osGruposPecaContinuaUX')?.dataset.grupoAtivo || '');
     const mapa = new Map();
     const partes = [];
-    if (presets.length) {
-      partes.push(`<div style="grid-column:1/-1;font-family:var(--fm);font-size:.59rem;letter-spacing:.08em;color:var(--ok);margin-top:2px;">PREÇOS PRÉ-DEFINIDOS — ${uxEscOS(uxModeloLabelOS(vei))}</div>`);
-      presets.forEach((p, idx) => {
-        const key = 'preset_' + idx;
-        mapa.set(key, { tipo:'preset', item:p });
-        const estoqueLigado = !!uxAcharEstoqueParaPresetOS(p);
-        partes.push(`<div style="display:grid;grid-template-columns:1fr auto;gap:5px;min-width:0;"><button type="button" class="btn-outline" onclick="window.lancarPecaRapidaOS('${key}')" style="text-align:left;padding:8px 9px;min-width:0;border-color:rgba(34,197,94,.32);"><b>${uxEscOS(p.descricao || p.codigo || 'Peça')}</b><br><small style="color:var(--muted);">${uxEscOS(p.codigo || 'sem código')} • ${uxDinheiroOS(p.venda || 0)} • ${estoqueLigado ? 'estoque localizado' : 'avulsa automática'}</small></button><button type="button" class="btn-danger" onclick="window.excluirPrecoFrotistaOS('${uxEscOS(p.id)}')" title="Excluir preço pré-definido" style="padding:6px 8px;">×</button></div>`);
+    let primeiro = '';
+
+    if (uxFrotistaOS(cli)) {
+      let cat = uxCatalogoOS(cli).filter(item => uxCatalogoAplicavelOS(item, vei));
+      if (grupoAtivo) cat = cat.filter(item => String(item.grupo || '') === grupoAtivo);
+      if (termo) cat = cat.filter(item => uxTextoItemOS(item).includes(termo));
+      cat.slice(0, 20).forEach((item, idx) => {
+        const key = 'cat_' + idx;
+        if (!primeiro) primeiro = key;
+        mapa.set(key, {tipo:'catalogo',item});
+        const estoque = uxAcharEstoquePorCatalogoOS(item, termoRaw);
+        const codigos = uxCodigosItemOS(item);
+        partes.push(`<button type="button" class="btn-outline" onclick="window.lancarPecaContinuaOS('${key}')" style="text-align:left;padding:8px 9px;min-width:0;border-color:rgba(34,197,94,.34);"><b>${uxEscOS(item.categoria || item.descricao || 'Peça')}</b><br><small style="color:var(--muted);">${uxEscOS(item.grupo || 'Sem grupo')} • ${uxDinheiroOS(item.venda || 0)} • qtd ${numBR(item.qtdPadrao || 1) || 1}<br>${codigos.length ? uxEscOS(codigos.join(' • ')) : 'sem código'} • ${estoque ? 'estoque localizado' : 'avulsa automática'}</small></button>`);
       });
     }
-    if (estoque.length) {
-      partes.push(`<div style="grid-column:1/-1;font-family:var(--fm);font-size:.59rem;letter-spacing:.08em;color:var(--cyan);margin-top:3px;">ESTOQUE ENCONTRADO</div>`);
+
+    if (termo) {
+      const estoque = pecasEstoqueFiltradasOS(termoRaw, '', false).filter(uxEstoqueDisponivelOS).slice(0, 10);
       estoque.forEach((p, idx) => {
-        const key = 'estoque_' + idx;
-        mapa.set(key, { tipo:'estoque', item:p });
-        partes.push(`<button type="button" class="btn-outline" onclick="window.lancarPecaRapidaOS('${key}')" style="text-align:left;padding:8px 9px;min-width:0;"><b>${uxEscOS(p.desc || p.descricao || codigoPecaEstoqueOS(p) || 'Peça')}</b><br><small style="color:var(--muted);">${uxEscOS(codigoPecaEstoqueOS(p) || 'sem código')} • saldo ${numBR(p.qtd || 0)} • ${uxDinheiroOS(p.venda || p.precoVenda || 0)}</small></button>`);
+        const key = 'est_' + idx;
+        if (!primeiro) primeiro = key;
+        mapa.set(key,{tipo:'estoque',item:p});
+        partes.push(`<button type="button" class="btn-outline" onclick="window.lancarPecaContinuaOS('${key}')" style="text-align:left;padding:8px 9px;min-width:0;"><b>${uxEscOS(p.desc || p.descricao || codigoPecaEstoqueOS(p) || 'Peça')}</b><br><small style="color:var(--muted);">${uxEscOS(codigoPecaEstoqueOS(p) || 'sem código')} • estoque ${numBR(p.qtd || 0)} • ${uxDinheiroOS(p.venda || p.precoVenda || 0)}</small></button>`);
       });
-    }
-    if (termoRaw) {
       const key = 'avulsa';
-      mapa.set(key, { tipo:'avulsa', descricao:termoRaw });
-      partes.push(`<button type="button" class="btn-outline" onclick="window.lancarPecaRapidaOS('${key}')" style="text-align:left;padding:8px 9px;border-style:dashed;"><b>+ Lançar avulsa: ${uxEscOS(termoRaw)}</b><br><small style="color:var(--muted);">Cria a linha pronta para informar apenas o valor, sem procurar no estoque.</small></button>`);
+      mapa.set(key,{tipo:'avulsa',descricao:termoRaw});
+      partes.push(`<button type="button" class="btn-outline" onclick="window.lancarPecaContinuaOS('${key}')" style="text-align:left;padding:8px 9px;border-style:dashed;"><b>+ Lançar avulsa: ${uxEscOS(termoRaw)}</b><br><small style="color:var(--muted);">Não precisa procurar em outra tela. Informe o preço no campo acima se desejar.</small></button>`);
+      if (!primeiro) primeiro = key;
     }
-    window.__THIA_OS_UX_PECAS__ = mapa;
-    box.innerHTML = partes.join('') || `<div style="grid-column:1/-1;color:var(--muted);font-size:.7rem;padding:5px 0;">${vei && uxFrotistaOS(cli) ? 'Nenhum preço pré-definido ainda para este modelo. Lance a peça uma vez e use “Salvar preço do frotista”.' : 'Digite uma peça, código, fornecedor ou NF para lançar sem navegar pelo estoque.'}</div>`;
+
+    window.__THIA_OS_PECAS_CONTINUAS__ = mapa;
+    window.__THIA_OS_PECAS_CONTINUAS_PRIMEIRO__ = primeiro;
+    if (partes.length) box.innerHTML = partes.join('');
+    else if (uxFrotistaOS(cli)) box.innerHTML = `<div style="grid-column:1/-1;color:var(--muted);font-size:.68rem;padding:5px 0;">${vei ? 'Digite uma peça ou escolha um grupo acima. A tabela cadastrada no cliente fica disponível aqui.' : 'Selecione o veículo da frota para aplicar a tabela correta.'}</div>`;
+    else box.innerHTML = '<div style="grid-column:1/-1;color:var(--muted);font-size:.68rem;padding:5px 0;">Digite a peça. O Jarvis procura no estoque local e, se não existir, permite lançar avulsa imediatamente.</div>';
   }
 
   function uxAtualizarContextoOS(){
-    const contexto = document.getElementById('osPecasRapidasContextoUX');
+    const contexto = document.getElementById('osContextoPecaContinuaUX');
     if (!contexto) return;
     const cli = uxClienteAtualOS();
     const vei = uxVeiculoAtualOS();
     const frotista = uxFrotistaOS(cli);
+    const itens = frotista ? uxCatalogoOS(cli).filter(x => uxCatalogoAplicavelOS(x, vei)).length : 0;
     contexto.innerHTML = [
       cli ? `<b>${uxEscOS(cli.nome || 'Cliente')}</b>` : 'Selecione o cliente',
-      frotista ? '<span style="color:var(--ok);font-weight:700;">FROTISTA</span>' : 'cliente comum',
-      vei ? uxEscOS([vei.modelo, vei.placa].filter(Boolean).join(' • ')) : 'selecione o veículo'
+      frotista ? `<span style="color:var(--ok);font-weight:800;">FROTISTA • ${itens} item(ns) cadastrados</span>` : 'cliente comum',
+      vei ? uxEscOS([vei.placa, vei.modelo].filter(Boolean).join(' • ')) : 'selecione o veículo'
     ].join(' &nbsp;•&nbsp; ');
+    uxRenderGruposOS();
     uxRenderResultadosOS();
-    uxInstalarAcoesPrecosOS();
   }
 
   window.atualizarUsabilidadePecasOS = function(){
     const cont = document.getElementById('containerPecasOS');
     if (!cont) return;
-    let painel = document.getElementById('osPecasRapidasUX');
+    let painel = document.getElementById('osPecasContinuasUX');
     const protegido = uxClienteProtegidoOS();
     const agrupadoCilia = !!cont.querySelector('.cilia-peca-wrap');
-    if (protegido || agrupadoCilia) {
+    if (!uxRoleGestaoOS() || protegido || agrupadoCilia) {
       painel?.remove();
-      cont.querySelectorAll('.os-preco-frotista-acoes').forEach(el => el.remove());
+      uxRestaurarAcionadoresAntigosOS();
       return;
     }
+    uxOcultarAcionadoresAntigosOS();
+    uxLimparLinhasVaziasOS();
     if (!painel) {
       painel = document.createElement('div');
-      painel.id = 'osPecasRapidasUX';
-      painel.style.cssText = 'margin:0 0 12px;padding:12px;border:1px solid rgba(34,211,238,.22);background:linear-gradient(135deg,rgba(34,211,238,.045),rgba(34,197,94,.035));border-radius:8px;';
+      painel.id = 'osPecasContinuasUX';
+      painel.style.cssText = 'position:sticky;top:0;z-index:12;margin:0 0 10px;padding:11px;border:1px solid rgba(34,211,238,.28);background:rgba(15,23,42,.97);backdrop-filter:blur(8px);border-radius:8px;box-shadow:0 5px 18px rgba(0,0,0,.18);';
       painel.innerHTML = `
-        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px;">
-          <div><div style="font-family:var(--fm);font-size:.7rem;font-weight:800;letter-spacing:.08em;">LANÇAMENTO RÁPIDO DE PEÇAS</div><div id="osPecasRapidasContextoUX" style="margin-top:3px;color:var(--muted);font-size:.67rem;"></div></div>
-          <small style="color:var(--muted);max-width:390px;line-height:1.35;">Busca estoque e preços do frotista em um único campo. O lançamento detalhado atual continua disponível logo abaixo.</small>
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:7px;">
+          <div><div style="font-family:var(--fm);font-size:.7rem;font-weight:900;letter-spacing:.07em;">LANÇAR PEÇAS — JARVIS</div><div id="osContextoPecaContinuaUX" style="margin-top:3px;color:var(--muted);font-size:.65rem;"></div></div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end;"><small style="color:var(--muted);font-size:.63rem;line-height:1.3;max-width:290px;">Digite e pressione Enter. O cursor volta para a próxima peça.</small><button type="button" id="osModoDetalhadoPecasUX" class="btn-outline" style="padding:5px 8px;font-size:.58rem;">MODO DETALHADO</button></div>
         </div>
-        <input id="osBuscaPecaRapidaUX" class="j-input" type="search" autocomplete="off" placeholder="Digite: filtro de óleo, pastilha, código, fornecedor ou NF..." style="width:100%;font-size:.84rem;min-height:44px;">
-        <div id="osPecasRapidasResultadosUX" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:7px;margin-top:8px;"></div>`;
+        <div id="osGruposPecaContinuaUX" style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:7px;"></div>
+        <div style="display:grid;grid-template-columns:minmax(210px,1fr) 70px 95px auto;gap:6px;align-items:center;">
+          <input id="osBuscaPecaContinuaUX" class="j-input" type="search" autocomplete="off" placeholder="Peça, categoria ou código..." style="min-height:42px;font-size:.82rem;">
+          <input id="osQtdPecaContinuaUX" class="j-input" type="number" min="0.01" step="0.01" value="1" title="Quantidade" style="min-height:42px;text-align:center;">
+          <input id="osVendaPecaContinuaUX" class="j-input" inputmode="decimal" placeholder="R$ venda" title="Preço opcional. Frotista usa o preço cadastrado quando este campo estiver vazio." style="min-height:42px;">
+          <button type="button" id="osAdicionarPecaContinuaUX" class="btn btn-success" style="min-height:42px;white-space:nowrap;">+ ADICIONAR</button>
+        </div>
+        <div id="osResultadosPecaContinuaUX" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:6px;margin-top:7px;max-height:210px;overflow:auto;"></div>`;
       cont.insertAdjacentElement('beforebegin', painel);
-      painel.querySelector('#osBuscaPecaRapidaUX')?.addEventListener('input', uxRenderResultadosOS);
+      const busca = painel.querySelector('#osBuscaPecaContinuaUX');
+      busca?.addEventListener('input', uxRenderResultadosOS);
+      busca?.addEventListener('keydown', ev => {
+        if (ev.key !== 'Enter' || ev.shiftKey || ev.ctrlKey || ev.altKey) return;
+        ev.preventDefault();
+        window.lancarDigitadoPecaContinuaOS?.();
+      });
+      painel.querySelector('#osAdicionarPecaContinuaUX')?.addEventListener('click', () => window.lancarDigitadoPecaContinuaOS?.());
+      painel.querySelector('#osModoDetalhadoPecasUX')?.addEventListener('click', () => {
+        painel.dataset.modoDetalhado = painel.dataset.modoDetalhado === '1' ? '0' : '1';
+        uxAplicarVisualCompactoLinhasOS();
+      });
     }
-    if (!cont.__thiaUxObserver) {
-      cont.__thiaUxObserver = new MutationObserver(() => setTimeout(uxInstalarAcoesPrecosOS, 0));
-      cont.__thiaUxObserver.observe(cont, { childList:true, subtree:false });
-    }
+    uxAplicarVisualCompactoLinhasOS();
     uxAtualizarContextoOS();
   };
 
   document.addEventListener('change', ev => {
-    if (ev.target?.id === 'osCliente' || ev.target?.id === 'osVeiculo' || ev.target?.id === 'osTipoVeiculo') {
-      setTimeout(() => window.atualizarUsabilidadePecasOS?.(), 0);
-    }
+    if (ev.target?.id === 'osCliente' || ev.target?.id === 'osVeiculo' || ev.target?.id === 'osTipoVeiculo') setTimeout(() => window.atualizarUsabilidadePecasOS?.(), 0);
   });
 
-  if (typeof window.prepOS === 'function' && !window.prepOS.__thiaUxPecasClienteComum) {
+  if (typeof window.prepOS === 'function' && !window.prepOS.__thiaUxPecasContinuasJarvis) {
     const originalPrepOSUX = window.prepOS;
     const wrappedPrepOSUX = function(){
       const retorno = originalPrepOSUX.apply(this, arguments);
-      setTimeout(() => window.atualizarUsabilidadePecasOS?.(), 40);
+      setTimeout(() => window.atualizarUsabilidadePecasOS?.(), 50);
       return retorno;
     };
-    wrappedPrepOSUX.__thiaUxPecasClienteComum = true;
+    wrappedPrepOSUX.__thiaUxPecasContinuasJarvis = true;
     wrappedPrepOSUX.__original = originalPrepOSUX;
     window.prepOS = wrappedPrepOSUX;
   }
 
-  const iniciar = () => setTimeout(() => window.atualizarUsabilidadePecasOS?.(), 80);
+  const iniciar = () => setTimeout(() => window.atualizarUsabilidadePecasOS?.(), 90);
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
   else iniciar();
 })();

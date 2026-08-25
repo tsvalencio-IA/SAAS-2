@@ -1,67 +1,93 @@
-thIAguinho Soluções Digitais — Alterações O.S. cliente comum / Frotista / PDF / XML
+thIAguinho Soluções Digitais — SAAS Oficina
+Atualização: Frotista V2 + lançamento contínuo de peças no Jarvis
 Data: 25/08/2026
 
 ARQUIVOS ALTERADOS
-- js/os.js
 - js/clientes.js
+- js/os.js
 - js/nfe-real-pro.js
 
-1) O.S. — CLIENTE NÃO OFICIAL
-- Adicionada camada de LANÇAMENTO RÁPIDO DE PEÇAS antes do lançamento detalhado existente.
-- A busca rápida procura em estoque por descrição, código, fornecedor ou NF.
-- Se não localizar estoque, permite criar peça avulsa diretamente com a descrição digitada.
-- O lançamento detalhado anterior foi preservado integralmente.
-- A camada nova é removida/bloqueada para cliente oficial/governo.
+1) CADASTRO DE FROTISTA — JARVIS / GESTÃO
+- A opção Cliente comum / Frotista foi tornada compatível com a estrutura real do modal de clientes do Jarvis.
+- Recurso restrito a admin/gestor/gerente/superadmin.
+- Cliente oficial/governo permanece fora do recurso e não recebe alteração de categoria.
+- Clientes frotistas aparecem com identificação FROTISTA e botão FROTA na listagem.
 
-2) CLIENTE FROTISTA
-- Nova categoria comercial: Cliente comum / Frotista.
-- Para Frotista, uma peça lançada pode ter seu preço salvo por MODELO do veículo.
-- Exemplo: BRITO + Chevrolet Montana + Filtro de óleo + valor definido.
-- Nas próximas O.S. do mesmo cliente/modelo, o preço aparece antes do estoque.
-- Ao usar preço pré-definido, o sistema tenta localizar estoque automaticamente.
-- Se houver estoque, mantém vínculo/baixa pela rotina existente.
-- Se não houver, cria lançamento avulso automaticamente, sem obrigar o usuário a escolher “sem estoque”.
-- É possível atualizar o preço salvando novamente ou excluir o preço na busca rápida.
-- Os preços ficam no campo tabelaPrecosOS do próprio documento do cliente, sem nova collection.
+2) VEÍCULOS DA FROTA
+- A ligação continua usando a estrutura existente e segura: veiculos.clienteId -> cliente.id.
+- Dentro do painel do frotista são exibidos todos os veículos já vinculados.
+- Botão + VEÍCULO DA FROTA abre o cadastro de veículo com o frotista já selecionado como proprietário.
+- Não foi criada coleção duplicada de vínculo de frota.
 
-3) CLIENTE OFICIAL / GOVERNO
-- Nenhuma nova categoria, tabela rápida ou preço frotista é aplicado.
-- Fluxo de peças oficial permanece no caminho anterior.
-- PDF oficial permanece com a estrutura anterior.
-- Proteções de peças reais/NF e demais regras existentes não foram removidas.
+3) TABELA DE PEÇAS DO FROTISTA
+Cadastro administrativo dentro do cliente frotista:
+- Grupo (ex.: Filtros, Freios, Suspensão)
+- Categoria/peça (ex.: Filtro de óleo)
+- Vários códigos equivalentes (separados por vírgula, ponto e vírgula ou linha)
+- Aplicação: toda a frota, por modelo ou veículo específico
+- Quantidade padrão
+- Preço de venda específico do frotista
 
-4) PDF — CLIENTE NÃO OFICIAL
-- Cabeçalho simplificado e título “ORÇAMENTO”.
-- Removidos do cabeçalho público: número da O.S., status, chassi, prefixo/patrimônio e fiscal do contrato.
-- Removido o quadro “RESUMO POR SEÇÃO DE MÃO DE OBRA”.
-- Códigos das peças não são exibidos na tabela PEÇAS / MATERIAIS.
-- Rodapé não exibe número da O.S.
-- Espaçamentos finais e entre tabelas foram reduzidos somente no PDF de cliente não oficial para aproveitar melhor a página e reduzir quebras desnecessárias.
+Os itens ficam no campo catalogoPecasFrotista do próprio documento do cliente.
+Não existe consulta Firebase enquanto o gestor digita ou pesquisa peças.
+A gravação ocorre apenas quando o gestor clica explicitamente em SALVAR PEÇA DO FROTISTA / editar / excluir.
 
-5) XML / NF-e — QUANTIDADE REAL
-- JOGO/KIT de pastilha: fator operacional 1.
-- Unidade JG/JOGO/KIT: permanece como 1 conjunto operacional.
-- PAR/PARES com quantidade fiscal 1: fator operacional 2.
-- Disco de freio com quantidade fiscal 1: sugestão operacional 2.
-- Disco de freio quando XML já informa quantidade 2: não duplica novamente.
-- Quantidade operacional continua editável manualmente na tela antes de salvar.
+4) LANÇAMENTO DE PEÇAS NA O.S. — SOMENTE JARVIS/GESTÃO
+- Para cliente não oficial, o gestor recebe um lançamento contínuo de peças.
+- Digita peça/categoria/código e pressiona Enter; a peça entra e o cursor volta para o campo para a próxima.
+- Também pode clicar diretamente em categorias cadastradas.
+- Grupos do frotista aparecem como atalhos.
+- Pesquisa usa apenas J.estoque e o catálogo do cliente que já estão carregados em memória.
+- Nenhum get/getDocs/where/onSnapshot/collection é executado pela pesquisa rápida.
+- Se um dos códigos equivalentes cadastrados existir no estoque e tiver saldo, o item é vinculado ao estoque.
+- Se nenhum código equivalente estiver disponível, a peça é lançada avulsa automaticamente com o preço cadastrado.
+- Para cliente comum, a mesma entrada contínua procura localmente no estoque; não achando, permite avulsa sem trocar de tela.
+- O acionador antigo de “adicionar peça” fica oculto no fluxo rápido, mas a lógica original não foi apagada.
+- Linhas de estoque ficam visualmente compactas. Existe MODO DETALHADO para revelar os controles antigos da linha quando necessário.
 
-TESTES EXECUTADOS
-- node --check js/os.js: OK
+5) MECÂNICO
+- O novo cadastro de frotista e o lançamento contínuo administrativo não são expostos a mecânico.
+- O recurso é limitado a admin/gestor/gerente/superadmin no Jarvis.
+
+6) CLIENTE OFICIAL
+- O fluxo novo verifica cliente oficial/governo e sai imediatamente.
+- O cliente oficial não recebe painel de frotista, tabela comercial ou lançamento contínuo novo.
+- Nenhuma função original do fluxo oficial foi removida.
+
+7) PDF / ORÇAMENTO NÃO OFICIAL
+Mantidas as alterações solicitadas na atualização anterior:
+- sem número da O.S. no cabeçalho/rodapé do orçamento não oficial
+- sem códigos das peças no PDF do cliente comum
+- sem resumo agrupado de serviços
+- cabeçalho mais limpo
+- compactação de espaços para reduzir número de folhas quando possível
+- cliente oficial preserva o caminho anterior
+
+8) XML / QUANTIDADES OPERACIONAIS
+Mantida a correção anterior:
+- jogo/kit de pastilha = 1 conjunto operacional
+- disco de freio com quantidade fiscal 1 = sugestão de 2 unidades
+- disco com quantidade fiscal 2 permanece 2 no total (fator 1)
+- PAR/PARES com quantidade fiscal 1 = 2
+- descrição explicitamente unitária de disco = 1
+- quantidade operacional permanece editável manualmente
+
+9) FIREBASE / CUSTO DE LEITURAS
+- O lançamento da O.S. não possui nova chamada Firestore durante pesquisa/digitação.
+- O catálogo do frotista usa o documento do cliente já carregado.
+- Uma gravação ocorre ao salvar/editar/excluir item da tabela do frotista.
+- Não foi criada tabela temporária, listener contínuo ou pesquisa remota por tecla.
+
+VALIDAÇÕES EXECUTADAS
 - node --check js/clientes.js: OK
+- node --check js/os.js: OK
 - node --check js/nfe-real-pro.js: OK
-- Integridade dos 3 arquivos de origem dentro do ZIP enviado: OK
-- Casos XML testados:
-  * Jogo de pastilha = 1: OK
-  * Kit de pastilha = 1: OK
-  * Disco de freio qFiscal 1 => fator 2: OK
-  * Disco de freio qFiscal 2 => fator 1 (total continua 2): OK
-  * Par qFiscal 1 => fator 2: OK
-  * Jogo de junta => fator 1: OK
+- comparação de funções com a base original:
+  clientes.js: nenhuma função original removida
+  os.js: nenhuma função original removida
+  nfe-real-pro.js: nenhuma função original removida
+- teste de quantidades XML: jogo pastilha, kit pastilha, disco 1, disco 2, disco unitário, par e peça comum: OK
+- auditoria estática do lançamento contínuo: zero chamadas Firestore no bloco de pesquisa/lançamento da O.S.
 
-OBSERVAÇÃO SOBRE O ZIP ORIGINAL
-O ZIP enviado possui corrupção estrutural em outras entradas (inclusive HTMLs grandes/catálogos), mas os 3 arquivos alterados acima foram testados individualmente no ZIP original e estão íntegros. Por segurança, este pacote contém SOMENTE os arquivos alterados, e não uma reconstrução parcial do projeto.
-
-FIREBASE
-A implementação não cria collection nova: a tabela do frotista é gravada no documento já existente em clientes/{clienteId}.
-O arquivo firebase/firestore.rules do ZIP não pôde ser auditado porque está entre as entradas afetadas pela corrupção estrutural do pacote. Portanto, não foi feita nenhuma alteração de regras por conta própria.
+IMPORTANTE
+O ZIP-base enviado originalmente possui entradas estruturalmente corrompidas, incluindo HTMLs grandes. Por isso esta entrega contém somente os arquivos JS alterados e íntegros, para substituir na mesma estrutura do projeto atual.

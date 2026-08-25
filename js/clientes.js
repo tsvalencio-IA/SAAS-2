@@ -44,7 +44,8 @@ async function exclusaoAuditadaClientes(collection, id, label, modulo) {
 }
 
 // ============================================================
-// CLIENTES — CATEGORIA COMERCIAL (somente clientes NÃO oficiais)
+// CLIENTES — FROTISTA / FROTA / CATÁLOGO COMERCIAL (JARVIS)
+// Somente gestor/gerente/admin. Cliente oficial permanece protegido.
 // ============================================================
 function clienteOficialProtegidoCadastro(c) {
   if (!c) return false;
@@ -55,27 +56,179 @@ function clienteOficialProtegidoCadastro(c) {
   return /OFICIAL|GOVERNO|PMSP|POLICIA|MILITAR|BPM|PREFEITURA|ESTADO|MUNICIP|SECRETARIA|ORGAO PUBLICO/.test(texto);
 }
 
+function podeGerenciarFrotistaCadastro() {
+  const role = String(window.J?.role || sessionStorage.getItem('j_role') || '').toLowerCase();
+  return ['admin','gestor','gerente','superadmin'].includes(role);
+}
+
+function escFrotistaCadastro(v) {
+  return String(v ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function normalizarFrotistaCadastro(v) {
+  return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+
+function clienteEdicaoAtualFrotista() {
+  const id = String(_v('cliId') || '');
+  return (window.J?.clientes || []).find(c => String(c.id) === id) || null;
+}
+
+function catalogoFrotistaCliente(c) {
+  return Array.isArray(c?.catalogoPecasFrotista) ? c.catalogoPecasFrotista.slice() : [];
+}
+
+function veiculosFrotistaCliente(c) {
+  if (!c?.id) return [];
+  return (window.J?.veiculos || []).filter(v => String(v.clienteId || '') === String(c.id));
+}
+
+function modalClienteHostFrotista() {
+  const modal = document.getElementById('modalCliente');
+  if (!modal) return null;
+  return modal.querySelector('.modal-body,.modal-content,.modal-card,.j-modal-card,.modal-inner') || modal.firstElementChild || modal;
+}
+
 function garantirCategoriaComercialCliente() {
-  const body = document.querySelector('#modalCliente .modal-body');
-  if (!body) return null;
+  const host = modalClienteHostFrotista();
+  if (!host || !podeGerenciarFrotistaCadastro()) return null;
   let wrap = document.getElementById('cliCategoriaComercialWrap');
   if (wrap) return wrap;
   wrap = document.createElement('div');
   wrap.id = 'cliCategoriaComercialWrap';
   wrap.className = 'form-group';
-  wrap.style.cssText = 'margin-top:10px;padding:10px;border:1px solid rgba(34,197,94,.22);background:rgba(34,197,94,.045);border-radius:6px;';
+  wrap.style.cssText = 'margin:12px 0;padding:12px;border:1px solid rgba(34,197,94,.28);background:rgba(34,197,94,.055);border-radius:8px;';
   wrap.innerHTML = `
-    <label class="j-label" for="cliCategoriaComercial">Categoria comercial</label>
-    <select class="j-select" id="cliCategoriaComercial">
-      <option value="comum">Cliente comum</option>
-      <option value="frotista">Frotista</option>
-    </select>
-    <small style="display:block;margin-top:6px;color:var(--muted);font-size:.67rem;line-height:1.4;">Frotista habilita tabela de preços por modelo de veículo dentro da O.S. normal. Esta opção não existe e não é aplicada a cliente oficial.</small>`;
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;">
+      <div>
+        <label class="j-label" for="cliCategoriaComercial" style="margin:0;">Tipo comercial do cliente</label>
+        <small style="display:block;margin-top:4px;color:var(--muted);font-size:.67rem;line-height:1.35;">Cadastro administrativo do Jarvis. Não altera cliente oficial.</small>
+      </div>
+      <select class="j-select" id="cliCategoriaComercial" style="min-width:180px;">
+        <option value="comum">Cliente comum</option>
+        <option value="frotista">Frotista</option>
+      </select>
+    </div>`;
   const nome = document.getElementById('cliNome');
   const anchor = nome?.closest('.form-group') || nome?.parentElement;
-  if (anchor?.parentElement === body) anchor.insertAdjacentElement('afterend', wrap);
-  else body.prepend(wrap);
+  if (anchor && anchor.parentElement) anchor.insertAdjacentElement('afterend', wrap);
+  else host.appendChild(wrap);
+  wrap.querySelector('#cliCategoriaComercial')?.addEventListener('change', () => atualizarPainelFrotistaCliente(clienteEdicaoAtualFrotista()));
   return wrap;
+}
+
+function opcoesAplicacaoCatalogoFrotista(c, atual = {}) {
+  const veics = veiculosFrotistaCliente(c);
+  const atualTipo = String(atual.aplicacaoTipo || 'todos');
+  const atualValor = String(atual.aplicacaoValor || atual.veiculoModeloKey || atual.veiculoId || '');
+  let html = `<option value="todos:*" ${atualTipo === 'todos' ? 'selected' : ''}>Todos os veículos da frota</option>`;
+  const modelos = new Map();
+  veics.forEach(v => {
+    const label = [v.marca, v.modelo].filter(Boolean).join(' ').trim() || v.modelo || v.placa || 'Veículo';
+    const key = normalizarFrotistaCadastro(label);
+    if (key && !modelos.has(key)) modelos.set(key, label);
+  });
+  if (modelos.size) {
+    html += '<optgroup label="Por modelo">';
+    modelos.forEach((label, key) => {
+      const sel = atualTipo === 'modelo' && atualValor === key ? 'selected' : '';
+      html += `<option value="modelo:${escFrotistaCadastro(key)}" ${sel}>Modelo: ${escFrotistaCadastro(label)}</option>`;
+    });
+    html += '</optgroup>';
+  }
+  if (veics.length) {
+    html += '<optgroup label="Por veículo específico">';
+    veics.forEach(v => {
+      const value = String(v.id || '');
+      const label = [v.placa, v.modelo].filter(Boolean).join(' • ') || 'Veículo';
+      const sel = atualTipo === 'veiculo' && atualValor === value ? 'selected' : '';
+      html += `<option value="veiculo:${escFrotistaCadastro(value)}" ${sel}>${escFrotistaCadastro(label)}</option>`;
+    });
+    html += '</optgroup>';
+  }
+  return html;
+}
+
+function garantirPainelFrotistaCliente() {
+  const host = modalClienteHostFrotista();
+  if (!host || !podeGerenciarFrotistaCadastro()) return null;
+  let painel = document.getElementById('cliFrotistaPainel');
+  if (painel) return painel;
+  painel = document.createElement('section');
+  painel.id = 'cliFrotistaPainel';
+  painel.style.cssText = 'display:none;margin:12px 0 4px;padding:13px;border:1px solid rgba(34,211,238,.24);background:linear-gradient(135deg,rgba(34,211,238,.045),rgba(34,197,94,.035));border-radius:8px;';
+  painel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+      <div>
+        <div style="font-weight:800;font-size:.78rem;letter-spacing:.05em;">GESTÃO DO FROTISTA</div>
+        <div id="cliFrotistaResumo" style="font-size:.68rem;color:var(--muted);margin-top:3px;"></div>
+      </div>
+      <button type="button" id="cliFrotistaNovoVeiculo" class="btn btn-ghost btn-sm">+ VEÍCULO DA FROTA</button>
+    </div>
+    <div id="cliFrotistaVeiculos" style="margin-top:10px;"></div>
+    <div style="height:1px;background:rgba(255,255,255,.08);margin:12px 0;"></div>
+    <div style="font-weight:700;font-size:.72rem;margin-bottom:6px;">Tabela de peças e preços deste frotista</div>
+    <div style="font-size:.66rem;color:var(--muted);line-height:1.4;margin-bottom:9px;">Cadastre por grupo e categoria. Uma categoria pode ter vários códigos equivalentes. Na O.S. o Jarvis usa esta tabela localmente e tenta localizar algum desses códigos no estoque já carregado; se não houver, lança avulso com o preço do frotista.</div>
+    <input type="hidden" id="cliFrotistaItemId" value="">
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;" id="cliFrotistaFormGrid">
+      <div><label class="j-label">Grupo</label><input id="cliFrotistaGrupo" class="j-input" placeholder="Ex.: Filtros"></div>
+      <div><label class="j-label">Categoria / peça</label><input id="cliFrotistaCategoria" class="j-input" placeholder="Ex.: Filtro de óleo"></div>
+      <div style="grid-column:1/-1;"><label class="j-label">Códigos equivalentes</label><textarea id="cliFrotistaCodigos" class="j-input" rows="2" placeholder="Ex.: W712/75, PSL55, OC90 — separados por vírgula, ponto e vírgula ou linha"></textarea></div>
+      <div><label class="j-label">Aplicação</label><select id="cliFrotistaAplicacao" class="j-select"></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;"><div><label class="j-label">Qtd. padrão</label><input id="cliFrotistaQtd" class="j-input" type="number" min="0.01" step="0.01" value="1"></div><div><label class="j-label">Preço venda</label><input id="cliFrotistaVenda" class="j-input" inputmode="decimal" placeholder="0,00"></div></div>
+    </div>
+    <div style="display:flex;gap:7px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap;">
+      <button type="button" id="cliFrotistaCancelarItem" class="btn btn-ghost btn-sm" style="display:none;">CANCELAR EDIÇÃO</button>
+      <button type="button" id="cliFrotistaSalvarItem" class="btn btn-success btn-sm">SALVAR PEÇA DO FROTISTA</button>
+    </div>
+    <div id="cliFrotistaCatalogo" style="display:grid;gap:7px;margin-top:11px;"></div>`;
+  const categoriaWrap = document.getElementById('cliCategoriaComercialWrap');
+  if (categoriaWrap?.parentElement) categoriaWrap.insertAdjacentElement('afterend', painel);
+  else host.appendChild(painel);
+  painel.querySelector('#cliFrotistaSalvarItem')?.addEventListener('click', () => window.salvarItemCatalogoFrotistaCliente?.());
+  painel.querySelector('#cliFrotistaCancelarItem')?.addEventListener('click', () => window.limparFormCatalogoFrotistaCliente?.());
+  painel.querySelector('#cliFrotistaNovoVeiculo')?.addEventListener('click', () => window.novoVeiculoFrotistaCliente?.());
+  return painel;
+}
+
+function renderVeiculosFrotistaCliente(c) {
+  const box = document.getElementById('cliFrotistaVeiculos');
+  if (!box) return;
+  if (!c?.id) {
+    box.innerHTML = '<div style="font-size:.68rem;color:var(--warn);padding:8px;border:1px dashed rgba(255,193,7,.3);border-radius:6px;">Salve o cliente como Frotista primeiro. Depois os veículos e a tabela de peças poderão ser vinculados.</div>';
+    return;
+  }
+  const veics = veiculosFrotistaCliente(c);
+  box.innerHTML = `<div style="font-size:.65rem;color:var(--muted);margin-bottom:6px;">VEÍCULOS VINCULADOS (${veics.length})</div>` + (veics.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">${veics.map(v => `<span class="badge badge-brand" style="padding:6px 8px;">${escFrotistaCadastro(v.placa || 'sem placa')} • ${escFrotistaCadastro(v.modelo || 'modelo não informado')}</span>`).join('')}</div>` : '<div style="font-size:.68rem;color:var(--muted);">Nenhum veículo vinculado. Use “+ Veículo da frota”.</div>');
+}
+
+function renderCatalogoFrotistaCliente(c) {
+  const box = document.getElementById('cliFrotistaCatalogo');
+  if (!box) return;
+  const cat = catalogoFrotistaCliente(c);
+  if (!cat.length) {
+    box.innerHTML = '<div style="font-size:.68rem;color:var(--muted);padding:8px;border:1px dashed rgba(255,255,255,.12);border-radius:6px;">Nenhuma peça cadastrada para este frotista.</div>';
+    return;
+  }
+  const grupos = new Map();
+  cat.forEach(item => {
+    const grupo = String(item.grupo || 'Sem grupo').trim() || 'Sem grupo';
+    if (!grupos.has(grupo)) grupos.set(grupo, []);
+    grupos.get(grupo).push(item);
+  });
+  box.innerHTML = Array.from(grupos.entries()).map(([grupo, itens]) => `
+    <div style="border:1px solid rgba(255,255,255,.09);border-radius:7px;padding:8px;">
+      <div style="font-size:.64rem;font-weight:800;letter-spacing:.07em;color:var(--cyan);margin-bottom:6px;">${escFrotistaCadastro(grupo.toUpperCase())}</div>
+      <div style="display:grid;gap:6px;">${itens.map(item => {
+        const codigos = Array.isArray(item.codigos) ? item.codigos : [];
+        const aplic = item.aplicacaoLabel || (item.aplicacaoTipo === 'todos' ? 'Toda a frota' : item.veiculoModelo || item.veiculoPlaca || 'Aplicação específica');
+        const venda = Number(item.venda || 0);
+        return `<div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:7px;background:rgba(0,0,0,.12);border-radius:6px;">
+          <div style="min-width:0;"><b style="font-size:.72rem;">${escFrotistaCadastro(item.categoria || item.descricao || 'Peça')}</b><div style="font-size:.63rem;color:var(--muted);margin-top:2px;line-height:1.35;">${escFrotistaCadastro(aplic)} • Qtd ${escFrotistaCadastro(item.qtdPadrao || 1)} • R$ ${venda.toFixed(2).replace('.',',')}<br>${codigos.length ? 'Códigos: ' + escFrotistaCadastro(codigos.join(' • ')) : 'Sem código definido'}</div></div>
+          <div style="display:flex;gap:5px;"><button type="button" class="btn btn-ghost btn-sm" onclick="window.editarItemCatalogoFrotistaCliente('${escFrotistaCadastro(item.id)}')">✏</button><button type="button" class="btn btn-danger btn-sm" onclick="window.excluirItemCatalogoFrotistaCliente('${escFrotistaCadastro(item.id)}')">×</button></div>
+        </div>`;
+      }).join('')}</div>
+    </div>`).join('');
 }
 
 function atualizarCategoriaComercialCliente(c) {
@@ -88,14 +241,146 @@ function atualizarCategoriaComercialCliente(c) {
   if (protegido) {
     sel.value = 'comum';
     sel.disabled = true;
-    return;
+  } else {
+    sel.disabled = false;
+    const categoria = String(c?.categoriaComercial || (c?.frotista === true ? 'frotista' : 'comum')).toLowerCase();
+    sel.value = categoria === 'frotista' ? 'frotista' : 'comum';
   }
-  sel.disabled = false;
-  const categoria = String(c?.categoriaComercial || (c?.frotista === true ? 'frotista' : 'comum')).toLowerCase();
-  sel.value = categoria === 'frotista' ? 'frotista' : 'comum';
+  atualizarPainelFrotistaCliente(c);
 }
 window.atualizarCategoriaComercialCliente = atualizarCategoriaComercialCliente;
 
+function atualizarPainelFrotistaCliente(c) {
+  const painel = garantirPainelFrotistaCliente();
+  if (!painel) return;
+  const protegido = clienteOficialProtegidoCadastro(c);
+  const frotista = !protegido && String(document.getElementById('cliCategoriaComercial')?.value || (c?.frotista ? 'frotista' : 'comum')).toLowerCase() === 'frotista';
+  painel.style.display = frotista ? '' : 'none';
+  if (!frotista) return;
+  const resumo = document.getElementById('cliFrotistaResumo');
+  if (resumo) resumo.textContent = c?.id ? `${veiculosFrotistaCliente(c).length} veículo(s) vinculados • ${catalogoFrotistaCliente(c).length} item(ns) na tabela` : 'Novo frotista — salve o cliente para habilitar vínculos e catálogo.';
+  const aplic = document.getElementById('cliFrotistaAplicacao');
+  if (aplic) aplic.innerHTML = opcoesAplicacaoCatalogoFrotista(c || {});
+  renderVeiculosFrotistaCliente(c);
+  renderCatalogoFrotistaCliente(c);
+}
+window.atualizarPainelFrotistaCliente = atualizarPainelFrotistaCliente;
+
+window.limparFormCatalogoFrotistaCliente = function() {
+  _sv('cliFrotistaItemId','');
+  _sv('cliFrotistaGrupo','');
+  _sv('cliFrotistaCategoria','');
+  _sv('cliFrotistaCodigos','');
+  _sv('cliFrotistaQtd','1');
+  _sv('cliFrotistaVenda','');
+  const c = clienteEdicaoAtualFrotista();
+  const aplic = document.getElementById('cliFrotistaAplicacao');
+  if (aplic) aplic.innerHTML = opcoesAplicacaoCatalogoFrotista(c || {});
+  const cancelar = document.getElementById('cliFrotistaCancelarItem');
+  if (cancelar) cancelar.style.display = 'none';
+};
+
+window.editarItemCatalogoFrotistaCliente = function(id) {
+  const c = clienteEdicaoAtualFrotista();
+  if (!c || clienteOficialProtegidoCadastro(c)) return;
+  const item = catalogoFrotistaCliente(c).find(x => String(x.id) === String(id));
+  if (!item) return;
+  _sv('cliFrotistaItemId', item.id || '');
+  _sv('cliFrotistaGrupo', item.grupo || '');
+  _sv('cliFrotistaCategoria', item.categoria || item.descricao || '');
+  _sv('cliFrotistaCodigos', Array.isArray(item.codigos) ? item.codigos.join(', ') : '');
+  _sv('cliFrotistaQtd', String(item.qtdPadrao || 1).replace('.', ','));
+  _sv('cliFrotistaVenda', Number(item.venda || 0).toFixed(2).replace('.', ','));
+  const aplic = document.getElementById('cliFrotistaAplicacao');
+  if (aplic) aplic.innerHTML = opcoesAplicacaoCatalogoFrotista(c, item);
+  const cancelar = document.getElementById('cliFrotistaCancelarItem');
+  if (cancelar) cancelar.style.display = '';
+};
+
+async function persistirCatalogoFrotistaCliente(c, catalogo, acao) {
+  if (!c?.id || !podeGerenciarFrotistaCadastro() || clienteOficialProtegidoCadastro(c)) return false;
+  await J.db.collection('clientes').doc(c.id).update({ catalogoPecasFrotista: catalogo, updatedAt: new Date().toISOString() });
+  c.catalogoPecasFrotista = catalogo;
+  try { audit('CLIENTES', acao || `Atualizou catálogo frotista ${c.nome || c.id}`); } catch (_) {}
+  return true;
+}
+
+window.salvarItemCatalogoFrotistaCliente = async function() {
+  const c = clienteEdicaoAtualFrotista();
+  if (!c?.id) { toastWarn('Salve o cliente como Frotista antes de cadastrar peças.'); return; }
+  if (!podeGerenciarFrotistaCadastro() || clienteOficialProtegidoCadastro(c)) return;
+  if (String(document.getElementById('cliCategoriaComercial')?.value || '').toLowerCase() !== 'frotista') { toastWarn('Marque este cliente como Frotista primeiro.'); return; }
+  const grupo = String(_v('cliFrotistaGrupo') || '').trim();
+  const categoria = String(_v('cliFrotistaCategoria') || '').trim();
+  const venda = typeof numBR === 'function' ? numBR(_v('cliFrotistaVenda') || 0) : Number(String(_v('cliFrotistaVenda') || '0').replace(',','.'));
+  const qtd = Math.max(typeof numBR === 'function' ? numBR(_v('cliFrotistaQtd') || 1) : Number(String(_v('cliFrotistaQtd') || '1').replace(',','.')), 0.01);
+  if (!grupo || !categoria) { toastWarn('Informe o grupo e a categoria/peça.'); return; }
+  if (!(venda >= 0)) { toastWarn('Informe um preço de venda válido.'); return; }
+  const codigos = Array.from(new Set(String(_v('cliFrotistaCodigos') || '').split(/[\n,;]+/).map(x => x.trim()).filter(Boolean)));
+  const aplicRaw = String(document.getElementById('cliFrotistaAplicacao')?.value || 'todos:*');
+  const [aplicacaoTipo, ...rest] = aplicRaw.split(':');
+  const aplicacaoValor = rest.join(':') || '*';
+  const veics = veiculosFrotistaCliente(c);
+  let aplicacaoLabel = 'Toda a frota', veiculoModelo = '', veiculoPlaca = '';
+  if (aplicacaoTipo === 'modelo') {
+    const v = veics.find(x => normalizarFrotistaCadastro([x.marca, x.modelo].filter(Boolean).join(' ').trim() || x.modelo || x.placa) === aplicacaoValor);
+    veiculoModelo = [v?.marca, v?.modelo].filter(Boolean).join(' ').trim() || v?.modelo || aplicacaoValor;
+    aplicacaoLabel = `Modelo: ${veiculoModelo}`;
+  } else if (aplicacaoTipo === 'veiculo') {
+    const v = veics.find(x => String(x.id) === aplicacaoValor);
+    veiculoPlaca = v?.placa || '';
+    veiculoModelo = v?.modelo || '';
+    aplicacaoLabel = [veiculoPlaca, veiculoModelo].filter(Boolean).join(' • ') || 'Veículo específico';
+  }
+  const idEdit = String(_v('cliFrotistaItemId') || '');
+  const catalogo = catalogoFrotistaCliente(c);
+  const idx = catalogo.findIndex(x => String(x.id) === idEdit);
+  const anterior = idx >= 0 ? catalogo[idx] : null;
+  const item = Object.assign({}, anterior || {}, {
+    id: anterior?.id || ('cf_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7)),
+    grupo, categoria, descricao: categoria, codigos, qtdPadrao: qtd, venda,
+    aplicacaoTipo: ['todos','modelo','veiculo'].includes(aplicacaoTipo) ? aplicacaoTipo : 'todos',
+    aplicacaoValor,
+    aplicacaoLabel,
+    veiculoModeloKey: aplicacaoTipo === 'modelo' ? aplicacaoValor : '',
+    veiculoModelo,
+    veiculoId: aplicacaoTipo === 'veiculo' ? aplicacaoValor : '',
+    veiculoPlaca,
+    updatedAt: new Date().toISOString(),
+    createdAt: anterior?.createdAt || new Date().toISOString()
+  });
+  if (idx >= 0) catalogo[idx] = item; else catalogo.push(item);
+  await persistirCatalogoFrotistaCliente(c, catalogo, `${idx >= 0 ? 'Atualizou' : 'Cadastrou'} peça frotista ${categoria} (${grupo})`);
+  toastOk(idx >= 0 ? 'Peça do frotista atualizada!' : 'Peça cadastrada para o frotista!');
+  window.limparFormCatalogoFrotistaCliente();
+  atualizarPainelFrotistaCliente(c);
+};
+
+window.excluirItemCatalogoFrotistaCliente = async function(id) {
+  const c = clienteEdicaoAtualFrotista();
+  if (!c?.id || !podeGerenciarFrotistaCadastro() || clienteOficialProtegidoCadastro(c)) return;
+  const item = catalogoFrotistaCliente(c).find(x => String(x.id) === String(id));
+  if (!item) return;
+  const ok = await confirmar(`Excluir ${item.categoria || item.descricao || 'esta peça'} da tabela deste frotista?`, 'Tabela do frotista');
+  if (!ok) return;
+  const catalogo = catalogoFrotistaCliente(c).filter(x => String(x.id) !== String(id));
+  await persistirCatalogoFrotistaCliente(c, catalogo, `Excluiu peça frotista ${item.categoria || item.descricao || id}`);
+  toastOk('Peça removida da tabela do frotista.');
+  window.limparFormCatalogoFrotistaCliente();
+  atualizarPainelFrotistaCliente(c);
+};
+
+window.novoVeiculoFrotistaCliente = function() {
+  const c = clienteEdicaoAtualFrotista();
+  if (!c?.id) { toastWarn('Salve o cliente antes de cadastrar o veículo da frota.'); return; }
+  if (!podeGerenciarFrotistaCadastro() || clienteOficialProtegidoCadastro(c)) return;
+  try { closeModal('modalCliente'); } catch (_) {}
+  window.prepVeiculo?.('add');
+  setTimeout(() => {
+    _sv('veicDono', c.id);
+    try { openModal('modalVeiculo'); } catch (_) {}
+  }, 20);
+};
 // ============================================================
 // CLIENTES
 // ============================================================
@@ -114,6 +399,7 @@ window.renderClientes = function() {
       <td style="font-family:var(--ff-mono);font-size:0.78rem;color:var(--success)">${moeda(totalOS)}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" onclick="prepCliente('edit','${c.id}');openModal('modalCliente')" style="margin-right:4px">✏</button>
+        ${(podeGerenciarFrotistaCadastro() && !clienteOficialProtegidoCadastro(c) && String(c.categoriaComercial || (c.frotista === true ? 'frotista' : '')).toLowerCase() === 'frotista') ? `<button class="btn btn-ghost btn-sm" onclick="prepCliente('edit','${c.id}');openModal('modalCliente');setTimeout(()=>window.atualizarPainelFrotistaCliente?.(J.clientes.find(x=>x.id==='${c.id}')),30)" style="margin-right:4px" title="Gerenciar frota e tabela de peças">🚚 FROTA</button>` : ''}
         ${c.wpp ? `<button class="btn btn-success btn-sm" onclick="_wppCliente('${c.id}')" style="margin-right:4px" title="WhatsApp">💬</button>` : ''}
         <button class="btn btn-danger btn-sm" onclick="deletarCliente('${c.id}')">🗑</button>
       </td>
@@ -198,7 +484,7 @@ window.salvarCliente = async function() {
   };
   const id = _v('cliId');
   const clienteExistente = id ? J.clientes.find(x => String(x.id) === String(id)) : null;
-  if (!clienteOficialProtegidoCadastro(clienteExistente)) {
+  if (podeGerenciarFrotistaCadastro() && !clienteOficialProtegidoCadastro(clienteExistente)) {
     const categoriaComercial = String(_v('cliCategoriaComercial') || 'comum').toLowerCase() === 'frotista' ? 'frotista' : 'comum';
     p.categoriaComercial = categoriaComercial;
     p.frotista = categoriaComercial === 'frotista';
@@ -537,5 +823,5 @@ window.deletarFunc = async function(id) {
   audit('EQUIPE', `Removeu colaborador ${id}`);
 };
 
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(garantirCategoriaComercialCliente, 0));
-else setTimeout(garantirCategoriaComercialCliente, 0);
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(() => { garantirCategoriaComercialCliente(); garantirPainelFrotistaCliente(); }, 0));
+else setTimeout(() => { garantirCategoriaComercialCliente(); garantirPainelFrotistaCliente(); }, 0);
