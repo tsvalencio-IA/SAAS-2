@@ -1606,13 +1606,17 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <!-- ═══ TIPO DE CLIENTE ═══ -->
     <div style="background:rgba(0,212,255,0.04);border:1px solid var(--border);border-radius:4px;padding:12px;margin-bottom:14px;">
       <label class="j-label" style="margin-bottom:6px;">Tipo de Cliente</label>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border:1px solid var(--border);border-radius:3px;background:rgba(0,212,255,0.04);">
-          <input type="radio" name="cliTipo" value="b2c" id="cliTipoB2C" checked onchange="window._toggleClienteGovBlock(false)">
+          <input type="radio" name="cliTipo" value="b2c" id="cliTipoB2C" checked onchange="window._toggleClienteGovBlock(false);window._toggleClienteFrotistaBlock?.(false)">
           <span style="font-size:0.82rem;">👤 B2C / Pessoa Física</span>
         </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border:1px solid rgba(34,197,94,0.35);border-radius:3px;background:rgba(34,197,94,0.06);">
+          <input type="radio" name="cliTipo" value="frotista" id="cliTipoFrotista" onchange="window._toggleClienteGovBlock(false);window._toggleClienteFrotistaBlock?.(true)">
+          <span style="font-size:0.82rem;color:var(--success,#00FF88);font-weight:700;">🚚 Frotista</span>
+        </label>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px;border:1px solid rgba(167,139,250,0.3);border-radius:3px;background:rgba(167,139,250,0.06);">
-          <input type="radio" name="cliTipo" value="governo" id="cliTipoGov" onchange="window._toggleClienteGovBlock(true)">
+          <input type="radio" name="cliTipo" value="governo" id="cliTipoGov" onchange="window._toggleClienteFrotistaBlock?.(false);window._toggleClienteGovBlock(true)">
           <span style="font-size:0.82rem;color:var(--purple,#A78BFA);font-weight:700;">🛡 Órgão Público / Governo</span>
         </label>
       </div>
@@ -1645,6 +1649,37 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <div class="form-row cols-2">
         <div class="form-group"><label class="j-label">Cabeçalho Institucional (linhas separadas por ↵)</label><textarea class="j-textarea" id="cliGovCabecalho" rows="3" placeholder="SECRETARIA DA SEGURANÇA PÚBLICA&#10;POLÍCIA MILITAR DO ESTADO DE SÃO PAULO&#10;COMANDO DE POLICIAMENTO DO INTERIOR-5&#10;UNIDADE GESTORA EXECUTORA 180160"></textarea></div>
         <div class="form-group"><label class="j-label">Modelo OES (com #)</label><input class="j-input" id="cliGovOesModelo" placeholder="30º BPMI – ###/##/####"></div>
+      </div>
+    </div>
+
+    <!-- ═══ FROTISTA — SOMENTE CLIENTE COMUM / GESTÃO JARVIS ═══ -->
+    <div id="cliFrotistaBlock" style="display:none;border-top:2px solid var(--success,#00FF88);padding-top:14px;margin-top:14px;background:rgba(34,197,94,0.04);padding:14px;border-radius:4px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+        <div>
+          <div style="font-family:var(--fm);font-size:0.7rem;color:var(--success,#00FF88);letter-spacing:1.5px;font-weight:700;">🚚 GESTÃO DO FROTISTA</div>
+          <div id="cliFrotistaResumo" style="font-family:var(--fm);font-size:0.62rem;color:var(--muted);margin-top:4px;">Salve o cliente para vincular veículos e cadastrar a tabela de peças.</div>
+        </div>
+        <button type="button" class="btn-outline" id="cliFrotistaNovoVeiculo" onclick="window.novoVeiculoFrotistaJarvis?.()">+ VEÍCULO DA FROTA</button>
+      </div>
+      <div id="cliFrotistaVeiculos" style="margin-bottom:12px;"></div>
+      <div style="border-top:1px solid rgba(34,197,94,.18);padding-top:12px;">
+        <div style="font-family:var(--fm);font-size:.66rem;color:var(--success,#00FF88);font-weight:700;letter-spacing:1px;margin-bottom:8px;">TABELA DE PEÇAS / PREÇOS DO FROTISTA</div>
+        <input type="hidden" id="cliFrotistaItemId">
+        <div class="form-row cols-2">
+          <div class="form-group"><label class="j-label">Grupo</label><input class="j-input" id="cliFrotistaGrupo" placeholder="Ex.: Filtros"></div>
+          <div class="form-group"><label class="j-label">Categoria / Peça</label><input class="j-input" id="cliFrotistaCategoria" placeholder="Ex.: Filtro de óleo"></div>
+        </div>
+        <div class="form-group"><label class="j-label">Códigos equivalentes</label><textarea class="j-textarea" id="cliFrotistaCodigos" rows="2" placeholder="Ex.: W712/75, PSL55, OC90"></textarea></div>
+        <div class="form-row cols-3">
+          <div class="form-group"><label class="j-label">Aplicação</label><select class="j-select" id="cliFrotistaAplicacao"><option value="todos:*">Toda a frota</option></select></div>
+          <div class="form-group"><label class="j-label">Qtd. padrão</label><input type="number" min="0.01" step="0.01" class="j-input" id="cliFrotistaQtd" value="1"></div>
+          <div class="form-group"><label class="j-label">Preço de venda</label><input type="text" inputmode="decimal" class="j-input" id="cliFrotistaVenda" placeholder="0,00"></div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+          <button type="button" class="btn-ghost" id="cliFrotistaCancelarItem" style="display:none" onclick="window.limparItemFrotistaJarvis?.()">CANCELAR EDIÇÃO</button>
+          <button type="button" class="btn-success" onclick="window.salvarItemFrotistaJarvis?.()">SALVAR PEÇA DO FROTISTA</button>
+        </div>
+        <div id="cliFrotistaCatalogo"></div>
       </div>
     </div>
 
@@ -3007,8 +3042,10 @@ window.prepCliente = function(mode, id=null) {
   $('cliPin').value=Math.random().toString(36).slice(-6);
   // Reset tipo cliente
   if($('cliTipoB2C')) $('cliTipoB2C').checked = true;
+  if($('cliTipoFrotista')) $('cliTipoFrotista').checked = false;
   if($('cliTipoGov')) $('cliTipoGov').checked = false;
   window._toggleClienteGovBlock(false);
+  window._toggleClienteFrotistaBlock?.(false);
 
   if(mode==='edit'&&id){
     const c=J.clientes.find(x=>x.id===id); if(!c) return;
@@ -3018,7 +3055,13 @@ window.prepCliente = function(mode, id=null) {
     $('cliNum').value=c.num||c.numero||''; $('cliBairro').value=c.bairro||''; 
     $('cliCidade').value=c.cidade||c.municipio||'';
     $('cliLogin').value=c.login||''; $('cliPin').value=c.pin||'';
-    // Tipo + campos governo
+    // Tipo + campos governo / frotista (frotista continua B2C internamente para preservar todo o fluxo comum)
+    const ehFrotista = c.tipoCliente !== 'governo' && (c.frotista === true || String(c.categoriaComercial || '').toLowerCase() === 'frotista');
+    if (ehFrotista) {
+      if($('cliTipoB2C')) $('cliTipoB2C').checked = false;
+      if($('cliTipoFrotista')) $('cliTipoFrotista').checked = true;
+      window._toggleClienteFrotistaBlock?.(true, c);
+    }
     if (c.tipoCliente === 'governo') {
       if($('cliTipoGov')) $('cliTipoGov').checked = true;
       window._toggleClienteGovBlock(true);
@@ -3075,6 +3118,13 @@ window.salvarCliente = async function() {
     tipoCliente: (document.getElementById('cliTipoGov')?.checked ? 'governo' : 'b2c'),
     updatedAt: new Date().toISOString()
   };
+
+  // Frotista é uma categoria comercial do cliente comum. Não altera o contrato de dados do Cliente Oficial.
+  if (p.tipoCliente !== 'governo') {
+    const ehFrotista = !!document.getElementById('cliTipoFrotista')?.checked;
+    p.categoriaComercial = ehFrotista ? 'frotista' : 'comum';
+    p.frotista = ehFrotista;
+  }
 
   // Campos exclusivos governo
   if (p.tipoCliente === 'governo') {
@@ -3145,15 +3195,17 @@ window.renderClientes = function() {
     const btnWpp = c.wpp
       ? `<button class="btn-success" style="margin-right:4px" onclick="window._wppAcessoCliente('${c.id}')" title="Enviar acesso via WhatsApp">💬</button>`
       : '';
+    const ehFrotistaLista = c.tipoCliente !== 'governo' && (c.frotista === true || String(c.categoriaComercial || '').toLowerCase() === 'frotista');
     const pillTipo = c.tipoCliente === 'governo'
       ? `<span class="pill" style="background:rgba(167,139,250,0.15);color:#A78BFA;border:1px solid rgba(167,139,250,0.4);font-size:0.6rem;margin-left:6px;">🛡 GOVERNO</span>`
-      : '';
+      : (ehFrotistaLista ? `<span class="pill" style="background:rgba(34,197,94,0.12);color:var(--success,#00FF88);border:1px solid rgba(34,197,94,0.35);font-size:0.6rem;margin-left:6px;">🚚 FROTISTA</span>` : '');
     return `<tr>
       <td><strong>${c.nome}</strong>${pillTipo}<div style="font-family:var(--fm);font-size:0.65rem;color:var(--muted)">${c.login||'sem login'} / PIN: ${c.pin||'—'}</div></td>
       <td style="font-family:var(--fm);font-size:0.75rem">${c.wpp||'-'}</td>
       <td><span class="pill pill-cyan" title="${placasResumo || 'Sem veiculos'}">${nVeics} VEIC.</span></td>
       <td style="white-space:nowrap">
         <button class="btn-ghost" style="margin-right:4px" onclick="window.prepCliente('edit','${c.id}');abrirModal('modalCliente')">✏</button>
+        ${ehFrotistaLista ? `<button class="btn-ghost" style="margin-right:4px" onclick="window.prepCliente('edit','${c.id}');abrirModal('modalCliente');setTimeout(()=>window.renderFrotistaJarvis?.(),30)" title="Gerenciar frota e tabela de peças">🚚 FROTA</button>` : ''}
         ${btnWpp}
         <button class="btn-danger" onclick="window.deletarCliente('${c.id}')">🗑</button>
       </td>
@@ -4536,5 +4588,6 @@ window.iaAnalisarEstoque = function() { _jiaChamar('Quais pecas estao em estoque
 <script src="js/jarvis-mobile-kardex-v269.js?v=26.11.0"></script>
 
 <script src="js/jarvis-firestore-profissional-v2612.js?v=26.13.0"></script>
+<script src="js/frotistas-jarvis.js?v=26.18.0"></script>
 </body>
 </html>

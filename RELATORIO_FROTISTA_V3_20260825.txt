@@ -1,0 +1,53 @@
+OFICIN-IA / SAAS-2 — CORREÇÃO FROTISTA V3
+Base auditada: SAAS-2-main.zip enviado em 25/08/2026
+
+ESCOPO APLICADO
+1. JARVIS — cadastro de cliente
+- Adicionada opção visível: FROTISTA, junto de B2C e Governo.
+- Frotista continua tecnicamente no fluxo B2C para preservar portal, OS e regras existentes.
+- Campos gravados somente em cliente não oficial: categoriaComercial='frotista' e frotista=true.
+- Cliente Governo/Oficial não recebe estes campos novos.
+- Listagem de clientes mostra selo FROTISTA e botão FROTA.
+
+2. JARVIS — gestão da frota
+- Veículos já existentes são vinculados pelo clienteId já usado pelo sistema.
+- Botão + VEÍCULO DA FROTA abre o cadastro de veículo com o proprietário já selecionado.
+- Não foi criada coleção paralela de veículos.
+
+3. JARVIS — tabela de peças do frotista
+- Grupo (ex.: Filtros)
+- Categoria/peça (ex.: Filtro de óleo)
+- Vários códigos equivalentes
+- Aplicação: toda frota, por modelo ou por veículo específico
+- Quantidade padrão
+- Preço de venda do frotista
+- Dados ficam no campo catalogoPecasFrotista do documento do cliente.
+- A pesquisa/uso na OS continua sobre os dados já carregados em memória.
+- O novo cadastro realiza somente update explícito quando salvar/editar/excluir item da tabela; não consulta Firestore a cada tecla.
+
+4. OS — PDF de cliente comum/frotista
+- Bloco final de totais reorganizado em duas colunas, 3 linhas, reduzindo a altura utilizada.
+- Cliente Oficial mantém o bloco original.
+- As demais alterações de PDF que já existiam na base enviada foram preservadas.
+
+5. XML / NFe
+- A base enviada já continha a correção operacional anterior (jogo/kit de pastilha = 1 conjunto; disco de freio com qtd fiscal 1 sugere 2, sem duplicar quando já é 2). Não foi reescrita nesta rodada.
+
+6. ÍCONE DO APP
+- Nenhum layout, logo de tela, menu ou texto visual foi alterado por causa do novo repositório.
+- Somente os ícones PWA/Android receberam um marcador pequeno "2" para diferenciar a instalação do SAAS-2.
+- favicon.ico foi mantido.
+- Cache do service worker teve somente o identificador de versão atualizado para não reaproveitar ícone antigo em cache.
+
+AUDITORIA
+- jarvis.html: 151 funções nomeadas antes / 151 depois; 0 removidas.
+- js/os.js: 398 funções nomeadas antes / 398 depois; 0 removidas.
+- node --check aprovado: js/os.js, js/nfe-real-pro.js, js/frotistas-jarvis.js, service-worker.js.
+- Scripts inline do jarvis.html extraídos e validados com node --check.
+- Build web executado e encontrou jarvis.html + js/frotistas-jarvis.js corretamente.
+- clienteOficial.html: byte a byte inalterado.
+- js/exportar-pmsp.js: byte a byte inalterado.
+- js/final-1010-regras-os.js: byte a byte inalterado.
+
+IMPORTANTE
+Esta auditoria confirma integridade estrutural, sintaxe e ausência de remoções nas áreas comparadas. Teste funcional final conectado ao Firebase no navegador ainda é recomendado antes de substituir produção.

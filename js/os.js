@@ -6244,31 +6244,62 @@ window.gerarPDFOS = async function(opcoes = {}) {
   const totalOriginalServicosPDF = +servicos.reduce((sum, item) => sum + numBR(item.bruto || item.total || 0), 0).toFixed(2);
   const totalOriginalPecasPDF = +pecas.reduce((sum, item) => sum + numBR(String(item[4] || '').replace(/R\$|\s|\./g, '').replace(',', '.')), 0).toFixed(2);
   const totalDescontoPDF = +((totalOriginalServicosPDF + totalOriginalPecasPDF) - (totalServicos + totalPecas)).toFixed(2);
+  if (pdfClienteOficialProtegido) {
+    // CLIENTE OFICIAL: estrutura original preservada integralmente.
     doc.autoTable({
       startY: y,
       theme: 'plain',
-    margin: { left: pw - margem - 88, right: margem },
-    tableWidth: 88,
-    styles: { fontSize: 9, cellPadding: 1.8 },
-    body: [
-      ['VALOR ORIGINAL DE PEÇAS E SERVIÇOS', moedaPdf(totalOriginalPecasPDF + totalOriginalServicosPDF)],
-      ['DESCONTO TOTAL CONCEDIDO', '- ' + moedaPdf(Math.max(0, totalDescontoPDF))],
-      ['TOTAL DE PEÇAS COBRADO', moedaPdf(totalPecas)],
-      ['TOTAL DE MÃO DE OBRA COBRADO', moedaPdf(totalServicos)],
-      ['DESLOCAMENTO / GUINCHO', moedaPdf(totalGuinchoPdf)],
-      [aprovacaoPDFAtiva ? 'VALOR APROVADO / CONTRATO' : 'VALOR DO CONTRATO', moedaPdf(totalGeral)]
-    ],
-    columnStyles: { 0: { fontStyle: visualizacaoEconomicaPDF ? 'normal' : 'bold', halign: 'right', cellWidth: 56 }, 1: { fontStyle: visualizacaoEconomicaPDF ? 'normal' : 'bold', halign: 'right', cellWidth: 32 } },
-    didParseCell: data => {
-      if (data.row.index === 5) {
-        data.cell.styles.fillColor = visualizacaoEconomicaPDF ? [255, 255, 255] : [205, 200, 160];
-        data.cell.styles.fontSize = 12;
-        data.cell.styles.fontStyle = visualizacaoEconomicaPDF ? 'normal' : 'bold';
-        data.cell.styles.textColor = [20, 30, 45];
+      margin: { left: pw - margem - 88, right: margem },
+      tableWidth: 88,
+      styles: { fontSize: 9, cellPadding: 1.8 },
+      body: [
+        ['VALOR ORIGINAL DE PEÇAS E SERVIÇOS', moedaPdf(totalOriginalPecasPDF + totalOriginalServicosPDF)],
+        ['DESCONTO TOTAL CONCEDIDO', '- ' + moedaPdf(Math.max(0, totalDescontoPDF))],
+        ['TOTAL DE PEÇAS COBRADO', moedaPdf(totalPecas)],
+        ['TOTAL DE MÃO DE OBRA COBRADO', moedaPdf(totalServicos)],
+        ['DESLOCAMENTO / GUINCHO', moedaPdf(totalGuinchoPdf)],
+        [aprovacaoPDFAtiva ? 'VALOR APROVADO / CONTRATO' : 'VALOR DO CONTRATO', moedaPdf(totalGeral)]
+      ],
+      columnStyles: { 0: { fontStyle: 'bold', halign: 'right', cellWidth: 56 }, 1: { fontStyle: 'bold', halign: 'right', cellWidth: 32 } },
+      didParseCell: data => {
+        if (data.row.index === 5) {
+          data.cell.styles.fillColor = [205, 200, 160];
+          data.cell.styles.fontSize = 12;
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.textColor = [20, 30, 45];
+        }
       }
-    }
-  });
-  y = doc.lastAutoTable.finalY + (pdfClienteOficialProtegido ? 10 : 6);
+    });
+    y = doc.lastAutoTable.finalY + 10;
+  } else {
+    // CLIENTE COMUM / FROTISTA: totais em duas colunas para reduzir altura e evitar folha extra.
+    doc.autoTable({
+      startY: y,
+      theme: 'plain',
+      margin: { left: margem, right: margem },
+      tableWidth: larguraUtilPdf,
+      pageBreak: 'avoid',
+      rowPageBreak: 'avoid',
+      styles: { fontSize: 7.8, cellPadding: 1.25, valign: 'middle' },
+      body: [
+        ['VALOR ORIGINAL DE PEÇAS E SERVIÇOS', moedaPdf(totalOriginalPecasPDF + totalOriginalServicosPDF), 'TOTAL DE MÃO DE OBRA COBRADO', moedaPdf(totalServicos)],
+        ['DESCONTO TOTAL CONCEDIDO', '- ' + moedaPdf(Math.max(0, totalDescontoPDF)), 'DESLOCAMENTO / GUINCHO', moedaPdf(totalGuinchoPdf)],
+        ['TOTAL DE PEÇAS COBRADO', moedaPdf(totalPecas), aprovacaoPDFAtiva ? 'VALOR APROVADO / CONTRATO' : 'VALOR DO CONTRATO', moedaPdf(totalGeral)]
+      ],
+      columnStyles: {
+        0: { halign: 'right', cellWidth: 57 }, 1: { halign: 'right', cellWidth: 28 },
+        2: { halign: 'right', cellWidth: 57 }, 3: { halign: 'right', cellWidth: 28 }
+      },
+      didParseCell: data => {
+        if (data.row.index === 2 && (data.column.index === 2 || data.column.index === 3)) {
+          data.cell.styles.fontSize = 10.2;
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.textColor = [20, 30, 45];
+        }
+      }
+    });
+    y = doc.lastAutoTable.finalY + 5;
+  }
 
   let media = [];
   try { media = JSON.parse(document.getElementById('osMediaArray')?.value || '[]'); } catch(e) { media = []; }
