@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<script>(function(){try{var t=localStorage.getItem("thiaguinho_theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);else document.documentElement.setAttribute("data-theme","dark");}catch(e){document.documentElement.setAttribute("data-theme","dark");}})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Portal do Cliente — thIAguinho</title>
+<!-- ═══ PWA: instalável como app na tela inicial do celular ═══ -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#00D4FF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="thIAguinho">
+<meta name="mobile-web-app-capable" content="yes">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Exo+2:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<script>
+/* Registra o Service Worker para PWA funcionar */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('service-worker.js')
+      .then(function(reg) { console.log('SW registrado:', reg.scope); })
+      .catch(function(err) { console.warn('SW falhou:', err); });
+  });
+}
+</script>
+<style>
+body { overflow-y: auto; background: #060A14; color: #E8F4FF; font-family: 'Exo 2', sans-serif; margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root,
+:root[data-theme="dark"] {
+  --brand: #00D4FF; --brand-dim: rgba(0, 212, 255, 0.12);
+  --success: #00FF88; --success-dim: rgba(0, 255, 136, 0.1);
+  --warn: #FFB800; --warn-dim: rgba(255, 184, 0, 0.1);
+  --danger: #FF3B3B; --danger-dim: rgba(255, 59, 59, 0.1);
+  --surf-0: #060A14; --surf-1: #0C1426; --surf-2: #111D35; --surf-3: #162040;
+  --border: rgba(0, 212, 255, 0.15);
+  --text-primary: #E8F4FF; --text-muted: #7A9AB8;
+  --ff-display: 'Rajdhani', sans-serif; --ff-mono: 'JetBrains Mono', monospace;
+  --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --brand: #0066B3; --brand-dim: rgba(0, 102, 179, 0.10);
+  --success: #047857; --success-dim: rgba(4, 120, 87, 0.10);
+  --warn: #B45309; --warn-dim: rgba(180, 83, 9, 0.10);
+  --danger: #B91C1C; --danger-dim: rgba(185, 28, 28, 0.10);
+  --surf-0: #F4F7FB; --surf-1: #FFFFFF; --surf-2: #F1F5F9; --surf-3: #E2E8F0;
+  --border: rgba(15, 23, 42, 0.10);
+  --text-primary: #0F172A; --text-muted: #475569;
+  --ff-display: 'Rajdhani', sans-serif; --ff-mono: 'JetBrains Mono', monospace;
+  --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+  color-scheme: light;
+}
+
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--surf-1); }
+::-webkit-scrollbar-thumb { background: var(--surf-3); border-radius: 4px; }
+
+.portal-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: var(--surf-0); position: relative; }
+.portal-login::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at top right, rgba(0,212,255,0.1), transparent 50%); pointer-events: none; }
+.portal-login-card { width: 100%; max-width: 380px; background: var(--surf-1); border: 1px solid var(--border); border-radius: var(--r-xl); padding: 36px 28px; box-shadow: 0 10px 40px rgba(0,0,0,0.6); position: relative; z-index: 2; }
+.portal-login-card::before { content: ''; position: absolute; top: 0; left: 10%; right: 10%; height: 3px; background: linear-gradient(90deg, transparent, var(--brand), transparent); }
+
+.portal-header { background: rgba(12, 20, 38, 0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+.header-top { padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; }
+.nav-tabs { display: flex; overflow-x: auto; scrollbar-width: none; border-top: 1px solid rgba(255,255,255,0.05); }
+.nav-tabs::-webkit-scrollbar { display: none; }
+.tab-btn { flex: 1; min-width: max-content; padding: 12px 16px; background: transparent; border: none; color: var(--text-muted); font-family: var(--ff-display); font-size: 0.95rem; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; border-bottom: 3px solid transparent; transition: 0.2s; display: flex; align-items: center; gap: 6px; justify-content: center; }
+.tab-btn.active { color: var(--brand); border-bottom-color: var(--brand); background: var(--brand-dim); }
+.tab-badge { background: var(--danger); color: white; font-family: var(--ff-mono); font-size: 0.6rem; padding: 2px 6px; border-radius: 10px; display: none; }
+
+.portal-body { max-width: 680px; margin: 0 auto; padding: 24px 16px; }
+.tab-content { display: none; animation: fadeIn 0.3s ease; }
+.tab-content.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.input { width: 100%; padding: 14px 16px; background: var(--surf-2); border: 1px solid var(--border); border-radius: var(--r-md); color: #fff; font-family: var(--ff-mono); font-size: 0.9rem; transition: 0.2s; margin-bottom: 16px; }
+.input:focus { border-color: var(--brand); outline: none; background: rgba(0,212,255,0.05); }
+.input::placeholder { color: var(--text-muted); }
+.label { display: block; font-family: var(--ff-mono); font-size: 0.65rem; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+
+.btn { padding: 14px 20px; border: none; border-radius: var(--r-md); font-family: var(--ff-display); font-size: 0.95rem; font-weight: 700; letter-spacing: 1px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; text-transform: uppercase; }
+.btn-brand { background: var(--brand); color: #000; box-shadow: 0 4px 15px rgba(0,212,255,0.2); }
+.btn-success { background: var(--success); color: #000; box-shadow: 0 4px 15px rgba(0,255,136,0.2); }
+.btn-outline { background: transparent; border: 1px solid var(--brand); color: var(--brand); }
+.btn-danger { background: var(--danger-dim); border: 1px solid var(--danger); color: var(--danger); }
+
+.os-card { background: var(--surf-1); border: 1px solid var(--border); border-radius: var(--r-xl); overflow: hidden; margin-bottom: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.3); transition: 0.3s; }
+.os-header-premium { padding: 20px; background: linear-gradient(to bottom right, var(--surf-2), var(--surf-1)); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; }
+.placa-mercosul { display: inline-block; background: #fff; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+.placa-mercosul-top { background: #003399; color: #fff; font-family: sans-serif; font-size: 0.5rem; font-weight: 700; padding: 2px 0; text-transform: uppercase; letter-spacing: 1px; }
+.placa-mercosul-txt { color: #000; font-family: var(--ff-mono); font-size: 1.2rem; font-weight: 700; letter-spacing: 2px; padding: 4px 12px; }
+.os-km-box { display: flex; flex-direction: column; align-items: flex-end; }
+.os-km-val { font-family: var(--ff-mono); font-size: 1.1rem; font-weight: 700; color: var(--brand); }
+.os-km-lbl { font-family: var(--ff-mono); font-size: 0.55rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+
+.stepper-wrap { padding: 20px; border-bottom: 1px dashed var(--border); }
+.stepper { display: flex; align-items: center; justify-content: space-between; position: relative; }
+.step-line { position: absolute; top: 14px; left: 5%; right: 5%; height: 2px; background: var(--border); z-index: 0; }
+.step-line-fill { position: absolute; top: 14px; left: 5%; height: 2px; background: var(--success); z-index: 0; transition: 0.5s; }
+.step { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1; }
+.step-dot { width: 30px; height: 30px; border-radius: 50%; background: var(--surf-1); border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: var(--ff-mono); font-size: 0.7rem; font-weight: 700; color: var(--text-muted); transition: 0.3s; }
+.step.done .step-dot { background: var(--success); border-color: var(--success); color: #000; }
+.step.active .step-dot { background: var(--brand-dim); border-color: var(--brand); color: var(--brand); box-shadow: 0 0 15px rgba(0,212,255,0.4); }
+.step-lbl { font-family: var(--ff-mono); font-size: 0.55rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; text-align: center; line-height: 1.1; }
+.step.active .step-lbl { color: var(--brand); font-weight: 700; }
+.step.done .step-lbl { color: var(--success); }
+
+.alerta-orcamento { margin: 20px; padding: 20px; background: linear-gradient(135deg, var(--warn-dim), transparent); border-left: 4px solid var(--warn); border-radius: 0 var(--r-md) var(--r-md) 0; }
+.badge-historico { margin: 0 20px 20px; padding: 12px; background: rgba(0, 212, 255, 0.05); border: 1px dashed var(--brand); border-radius: var(--r-md); text-align: center; font-family: var(--ff-mono); font-size: 0.8rem; color: var(--brand); }
+
+.os-details { display: none; padding: 24px; background: rgba(0,0,0,0.25); border-top: 1px solid var(--border); }
+.os-card.expanded .os-details { display: block; animation: fadeIn 0.4s ease; }
+.btn-toggle-detalhes { width: 100%; padding: 16px; background: var(--surf-1); border: none; color: var(--brand); font-family: var(--ff-mono); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-toggle-detalhes:hover { background: var(--surf-2); }
+.detalhe-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.85rem; }
+.detalhe-row:last-child { border-bottom: none; }
+.detalhe-valor { font-family: var(--ff-mono); font-weight: 700; }
+
+.timeline-box { margin-top: 24px; padding: 24px; background: linear-gradient(145deg, var(--surf-2), var(--surf-1)); border-radius: var(--r-xl); border: 1px solid var(--border); box-shadow: inset 0 2px 10px rgba(0,0,0,0.5); }
+.timeline-box-title { font-family: var(--ff-display); font-size: 1.2rem; font-weight: 700; color: white; margin-bottom: 20px; display:flex; align-items:center; gap:8px; }
+.timeline { padding-left: 18px; border-left: 2px dashed var(--border); }
+.tl-item { padding: 0 0 24px 24px; position: relative; }
+.tl-item:last-child { padding-bottom: 0; }
+.tl-item::before { content: ''; position: absolute; left: -9px; top: 0; width: 14px; height: 14px; background: var(--surf-1); border: 2px solid var(--brand); border-radius: 50%; box-shadow: 0 0 10px var(--brand-dim); z-index: 2; transition: 0.3s; }
+.tl-item:hover::before { background: var(--brand); transform: scale(1.2); }
+.tl-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.tl-date { font-family: var(--ff-mono); font-size: 0.65rem; color: var(--text-muted); padding: 4px 10px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }
+.tl-user { font-family: var(--ff-mono); font-size: 0.7rem; font-weight: 700; color: var(--brand); letter-spacing: 1px; text-transform: uppercase; background: var(--brand-dim); padding: 4px 10px; border-radius: 12px; }
+.tl-action { font-size: 0.9rem; color: var(--text-primary); line-height: 1.5; background: rgba(0,0,0,0.2); padding: 14px; border-radius: var(--r-md); border-left: 3px solid var(--brand-dim); }
+
+.media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px; margin-top: 12px; }
+.media-item { aspect-ratio: 1; border-radius: var(--r-md); overflow: hidden; background: #000; border: 1px solid var(--border); position: relative; cursor: zoom-in; }
+.media-item img { width: 100%; height: 100%; object-fit: cover; }
+.media-video-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; color: var(--brand); background: rgba(0,0,0,0.5); }
+
+.chat-container { display: flex; flex-direction: column; height: calc(100vh - 150px); background: var(--surf-1); border: 1px solid var(--border); border-radius: var(--r-xl); overflow: hidden; }
+.chat-msgs { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; background: var(--surf-0); }
+.chat-msg { padding: 12px 16px; border-radius: var(--r-lg); max-width: 85%; font-size: 0.9rem; line-height: 1.4; position: relative; word-break: break-word; }
+.chat-msg.outgoing { background: var(--brand-dim); border: 1px solid var(--border); color: #fff; align-self: flex-end; border-bottom-right-radius: 0; }
+.chat-msg.incoming { background: var(--surf-2); border: 1px solid var(--border); color: #fff; align-self: flex-start; border-bottom-left-radius: 0; }
+.chat-author { font-family: var(--ff-mono); font-size: 0.6rem; color: var(--brand); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+.chat-time { font-family: var(--ff-mono); font-size: 0.6rem; color: rgba(255,255,255,0.4); text-align: right; margin-top: 6px; }
+.chat-input-area { padding: 14px; background: var(--surf-2); border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: center; }
+
+.fin-resumo { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+.fin-box { padding: 20px; border-radius: var(--r-xl); border: 1px solid var(--border); }
+.fin-box.aberto { background: linear-gradient(135deg, var(--danger-dim), transparent); border-color: rgba(255,59,59,0.3); }
+.fin-box.pago { background: var(--surf-2); }
+.fin-lbl { font-family: var(--ff-mono); font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.fin-box.aberto .fin-lbl { color: var(--danger); }
+.fin-box.pago .fin-lbl { color: var(--success); }
+.fin-val { font-family: var(--ff-display); font-size: 1.8rem; font-weight: 700; color: #fff; }
+.extrato-item { display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--surf-1); border: 1px solid var(--border); border-radius: var(--r-md); margin-bottom: 10px; border-left: 4px solid transparent; }
+.extrato-item.Pendente { border-left-color: var(--danger); }
+.extrato-item.Pago { border-left-color: var(--success); }
+
+/* --- CSS DOS CARDS PREMIUM DO OBD E VIAGEM --- */
+.dash-card { background: var(--surf-1); border: 1px solid var(--border); border-radius: var(--r-xl); padding: 16px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+.dash-card-icon { width: 48px; height: 48px; border-radius: var(--r-md); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; }
+.dash-card-info { flex: 1; margin-left: 16px; }
+.dash-card-title { font-family: var(--ff-mono); font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.dash-card-val { font-family: var(--ff-display); font-size: 1.4rem; font-weight: 700; color: white; }
+.fuel-bar-bg { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-top: 12px; overflow: hidden; }
+.fuel-bar-fill { height: 100%; background: var(--brand); transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); }
+
+.trip-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+.trip-card { background: var(--surf-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 12px; text-align: center; }
+.trip-icon { font-size: 1.2rem; margin-bottom: 4px; }
+.trip-title { font-family: var(--ff-mono); font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.trip-val { font-family: var(--ff-display); font-size: 1.2rem; font-weight: 700; color: white; margin-top: 4px; }
+
+#toastBox { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; max-width: calc(100vw - 40px); }
+.toast-j { padding: 14px 20px; border-radius: var(--r-md); font-family: var(--ff-mono); font-size: 0.8rem; border-left: 4px solid; background: #111; box-shadow: 0 4px 15px rgba(0,0,0,0.5); display: flex; align-items: center; gap: 10px; transition: 0.4s; }
+.toast-j.ok { border-color: var(--success); color: var(--success); }
+.toast-j.err { border-color: var(--danger); color: var(--danger); }
+.toast-j.warn { border-color: var(--warn); color: var(--warn); }
+
+.j-spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--brand); border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div id="toastBox"></div>
+
+<div id="loginView" class="portal-bg">
+  <div class="portal-login">
+    <div class="portal-login-card">
+      <div style="text-align:center;margin-bottom:32px">
+        <div style="width:64px;height:64px;border-radius:var(--r-xl);background:linear-gradient(135deg, var(--brand-dim), transparent);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--ff-display);font-size:2rem;font-weight:800;color:var(--brand);margin:0 auto 16px;box-shadow: 0 0 20px rgba(0,212,255,0.1);" id="portalLogoMark">T</div>
+        <div style="font-family:var(--ff-display);font-size:1.5rem;font-weight:700;letter-spacing:1px;" id="portalOficinaName">Portal do Cliente</div>
+        <div style="font-family:var(--ff-mono);font-size:0.65rem;color:var(--brand);margin-top:6px;letter-spacing:2px;text-transform:uppercase;">Acesso Digital Exclusivo</div>
+      </div>
+      <div id="portalLoginErr" style="display:none; background: var(--danger-dim); color: var(--danger); padding: 14px; border-radius: var(--r-md); font-size: 0.85rem; margin-bottom: 20px; text-align: center; border: 1px solid rgba(255,59,59,0.3);"></div>
+      <label class="label">Placa do Veículo ou Usuário</label>
+      <input class="input" id="pLogin" name="username" type="text" inputmode="email" placeholder="Ex: ABC-1234" autocomplete="username email" autocorrect="off" autocapitalize="none" spellcheck="false">
+      <label class="label">PIN de Segurança</label>
+      <input class="input" id="pPin" name="current-password" type="password" placeholder="••••••" autocomplete="current-password" style="margin-bottom: 24px;">
+      <button class="btn btn-brand" onclick="portalLogin()" id="btnLoginBtn">ACESSAR MEU PAINEL</button>
+      <div style="text-align:center;margin-top:24px;font-size:0.75rem;color:var(--text-muted);font-family:var(--ff-mono);">Credenciais fornecidas pelo atendimento via WhatsApp.</div>
+    </div>
+  </div>
+</div>
+
+<div id="portalView" style="display:none" class="portal-bg">
+  <div class="portal-header">
+    <div class="header-top">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:36px;height:36px;border-radius:var(--r-md);background:var(--brand-dim);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:var(--ff-display);font-size:1.2rem;font-weight:800;color:var(--brand)" id="portalHdrMark">J</div>
+        <div>
+          <div style="font-family:var(--ff-display);font-size:1.1rem;font-weight:700;letter-spacing:1px;color:#fff;" id="portalHdrName">Oficina</div>
+          <div style="font-family:var(--ff-mono);font-size:0.65rem;color:var(--success);text-transform:uppercase;letter-spacing:1px;" id="portalClienteNome">Carregando...</div>
+        </div>
+      </div>
+      <button onclick="portalLogout()" style="background:transparent;border:1px solid rgba(255,255,255,0.2);color:var(--text-muted);padding:8px 16px;font-size:0.75rem;border-radius:20px;font-family:var(--ff-mono);cursor:pointer;">SAIR ⏻</button>
+    </div>
+    
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="switchCliTab('tabOS', this)">🚘 O.S.</button>
+      <button class="tab-btn" onclick="switchCliTab('tabChat', this)">💬 CHAT <span class="tab-badge" id="cliChatBadge">0</span></button>
+      <button class="tab-btn" onclick="switchCliTab('tabFin', this)">💳 EXTRATO</button>
+      <button class="tab-btn" onclick="switchCliTab('tabAgd', this)">📅 AGENDAR</button>
+      <button class="tab-btn" onclick="switchCliTab('tabOBD', this)" style="color:var(--text-muted)">🔌 OBD</button>
+    </div>
+  </div>
+
+  <div class="portal-body">
+    <div id="tabOS" class="tab-content active"><div id="renderOSArea"></div></div>
+
+    <div id="tabChat" class="tab-content">
+      <div class="chat-container">
+        <div style="padding:16px 20px; background:var(--surf-2); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between;">
+          <div style="font-family:var(--ff-display);font-size:1.2rem;font-weight:700;color:white;">Atendimento Direto</div>
+          <div style="font-family:var(--ff-mono);font-size:0.6rem;color:var(--success);border:1px solid var(--success);padding:4px 10px;border-radius:12px;display:flex;align-items:center;gap:6px;"><div style="width:6px;height:6px;background:var(--success);border-radius:50%;box-shadow:0 0 5px var(--success);"></div> ONLINE</div>
+        </div>
+        <div class="chat-msgs" id="renderChatArea"><div style="text-align:center;color:var(--text-muted);font-size:0.85rem;padding:20px;">Envie uma mensagem, foto ou áudio para o mecânico.</div></div>
+        <div class="chat-input-area">
+          <button id="btnPttCli" title="Gravar Áudio" aria-label="Gravar áudio" onclick="_togglePttCli()" style="background:var(--surf-3);border:1px solid var(--border);color:white;font-size:1.2rem;cursor:pointer;width:44px;height:44px;min-width:44px;border-radius:50%;transition:0.2s;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent;">🎤</button>
+          <button title="Anexar Arquivo" aria-label="Anexar arquivo" onclick="document.getElementById('portalFile').click()" style="background:var(--surf-3);border:1px solid var(--border);color:var(--brand);font-size:1.2rem;cursor:pointer;width:44px;height:44px;min-width:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent;">📎</button>
+          <input type="file" id="portalFile" style="display:none" accept="image/*,video/*,audio/*,application/pdf,.doc,.docx" onchange="_enviarArquivoPortal(this)">
+          <input class="input" id="portalChatInput" placeholder="Mensagem..." style="margin:0;border-radius:24px;padding:12px 20px;" autocomplete="off">
+          <button class="btn-brand" style="border:none;border-radius:50%;width:44px;height:44px;min-width:44px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:1.2rem;touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent;" onclick="_enviarPortalMsg()" aria-label="Enviar mensagem">➤</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tabFin" class="tab-content"><div id="renderFinArea"></div></div>
+
+    <div id="tabAgd" class="tab-content">
+      <div style="background:var(--surf-1); border:1px solid var(--border); border-radius:var(--r-xl); padding:24px; margin-bottom:24px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+        <div style="font-family:var(--ff-display);font-size:1.4rem;font-weight:700;color:white;margin-bottom:20px;">Solicitar Nova Revisão</div>
+        <label class="label">Veículo</label><select class="input" id="agdVeiculoCli"><option value="">Carregando veículos...</option></select>
+        <label class="label">Data de Preferência</label><input type="date" class="input" id="agdDataCli">
+        <label class="label">O que precisa ser feito?</label><input type="text" class="input" id="agdServicoCli" placeholder="Ex: Troca de óleo, Barulho na roda...">
+        <button class="btn btn-brand" onclick="_salvarAgendamentoCli()">ENVIAR SOLICITAÇÃO</button>
+      </div>
+      <div id="renderAgdArea"></div>
+    </div>
+
+    <div id="tabOBD" class="tab-content">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;background:var(--surf-1);border:1px solid var(--border);border-radius:var(--r-xl);margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div id="obdLed" style="width:12px;height:12px;border-radius:50%;background:var(--text-muted);transition:0.4s;"></div>
+          <div>
+            <div id="obdLabel" style="font-family:var(--ff-display);font-weight:700;color:white;">Desconectado</div>
+            <div id="obdDevice" style="font-family:var(--ff-mono);font-size:0.6rem;color:var(--text-muted);">Nenhum dispositivo</div>
+          </div>
+        </div>
+        <button id="btnObd" onclick="obdConectar()" class="btn btn-brand" style="width:auto;padding:10px 20px;font-size:0.8rem;">🔌 CONECTAR</button>
+      </div>
+      <div id="obdWarnIOS" style="display:none;padding:12px;background:var(--warn-dim);border:1px solid var(--warn);border-radius:var(--r-md);margin-bottom:12px;font-family:var(--ff-mono);font-size:0.75rem;color:var(--warn);">⚠ iOS não suporta Web Bluetooth. Use Chrome no Android ou Desktop.</div>
+      <div id="obdAcoes" style="display:none;margin-bottom:16px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+          <button class="btn btn-outline" style="font-size:0.8rem;padding:12px;" onclick="obdLerDTCs()">🔍 LER ERROS</button>
+          <button class="btn btn-danger" style="font-size:0.8rem;padding:12px;" onclick="obdLimparDTCs()">🧹 LIMPAR ERROS</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <button id="btnLive" class="btn btn-outline" style="font-size:0.8rem;padding:12px;" onclick="obdToggleLive()">📡 DADOS AO VIVO</button>
+          <button class="btn btn-outline" style="font-size:0.8rem;padding:12px;" onclick="obdVarredura()">📋 VARREDURA COMPLETA</button>
+        </div>
+      </div>
+      
+      <div id="obdHealthDash" style="display:none; flex-direction:column; gap:12px; margin-bottom:20px;">
+        <div class="dash-card">
+            <div class="dash-card-icon" style="background:var(--success-dim);color:var(--success)">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            </div>
+            <div class="dash-card-info">
+                <div class="dash-card-title">Status do Motor</div>
+                <div class="dash-card-val" id="dashMotorStatus" style="color:var(--success)">Normal</div>
+            </div>
+        </div>
+        <div class="dash-card">
+            <div class="dash-card-icon" style="background:var(--warn-dim);color:var(--warn)">
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            </div>
+            <div class="dash-card-info">
+                <div class="dash-card-title">Próxima Revisão</div>
+                <div class="dash-card-val" id="dashRevStatus">Calculando...</div>
+            </div>
+        </div>
+        <div class="dash-card" style="display:block;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center;">
+                    <div class="dash-card-icon" style="background:var(--brand-dim);color:var(--brand)">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 22h18"></path><path d="M4 9h16"></path><path d="M4 22V4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v18"></path><path d="M14 13h2"></path><path d="M14 17h2"></path></svg>
+                    </div>
+                    <div class="dash-card-info">
+                        <div class="dash-card-title">Nível de Combustível</div>
+                        <div class="dash-card-val" id="dashFuelVal">--%</div>
+                    </div>
+                </div>
+            </div>
+            <div class="fuel-bar-bg"><div class="fuel-bar-fill" id="dashFuelBar" style="width: 0%; background: var(--brand)"></div></div>
+        </div>
+      </div>
+      
+      <div id="obdDTCs" style="margin-bottom:16px;"></div>
+      <div id="obdLive" style="display:none;margin-bottom:16px;">
+        <div style="font-family:var(--ff-display);font-size:1rem;font-weight:700;color:white;margin-bottom:10px;">📡 Ao Vivo <span style="font-family:var(--ff-mono);font-size:0.6rem;background:var(--danger);color:white;padding:2px 8px;border-radius:10px;">● LIVE</span></div>
+        <div id="obdGauges" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>
+        
+        <div id="obdTripDash" style="display:none;">
+            <div style="font-family:var(--ff-display);font-size:1rem;font-weight:700;color:white;margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">🚗 Estatísticas de Viagem</div>
+            <div class="trip-grid">
+                <div class="trip-card">
+                    <div class="trip-icon">📏</div>
+                    <div class="trip-title">Distância</div>
+                    <div class="trip-val" id="tripDist">0.00 km</div>
+                </div>
+                <div class="trip-card">
+                    <div class="trip-icon">⏱️</div>
+                    <div class="trip-title">Tempo de Viagem</div>
+                    <div class="trip-val" id="tripTime">0m 0s</div>
+                </div>
+                <div class="trip-card">
+                    <div class="trip-icon">⛽</div>
+                    <div class="trip-title">Consumo Médio</div>
+                    <div class="trip-val" id="tripFuel">-- km/l</div>
+                </div>
+                <div class="trip-card">
+                    <div class="trip-icon">💰</div>
+                    <div class="trip-title">Custo Estimado</div>
+                    <div class="trip-val" id="tripCost">R$ 0,00</div>
+                </div>
+            </div>
+        </div>
+      </div>
+      <div style="background:var(--surf-1);border:1px solid var(--border);border-radius:var(--r-xl);overflow:hidden;">
+        <div style="padding:10px 16px;background:var(--surf-2);font-family:var(--ff-mono);font-size:0.65rem;color:var(--brand);letter-spacing:2px;">TERMINAL OBD</div>
+        <div id="obdLog" style="padding:12px 16px;font-family:var(--ff-mono);font-size:0.72rem;color:var(--text-muted);max-height:160px;overflow-y:auto;line-height:1.8;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/12.17.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore-compat.js"></script>
+<script src="js/config.js?v=26.13.0"></script>
+<script src="js/links-publicos.js"></script>
+<script src="js/tenant-modules.js"></script>
+<script src="js/os-utils.js"></script>
+<script>
+// ============================================================
+// CORE LÓGICA E FIREBASE
+// Powered by thIAguinho Soluções Digitais
+// ============================================================
+const params = new URLSearchParams(window.location.search);
+const _tenantSlug = params.get('tenant') || params.get('t') || params.get('oficina') || params.get('slug') || null;
+if (!_tenantSlug) sessionStorage.removeItem('j_firebase_config');
+let db = window.initFirebase();
+let P = { clienteId: null, tenantId: null, cliente: null, oficina: null, veiculos: [], financeiro: [] };
+const formatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
+function toast(msg, type='ok') {
+  const el = document.createElement('div'); el.className = `toast-j ${type}`;
+  const icon = type === 'ok' ? '✓' : type === 'err' ? '✕' : '⚠';
+  el.innerHTML = `<strong>${icon}</strong> ${msg}`;
+  document.getElementById('toastBox').appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; setTimeout(()=>el.remove(),400); }, 3500);
+}
+
+function switchCliTab(tabId, btnEl) {
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active'); btnEl.classList.add('active');
+  if(tabId === 'tabChat') { const msgsContainer = document.getElementById('renderChatArea'); if(msgsContainer) msgsContainer.scrollTop = msgsContainer.scrollHeight; }
+}
+
+const _tenantReady = _tenantSlug ? _carregarBrandTenant(_tenantSlug) : Promise.resolve();
+
+async function _resolverOficinaPortal(tenantRef) {
+  const centralDb = window.initCentralFirebase ? window.initCentralFirebase() : db;
+  const raw = String(tenantRef || '').trim();
+  if (!raw) return null;
+  const direct = await centralDb.collection('oficinas').doc(raw).get();
+  if (direct.exists) return { id: direct.id, data: direct.data() };
+  for (const campo of ['slug', 'publicSlug', 'oficinaSlug']) {
+    try {
+      const snap = await centralDb.collection('oficinas').where(campo, '==', raw).limit(1).get();
+      if (!snap.empty) return { id: snap.docs[0].id, data: snap.docs[0].data() };
+    } catch(e) {}
+  }
+  return null;
+}
+
+async function _carregarBrandTenant(tenantId) {
+  try {
+    const found = await _resolverOficinaPortal(tenantId);
+    if (!found) return;
+    const d = found.data;
+    document.getElementById('portalOficinaName').textContent = d.nomeFantasia || 'Portal do Cliente';
+    const logoL = (d.nomeFantasia||'J').charAt(0).toUpperCase();
+    document.getElementById('portalLogoMark').textContent = logoL; document.getElementById('portalHdrMark').textContent  = logoL; document.getElementById('portalHdrName').textContent  = d.nomeFantasia || 'Oficina Parceira';
+    P.tenantId = found.id; P.oficina  = { id: found.id, ...d };
+    try { sessionStorage.setItem('j_oficina', JSON.stringify(P.oficina)); } catch(e) {}
+    if (d.firebaseConfig?.projectId && d.firebaseConfig?.apiKey) {
+      sessionStorage.setItem('j_firebase_config', JSON.stringify(d.firebaseConfig));
+      db = window.initFirebase();
+    }
+  } catch(e) {}
+}
+
+document.getElementById('pPin').addEventListener('keydown', e => { if (e.key === 'Enter') portalLogin(); });
+document.getElementById('pLogin').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('pPin').focus(); });
+
+
+
+// Lembrança local das credenciais do portal do cliente (não interfere no login original)
+(function carregarCredenciaisPortalCliente(){
+  try{
+    const salvo = JSON.parse(localStorage.getItem('thiaguinho_portal_cliente_login') || 'null');
+    if(!salvo) return;
+    const loginEl = document.getElementById('pLogin');
+    const pinEl = document.getElementById('pPin');
+    if(loginEl && salvo.login) loginEl.value = salvo.login;
+    if(pinEl && salvo.pin) pinEl.value = salvo.pin;
+  }catch(e){ console.warn('[Portal Cliente] não foi possível carregar credenciais locais', e); }
+  try{
+    const loginLink = params.get('login') || params.get('placa') || '';
+    const loginEl = document.getElementById('pLogin');
+    if(loginEl && loginLink) loginEl.value = loginLink;
+  }catch(e){}
+})();
+function salvarCredenciaisPortalCliente(login, pin){
+  try{
+    if(!login || !pin) return;
+    localStorage.setItem('thiaguinho_portal_cliente_login', JSON.stringify({ login, pin, salvoEm: new Date().toISOString() }));
+  }catch(e){ console.warn('[Portal Cliente] não foi possível salvar credenciais locais', e); }
+}
+
+async function portalLogin() {
+  await _tenantReady;
+  const rawLogin = document.getElementById('pLogin').value.trim().toLowerCase();
+  const pin   = document.getElementById('pPin').value.trim();
+  const err   = document.getElementById('portalLoginErr');
+  err.style.display = 'none';
+
+  if (!_tenantSlug && !P.tenantId) { err.textContent = 'Link incompleto: use o link enviado pela oficina para evitar mistura de dados.'; err.style.display='block'; return; }
+  if (!P.tenantId) { err.textContent = 'Oficina não encontrada neste link. Peça um novo acesso.'; err.style.display='block'; return; }
+  if (P.oficina && P.oficina.modulos && P.oficina.modulos.crm === false) { err.textContent = 'Portal do cliente indisponível para esta oficina.'; err.style.display='block'; return; }
+  if (!rawLogin || !pin) { err.textContent = 'Preencha usuário e PIN.'; err.style.display='block'; return; }
+  const btn = document.getElementById('btnLoginBtn'); btn.innerHTML = '<span class="spinner"></span> VALIDANDO...'; btn.disabled = true;
+
+  try {
+    let authSuccess = false;
+    let qOS = db.collection('ordens_servico').where('pin', '==', pin);
+    if (P.tenantId) qOS = qOS.where('tenantId', '==', P.tenantId);
+    const snapOS = await qOS.get();
+
+    if (!snapOS.empty) {
+        for (let doc of snapOS.docs) {
+            let osData = doc.data();
+            let p = (osData.placa || '').toLowerCase().replace(/[^a-z0-9]/g, ''); 
+            let c = (osData.cpf || '').toLowerCase().replace(/\D/g, ''); 
+            let n = (osData.cliente || '').split(' ')[0].toLowerCase();
+            let userLimpo = rawLogin.replace(/[^a-z0-9]/g, ''); 
+            if (p === userLimpo || c === userLimpo || n === rawLogin) {
+                P.tenantId = osData.tenantId; P.clienteId = osData.clienteId || 'avulso'; P.cliente = { nome: osData.cliente || 'Cliente' };
+                authSuccess = true; break;
+            }
+        }
+    }
+
+    if (!authSuccess) {
+        let qCli = db.collection('clientes').where('pin', '==', pin);
+        if (P.tenantId) qCli = qCli.where('tenantId', '==', P.tenantId);
+        const snapCli = await qCli.get();
+        if (!snapCli.empty) {
+            for (let doc of snapCli.docs) {
+                let cliData = doc.data();
+                let log = (cliData.login || '').toLowerCase();
+                let docCpf = (cliData.doc || '').replace(/\D/g, '');
+                let userNum = rawLogin.replace(/\D/g, '');
+                if (log === rawLogin || (userNum && docCpf === userNum)) {
+                    P.tenantId = cliData.tenantId; P.clienteId = doc.id; P.cliente = { id: doc.id, ...cliData };
+                    authSuccess = true; break;
+                }
+            }
+        }
+    }
+
+    if (!authSuccess) throw new Error('Usuário ou PIN incorretos. Verifique a placa e a senha enviada.');
+    if (!P.oficina && P.tenantId) { await _carregarBrandTenant(P.tenantId); }
+
+    document.getElementById('portalClienteNome').textContent = P.cliente?.nome || 'Olá, Cliente';
+    salvarCredenciaisPortalCliente(rawLogin, pin);
+    document.getElementById('loginView').style.display  = 'none'; document.getElementById('portalView').style.display = 'block';
+    _iniciarPortalListeners();
+  } catch(e) {
+    err.textContent = e.message; err.style.display = 'block'; btn.innerHTML = 'ACESSAR MEU PAINEL'; btn.disabled = false;
+  }
+}
+
+function portalLogout() {
+  sessionStorage.removeItem('j_firebase_config');
+  P = { clienteId: null, tenantId: null, cliente: null, oficina: null, veiculos: [] };
+  document.getElementById('loginView').style.display  = 'block'; document.getElementById('portalView').style.display = 'none';
+  document.getElementById('pLogin').value = ''; document.getElementById('pPin').value   = '';
+  document.getElementById('btnLoginBtn').innerHTML = 'ACESSAR MEU PAINEL'; document.getElementById('btnLoginBtn').disabled = false;
+}
+
+function _iniciarPortalListeners() {
+  const loginUpper = document.getElementById('pLogin').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  
+  if(P.clienteId && P.clienteId !== 'avulso') {
+    db.collection('veiculos').where('tenantId', '==', P.tenantId).where('clienteId', '==', P.clienteId).onSnapshot(snap => {
+        P.veiculos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const el = document.getElementById('agdVeiculoCli');
+        if (el) el.innerHTML = '<option value="">Selecione o Veículo...</option>' + P.veiculos.map(v => `<option value="${v.id}">${v.placa} - ${v.modelo}</option>`).join('');
+        
+        if (typeof _osDoCliente !== 'undefined' && _osDoCliente.length > 0) {
+            _renderPortalOS(_osDoCliente);
+        }
+      });
+  }
+
+  db.collection('ordens_servico').where('tenantId', '==', P.tenantId).onSnapshot(snap => {
+      const osList = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => {
+            const pLimpa = (d.placa || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            return (P.clienteId !== 'avulso' && d.clienteId === P.clienteId) || (pLimpa && pLimpa === loginUpper) || (d.pin && d.pin === document.getElementById('pPin').value.trim()); 
+        }).sort((a, b) => (b.updatedAt || '') > (a.updatedAt || '') ? 1 : -1);
+      _osDoCliente = osList;
+      window._osDoCliente = osList; // expõe para _renderFinanceiro consultar quitados no cartão
+      _renderPortalOS(osList);
+    });
+
+  if(P.clienteId && P.clienteId !== 'avulso') {
+      db.collection('mensagens').where('tenantId', '==', P.tenantId).where('clienteId', '==', P.clienteId).onSnapshot(snap => {
+          const msgs = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(a.ts||0)-(b.ts||0)); _renderChat(msgs);
+        });
+      db.collection('financeiro').where('tenantId', '==', P.tenantId).onSnapshot(snap => {
+          const todos = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const placas = new Set(_osDoCliente.map(o=>(o.placa||'').toUpperCase().replace(/[^A-Z0-9]/g,'')).filter(Boolean));
+          const osIds = new Set(_osDoCliente.map(o=>o.id).filter(Boolean));
+          const finList = todos.filter(f => {
+            if (f.tipo==='Saída'||f.tipo==='Saida'||f.isComissao) return false;
+            if (f.vinculo && (f.vinculo.startsWith('F_')||f.vinculo.startsWith('E_'))) return false;
+            if (f.clienteId && f.clienteId === P.clienteId) return true;
+            if (f.osId && osIds.has(f.osId)) return true;
+            const desc = (f.desc||'').toLowerCase();
+            for (const p of placas) { if (p && desc.includes(p.toLowerCase())) return true; }
+            return false;
+          }).sort((a,b)=>((b.venc||'')>(a.venc||''))?1:-1);
+          P.financeiro = finList;
+          _renderFinanceiro(finList);
+          if (window._osDoCliente) _renderPortalOS(window._osDoCliente);
+        });
+      db.collection('agendamentos').where('tenantId', '==', P.tenantId).where('clienteId', '==', P.clienteId).onSnapshot(snap => {
+          const agdList = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b)=>(b.data||'') > (a.data||'') ? 1 : -1); _renderAgendamento(agdList);
+        });
+  } else {
+      document.getElementById('renderFinArea').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">Área financeira disponível apenas para clientes cadastrados.</div>';
+      document.getElementById('renderAgdArea').innerHTML = '';
+  }
+}
+
+// 🚘 RENDERIZAÇÃO DAS O.S. (COM HISTÓRICO DE AUDITORIA PREMIUM E CORREÇÃO DE STATUS 100%)
+function _renderPortalOS(osList) {
+  const content = document.getElementById('renderOSArea');
+  const STEPS = ['patio', 'orcamento', 'aprovacao', 'box', 'pronto', 'faturado', 'entregue'];
+  const STEP_LABELS = { patio: 'Pátio', orcamento: 'Orç.', aprovacao: 'Aguard.', box: 'Serviço', pronto: 'Pronto', faturado: 'Faturado', entregue: 'Entreg.' };
+  const STATUS_MAP_LEGACY = { 'Aguardando': 'patio', 'Concluido': 'entregue', 'Triagem': 'patio', 'Orcamento': 'orcamento', 'Orcamento_Enviado': 'aprovacao', 'Aprovado': 'box', 'Andamento': 'box', 'Pronto': 'pronto', 'Entregue': 'entregue', 'Cancelado': 'cancelado' };
+
+  if (!osList.length) { content.innerHTML = `<div style="text-align:center;padding:48px 20px;background:var(--surf-1);border-radius:var(--r-xl);border:1px dashed var(--border);"><div style="font-size:3rem;margin-bottom:16px">🚘</div><div style="font-family:var(--ff-display);font-size:1.3rem;font-weight:700;color:white">Nenhum veículo no pátio</div></div>`; return; }
+
+  content.innerHTML = osList.map(os => {
+    let statusLimpo = STATUS_MAP_LEGACY[os.status] || String(os.status||'patio').toLowerCase();
+    if(!STEPS.includes(statusLimpo) && statusLimpo !== 'cancelado') statusLimpo = 'patio';
+    
+    const statusIdx = STEPS.indexOf(statusLimpo); 
+    const isCancelada = (statusLimpo === 'cancelado');
+    const isOrcamento = (statusLimpo === 'aprovacao'); 
+    
+    // Matemática e Lógica rígida para garantir que a O.S "Entregue" complete o Stepper
+    const isEntregue = (statusLimpo === 'entregue' || statusLimpo === 'faturado' || String(os.status).toLowerCase() === 'entregue');
+    const isConcluida = (statusLimpo === 'pronto' || isEntregue); 
+
+    const v = P.veiculos.find(x => x.id === os.veiculoId) || {};
+
+    const revisaoHTML = (os.proxRev || os.proxKm) ? `
+      <div style="margin: 20px; padding: 16px; background: var(--success-dim); border: 1px solid var(--success); border-radius: var(--r-md); display: flex; align-items: center; gap: 12px;">
+        <div style="font-size:1.5rem">📅</div>
+        <div style="font-size: 0.8rem; line-height: 1.4; color: var(--success);">
+            <strong>Próxima Revisão Sugerida:</strong><br>
+            ${os.proxRev ? 'Data: ' + new Date(os.proxRev).toLocaleDateString('pt-BR') : ''} 
+            ${os.proxKm ? ' | KM: ' + Number(os.proxKm).toLocaleString('pt-BR') : ''}
+        </div>
+      </div>` : '';
+
+    let badgeHistorico = '';
+    if (isConcluida && (os.updatedAt || os.data)) {
+        const dataRef = new Date(os.updatedAt || os.data); const diffTempo = new Date() - dataRef; const diasDiff = Math.floor(diffTempo / (1000 * 60 * 60 * 24));
+        if (diasDiff === 0) badgeHistorico = `<div class="badge-historico">⏱️ Serviço concluído <strong>hoje</strong>.</div>`;
+        else if (diasDiff > 0 && diasDiff < 30) badgeHistorico = `<div class="badge-historico">⏱️ Serviço realizado há <strong>${diasDiff} dias</strong>.</div>`;
+        else { const meses = Math.floor(diasDiff / 30); badgeHistorico = `<div class="badge-historico">⏱️ Serviço realizado há <strong>${meses} ${meses>1?'meses':'mês'}</strong>. Considere revisar.</div>`; }
+    }
+
+    const placaBruta = os.placa || v.placa || 'S/PLACA';
+    const placaLimpa = placaBruta.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const placaFormatada = placaLimpa.length === 7 ? `${placaLimpa.slice(0,3)}-${placaLimpa.slice(3)}` : (placaLimpa || 'S/PLACA');
+
+    const kmExibicao = os.km ? Number(os.km).toLocaleString('pt-BR') : (v.km ? Number(v.km).toLocaleString('pt-BR') : '--');
+    
+    // Matemática do Stepper corrigida e garantida em 100% no fim
+    // Calculo: (índice atual / índice total) * 100
+    // Como tem 7 passos, o índice máximo é 6. 6/6 * 100 = 100%.
+    const fillPercent = isEntregue ? 100 : Math.max(0, (statusIdx / (STEPS.length - 1)) * 100);
+    const UOSPortal = window.JOS || window.JarvisOSUtils || {};
+    const resumoValores = UOSPortal.getBudgetSummary
+      ? UOSPortal.getBudgetSummary(os, P.cliente, P.financeiro)
+      : { orcamento: os.total || 0, aprovado: os.totalAprovado || 0, faturado: 0, pagamento: {} };
+    const vencimentos = (resumoValores.pagamento?.vencimentos || []).map(v => {
+      try { return new Date(String(v).slice(0,10) + 'T00:00:00').toLocaleDateString('pt-BR'); }
+      catch(e) { return v; }
+    });
+    const resumoValoresHTML = `
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:12px 0;">
+        <div style="background:rgba(255,255,255,.035);border:1px solid var(--border);border-radius:var(--r-md);padding:10px;">
+          <div style="font-family:var(--ff-mono);font-size:.62rem;color:var(--text-muted);letter-spacing:1px;">ORCAMENTO</div>
+          <strong style="font-family:var(--ff-mono);color:var(--warn);font-size:.98rem;">${formatter.format(resumoValores.orcamento || 0)}</strong>
+        </div>
+        <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.22);border-radius:var(--r-md);padding:10px;">
+          <div style="font-family:var(--ff-mono);font-size:.62rem;color:var(--text-muted);letter-spacing:1px;">APROVADO</div>
+          <strong style="font-family:var(--ff-mono);color:var(--brand);font-size:.98rem;">${resumoValores.aprovado ? formatter.format(resumoValores.aprovado) : '-'}</strong>
+        </div>
+        <div style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.22);border-radius:var(--r-md);padding:10px;">
+          <div style="font-family:var(--ff-mono);font-size:.62rem;color:var(--text-muted);letter-spacing:1px;">FATURADO</div>
+          <strong style="font-family:var(--ff-mono);color:var(--success);font-size:.98rem;">${resumoValores.faturado ? formatter.format(resumoValores.faturado) : '-'}</strong>
+        </div>
+      </div>
+      ${(resumoValores.pagamento?.forma || vencimentos.length) ? `<div style="font-family:var(--ff-mono);font-size:.72rem;color:var(--text-muted);line-height:1.5;margin-top:8px;">${resumoValores.pagamento?.forma ? `Pagamento: <strong style="color:var(--text-primary)">${resumoValores.pagamento.forma}</strong>` : ''}${vencimentos.length ? `<br>Vencimentos: <strong style="color:var(--text-primary)">${vencimentos.join(' | ')}</strong>` : ''}</div>` : ''}`;
+    
+    const stepperHTML = isCancelada 
+        ? `<div style="text-align:center;padding:24px;color:var(--danger);font-weight:700;font-family:var(--ff-display);font-size:1.4rem;">🚫 CANCELADA</div>` 
+        : `<div class="stepper-wrap"><div class="stepper"><div class="step-line"></div><div class="step-line-fill" style="width:${fillPercent}%"></div>${STEPS.map((s, i) => `<div class="step ${(i < statusIdx || isEntregue) ? 'done' : i === statusIdx ? 'active' : ''}"><div class="step-dot">${(i < statusIdx || isEntregue) ? '✓' : i+1}</div><div class="step-lbl">${STEP_LABELS[s]}</div></div>`).join('')}</div></div>`;
+    
+    // Banner Entregue Premium injetado logo após o stepper
+    const bannerEntregueHtml = isEntregue ? `<div style="margin: 20px; padding: 16px; background: linear-gradient(135deg, var(--success-dim), transparent); border-left: 4px solid var(--success); border-radius: 0 var(--r-md) var(--r-md) 0;"><div style="font-family:var(--ff-display);font-size:1.2rem;font-weight:700;color:var(--success);margin-bottom:6px">✅ Veículo Entregue</div><div style="font-size:0.9rem;color:white;">Serviço finalizado. Agradecemos a confiança!</div></div>` : '';
+    
+    const orcAlerta = isOrcamento ? `<div class="alerta-orcamento"><div style="font-family:var(--ff-display);font-size:1.2rem;font-weight:700;color:var(--warn);margin-bottom:6px">Orçamento Disponível</div>${resumoValoresHTML}<div style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn btn-success" style="flex:1;" onclick="_aprovarOrcamento('${os.id}')">✓ APROVAR</button><button class="btn btn-outline" style="flex:1;" onclick="_negociarOrcamento('${placaFormatada}')">💬 NEGOCIAR</button></div></div>` : '';
+
+    const timelinePublica = (os.timeline || []).filter(t => {
+      if (t.tipo === 'status_os' || t.visivelCliente === true) return true;
+      const acao = String(t.acao || '').toLowerCase();
+      if (/interna|execu[cç][aã]o|pe[cç]as reais|financeiro|custo|margem|comiss|auditoria|estoque|nf\b|fornecedor/.test(acao)) return false;
+      return /status|abriu|or[cç]amento|aprov|recus|pronto|entreg|cliente|ve[ií]culo/.test(acao);
+    });
+    const textoTimelineCliente = tl => {
+      if (tl.tipo === 'status_os') {
+        const para = tl.statusNovo || '';
+        return `Status atualizado para ${para.replace('_', ' ')} por ${tl.user || tl.usuario || 'Sistema'}.`;
+      }
+      return String(tl.acao || '');
+    };
+    const timelineHtml = `
+      <div class="timeline-box">
+        <div class="timeline-box-title">⏱️ Histórico de Atualizações</div>
+        <div class="timeline">
+          ${(timelinePublica.length > 0) ? [...timelinePublica].reverse().map(tl => `
+            <div class="tl-item">
+              <div class="tl-meta">
+                <span class="tl-date">${new Date(tl.dt).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+                <span class="tl-user">👤 ${tl.user || tl.usuario || 'Sistema'}</span>
+              </div>
+              <div class="tl-action">${textoTimelineCliente(tl)}</div>
+            </div>
+          `).join('') : '<div style="color:var(--text-muted);font-size:0.8rem;text-align:center;">Nenhum registro de atividade ainda.</div>'}
+        </div>
+      </div>
+    `;
+
+    let financeiroDetalhe = '';
+    const UOS = window.JOS || window.JarvisOSUtils || {};
+    const budgetItems = UOS.buildBudgetItems ? UOS.buildBudgetItems(os, P.cliente) : [];
+    const temAprovacao = UOS.hasApproval ? UOS.hasApproval(os) : false;
+    const chavesAprovadas = UOS.getApprovedKeys ? UOS.getApprovedKeys(os) : new Set();
+    if (budgetItems.length > 0) {
+        financeiroDetalhe = `<div style="margin-bottom:20px;">
+            <span class="ficha-lbl" style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:5px; text-transform:uppercase;">Peças e Serviços do Orçamento${temAprovacao ? ' / Aprovados' : ''}</span>
+            <div style="background:var(--surf-2); border:1px solid var(--border); border-radius:var(--r-md); padding:12px;">`;
+
+        const badgeAprovacao = item => temAprovacao
+          ? `<small style="display:inline-block;margin-left:6px;padding:2px 6px;border-radius:3px;border:1px solid ${chavesAprovadas.has(item.key) ? 'rgba(0,255,136,.35)' : 'rgba(255,59,59,.35)'};color:${chavesAprovadas.has(item.key) ? 'var(--success)' : 'var(--danger)'};font-family:var(--ff-mono);font-size:.58rem;">${chavesAprovadas.has(item.key) ? 'APROVADO' : 'NÃO APROVADO'}</small>`
+          : '';
+        const servicos = budgetItems.filter(i => i.tipo === 'servico');
+        const pecas = budgetItems.filter(i => i.tipo === 'peca');
+        if (servicos.length > 0) {
+            financeiroDetalhe += `<div style="font-family:var(--ff-mono); font-size:0.65rem; color:var(--brand); margin-bottom:6px; letter-spacing:1px;">MÃO DE OBRA / SERVIÇOS</div>`;
+            servicos.forEach(s => {
+                financeiroDetalhe += `<div class="detalhe-row"><span>${UOS.escapeHtml ? UOS.escapeHtml(s.desc) : s.desc}${badgeAprovacao(s)}<br><small style="color:var(--text-muted);font-family:var(--ff-mono);">${s.codigo ? 'Cód. '+(UOS.escapeHtml ? UOS.escapeHtml(s.codigo) : s.codigo)+' · ' : ''}${s.tempo ? String(s.tempo).replace('.', ',')+'h' : 'Sem hora informada'}</small></span><span class="detalhe-valor">${formatter.format(s.valorFinal || 0)}</span></div>`;
+            });
+        }
+        if (pecas.length > 0) {
+            financeiroDetalhe += `<div style="font-family:var(--ff-mono); font-size:0.65rem; color:var(--success); margin-top:12px; margin-bottom:6px; letter-spacing:1px;">PEÇAS DO ORÇAMENTO</div>`;
+            pecas.forEach(p => {
+                financeiroDetalhe += `<div class="detalhe-row"><span>${p.codigo ? '<code style="font-size:.68rem;color:var(--brand)">'+(UOS.escapeHtml ? UOS.escapeHtml(p.codigo) : p.codigo)+'</code> ' : ''}${UOS.escapeHtml ? UOS.escapeHtml(p.desc) : p.desc}${badgeAprovacao(p)}<br><small style="color:var(--text-muted);font-family:var(--ff-mono);">${p.qtd}x ${formatter.format(p.valorUnit || 0)}</small></span><span class="detalhe-valor">${formatter.format(p.valorFinal || 0)}</span></div>`;
+            });
+        }
+        if (os.maoObra) {
+            financeiroDetalhe += `<div class="detalhe-row" style="margin-top:8px; border-top:1px dashed var(--border); padding-top:8px; color:var(--text-muted);"><span>Mão de Obra Avulsa</span><span class="detalhe-valor">${formatter.format(os.maoObra)}</span></div>`;
+        }
+        
+        financeiroDetalhe += `<div class="detalhe-row" style="margin-top:10px; border-top:1px solid var(--border); padding-top:12px; color:var(--warn);"><span>${temAprovacao ? 'TOTAL APROVADO' : 'TOTAL ESTIMADO'}</span><span class="detalhe-valor" style="font-size:1.2rem;">${formatter.format(temAprovacao ? (os.totalAprovado || 0) : (os.total || 0))}</span></div>`;
+        financeiroDetalhe += `</div></div>`;
+    }
+
+    let detalheHtml = `<div class="os-details">
+        <div style="margin-bottom:15px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom:15px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div><span class="ficha-lbl" style="font-size:0.7rem; color:var(--text-muted); display:block;">Veículo</span><span class="ficha-val" style="font-weight:bold;">${v.modelo || os.veiculo || '—'}</span></div>
+            <div><span class="ficha-lbl" style="font-size:0.7rem; color:var(--text-muted); display:block;">Ano / Cor</span><span class="ficha-val" style="font-weight:bold;">${v.ano || '—'} / ${v.cor || '—'}</span></div>
+        </div>
+        <div style="margin-bottom:20px;"><span class="ficha-lbl" style="font-size:0.7rem; color:var(--text-muted); display:block; margin-bottom:5px;">Diagnóstico Técnico</span><div style="font-size:0.85rem; background:rgba(0,0,0,0.2); padding:10px; border-radius:var(--r-md); border-left:3px solid var(--brand);">${os.diagnostico || 'Avaliação técnica em andamento...'}</div></div>
+        ${resumoValoresHTML}
+        ${financeiroDetalhe}
+        ${(os.media && os.media.length > 0) || (os.fotos && os.fotos.length > 0) ? `<div style="font-size:0.7rem; color:var(--text-muted); margin-bottom:5px; text-transform:uppercase;">Evidências (Fotos/Vídeos)</div><div class="media-grid">${(os.media || os.fotos || []).map(m => `<div class="media-item"><img src="${m.url || m}" onclick="window.open('${m.url || m}')"></div>`).join('')}</div>` : ''}
+        ${timelineHtml}
+    </div>`;
+
+
+    return `
+      <div class="os-card">
+        <div class="os-header-premium">
+          <div class="placa-mercosul"><div class="placa-mercosul-top">BRASIL</div><div class="placa-mercosul-txt">${placaFormatada}</div></div>
+          <div class="os-km-box"><div class="os-km-val">${kmExibicao} <small>KM</small></div><div class="os-km-lbl">Entrada</div></div>
+        </div>
+        <div style="padding:14px 20px; background:var(--surf-2); border-bottom:1px solid var(--border); font-size:0.85rem; color:var(--text-primary); display:flex; justify-content:space-between; align-items:center;">
+          <div><strong style="color:white">${v.modelo || os.veiculo || 'Veículo'}</strong></div><div style="font-family:var(--ff-mono);font-size:0.6rem;color:var(--text-muted)">OS #${os.id.slice(-6).toUpperCase()}</div>
+        </div>
+        ${stepperHTML}${bannerEntregueHtml}${orcAlerta}${!isOrcamento ? `<div style="padding:0 20px 16px">${resumoValoresHTML}</div>` : ''}${revisaoHTML}${badgeHistorico}
+        <button class="btn-toggle-detalhes" onclick="this.closest('.os-card').classList.toggle('expanded')">▼ VER DETALHAMENTO E HISTÓRICO DA OS</button>
+        ${detalheHtml}
+      </div>`;
+  }).join('');
+}
+
+// 💳 RENDERIZAÇÃO FINANCEIRO
+function _renderFinanceiro(finList) {
+  const container = document.getElementById('renderFinArea');
+  // ═══════════════════════════════════════════════════════════════════
+  // EXTRATO DO CLIENTE (LOTE A - coerência total)
+  // O cliente só deve ver:
+  //   • Entradas que ELE pagou (à vista) → status PAGO
+  //   • Entradas que ELE ainda deve (boleto/crediário) → status PENDENTE
+  // O cliente NUNCA deve ver:
+  //   • Títulos da oficina com a operadora de cartão (isso é da oficina)
+  //   • Lançamentos quitadosPeloCliente=true mas cujo aReceberDe=Operadora
+  //   • Despesas internas da oficina
+  // ═══════════════════════════════════════════════════════════════════
+  const docsCli = finList.filter(f => {
+    if (f.tipo !== 'Entrada') return false;
+    // Se o recebimento é da operadora de cartão, oculta (não é dívida do cliente)
+    if (f.aReceberDe === 'Operadora de Cartão') return false;
+    return true;
+  });
+
+  // Agrupa recebimentos de cartão (que o cliente já quitou) para mostrar como 1 linha "PAGO"
+  const docsClienteViu = [];
+  const osQuitadasNoCartao = new Set();
+  const osQuitadasAVista = new Set();
+  const osDoCli = (window._osDoCliente || []);
+  const osById = new Map(osDoCli.map(os => [os.id, os]));
+  const pagamentoAVistaPortal = os => {
+    const txt = String([os?.pgtoResumoCliente || '', os?.pgtoForma || ''].join(' '))
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    return /\b(pix|dinheiro|debito)\b/.test(txt);
+  };
+
+  // 1ª passagem: detecta OS quitadas no cartão (não aparecem na lista normal)
+  finList.forEach(f => {
+    if (f.aReceberDe === 'Operadora de Cartão' && f.osId && f.quitadoPeloCliente) {
+      osQuitadasNoCartao.add(f.osId);
+    }
+    const osRef = f.osId ? osById.get(f.osId) : null;
+    const pago = String(f.status || '').toLowerCase() === 'pago' || f.quitadoPeloCliente === true;
+    if (osRef && pagamentoAVistaPortal(osRef) && pago && f.tipo === 'Entrada') {
+      osQuitadasAVista.add(f.osId);
+    }
+  });
+
+  // 2ª passagem: monta lista de verdade
+  osDoCli.forEach(os => {
+    if (osQuitadasAVista.has(os.id) && (os.totalFaturado || os.totalAprovado || os.total) > 0) {
+      docsClienteViu.push({
+        desc: `O.S. ${os.placa || ''} - ${os.desc || 'Servico'}`,
+        valor: os.totalFaturado || os.totalAprovado || os.total,
+        status: 'Pago',
+        pgtoResumo: os.pgtoResumoCliente || os.pgtoForma || 'Pagamento a vista',
+        dataPgto: os.pgtoData,
+        _fromOS: true
+      });
+    }
+    if (osQuitadasNoCartao.has(os.id) && (os.totalAprovado || os.total) > 0) {
+      // OS paga no cartão — mostra como 1 linha quitada
+      docsClienteViu.push({
+        desc: `O.S. ${os.placa || ''} — ${os.desc || 'Serviço'}`,
+        valor: os.totalAprovado || os.total,
+        status: 'Pago',
+        pgtoResumo: os.pgtoResumoCliente || os.pgtoForma || 'Cartão',
+        dataPgto: os.pgtoData,
+        _fromOS: true
+      });
+    }
+  });
+  // Adiciona os lançamentos "normais" (não-cartão)
+  docsCli.forEach(f => {
+    if (f.osId && osQuitadasNoCartao.has(f.osId)) return; // já contabilizado acima
+    if (f.osId && osQuitadasAVista.has(f.osId)) return; // PIX/Dinheiro/Debito a vista vira 1 linha no portal
+    docsClienteViu.push(f);
+  });
+
+  if (docsClienteViu.length === 0) {
+    container.innerHTML = `<div style="padding:40px 20px;text-align:center;background:var(--surf-1);border-radius:var(--r-xl);border:1px dashed var(--border);"><div style="font-size:2.5rem;margin-bottom:12px">💳</div><div style="font-family:var(--ff-display);font-size:1.2rem;font-weight:700;color:white;">Nenhum histórico financeiro</div></div>`;
+    return;
+  }
+
+  let emAberto = 0;
+  let totalPago = 0;
+  const listHTML = docsClienteViu.map(f => {
+    const isPago = f.status === 'Pago' || f.status === 'PAGO';
+    if (!isPago) emAberto += (f.valor || 0);
+    if (isPago)  totalPago += (f.valor || 0);
+
+    const pgtoTexto = f.pgtoResumoCliente || f.pgtoResumo || f.pgto || '';
+    const pgtoInfo = pgtoTexto ? `<div style="font-family:var(--ff-mono); font-size:0.68rem; color:var(--brand); margin-top:4px;">💳 ${pgtoTexto}</div>` : '';
+    const dataInfo = isPago && f.dataPgto
+      ? `Pago em: ${new Date(f.dataPgto).toLocaleDateString('pt-BR')}`
+      : (f.venc ? `Vencimento: ${new Date(f.venc).toLocaleDateString('pt-BR')}` : '-');
+
+    return `<div class="extrato-item ${isPago ? 'Pago' : 'Pendente'}">
+      <div>
+        <div style="font-size:0.95rem; font-weight:700; color:white;">${f.desc || 'Serviço Oficina'}</div>
+        <div style="font-family:var(--ff-mono); font-size:0.7rem; color:var(--text-muted); margin-top:6px;">${dataInfo}</div>
+        ${pgtoInfo}
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:var(--ff-mono); font-size:1.1rem; color:${isPago ? 'var(--success)' : 'var(--danger)'}; font-weight:700;">${formatter.format(f.valor||0)}</div>
+        <div style="font-family:var(--ff-mono); font-size:0.6rem; text-transform:uppercase; background:${isPago ? 'var(--success-dim)' : 'var(--danger-dim)'}; color:${isPago ? 'var(--success)' : 'var(--danger)'}; padding:2px 8px; border-radius:10px; display:inline-block; margin-top:6px;">${isPago ? 'QUITADO' : 'A PAGAR'}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `<div class="fin-resumo">
+    <div class="fin-box aberto">
+      <div class="fin-lbl">A Pagar</div>
+      <div class="fin-val">${formatter.format(emAberto)}</div>
+    </div>
+    <div class="fin-box pago">
+      <div class="fin-lbl">Histórico Quitado</div>
+      <div class="fin-val" style="color:var(--success)">${formatter.format(totalPago)}</div>
+    </div>
+  </div>
+  <div style="font-family:var(--ff-display);font-size:1.2rem;font-weight:700;color:white;margin-bottom:16px;">🧾 Seus Lançamentos</div>${listHTML}`;
+}
+
+// 📅 RENDERIZAÇÃO AGENDAMENTO
+function _renderAgendamento(agdList) {
+  const container = document.getElementById('renderAgdArea');
+  if (agdList.length === 0) { container.innerHTML = ''; return; }
+  const listHTML = agdList.map(a => {
+    const vInfo = a.veiculoId ? (P.veiculos.find(x => x.id === a.veiculoId)?.placa || 'Veículo') : '';
+    return `<div style="background:var(--surf-1); border:1px solid var(--border); border-left:4px solid var(--brand); padding:16px; border-radius:var(--r-md); margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;"><div><div style="font-size:0.95rem; font-weight:700; color:white;">${a.servico || 'Revisão'}</div><div style="font-family:var(--ff-mono); font-size:0.75rem; color:var(--text-muted); margin-top:6px;">🗓️ ${a.data ? new Date(a.data).toLocaleDateString('pt-BR') : '-'} ${vInfo ? `<span style="color:var(--brand)">| 🚘 ${vInfo.toUpperCase()}</span>` : ''}</div></div><div style="font-family:var(--ff-mono); font-size:0.65rem; padding: 4px 12px; border-radius: 20px; background:var(--brand-dim); border:1px solid var(--brand); color:var(--brand); text-transform:uppercase; font-weight:700;">${a.status || 'Solicitado'}</div></div>`;
+  }).join('');
+  container.innerHTML = `<div style="font-family:var(--ff-display);font-size:1.2rem;font-weight:700;color:white;margin-bottom:16px;margin-top:32px;">Meus Agendamentos</div>${listHTML}`;
+}
+
+async function _salvarAgendamentoCli() {
+  const data = document.getElementById('agdDataCli').value; const servico = document.getElementById('agdServicoCli').value.trim(); const veicId = document.getElementById('agdVeiculoCli').value;
+  if (!data || !servico || !veicId) { toast('Selecione veículo, data e descreva o serviço.', 'warn'); return; }
+  try {
+    await db.collection('agendamentos').add({ tenantId: P.tenantId, clienteId: P.clienteId, veiculoId: veicId, data, servico, status: 'Solicitado', createdAt: new Date().toISOString() });
+    toast('Agendamento solicitado com sucesso!', 'ok'); document.getElementById('agdServicoCli').value = ''; document.getElementById('agdDataCli').value = '';
+  } catch(e) { toast('Erro ao solicitar agendamento', 'err'); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 💬 CHAT CRM E NEGOCIAÇÃO
+// ═══════════════════════════════════════════════════════════════
+
+let isRecordingCli = false;
+let _mediaRecorderCli;
+let _audioChunksCli = [];
+let _pttCliState = { stream: null, mime: '' };
+
+function _escapeHtmlCli(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function _escapeAttrCli(s){
+  return String(s==null?'':s).replace(/["<>]/g,c=>({'"':'&quot;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+async function _togglePttCli() {
+  const btn = document.getElementById('btnPttCli');
+  if (!btn) return;
+
+  if (isRecordingCli && _mediaRecorderCli && _mediaRecorderCli.state === 'recording') {
+    try { _mediaRecorderCli.stop(); } catch(e) {}
+    return;
+  }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof window.MediaRecorder === 'undefined') {
+    toast('Este navegador não suporta gravação de áudio.', 'err');
+    return;
+  }
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    let mime = '';
+    if (typeof MediaRecorder.isTypeSupported === 'function') {
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus'))     mime = 'audio/webm;codecs=opus';
+      else if (MediaRecorder.isTypeSupported('audio/webm'))            mime = 'audio/webm';
+      else if (MediaRecorder.isTypeSupported('audio/mp4'))             mime = 'audio/mp4';
+      else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) mime = 'audio/ogg;codecs=opus';
+    }
+    _mediaRecorderCli = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+    _audioChunksCli = [];
+    _pttCliState = { stream, mime: mime || 'audio/webm' };
+    isRecordingCli = true;
+
+    _mediaRecorderCli.ondataavailable = e => { if (e.data && e.data.size > 0) _audioChunksCli.push(e.data); };
+
+    _mediaRecorderCli.onerror = ev => {
+      toast('Erro na gravação: ' + (ev?.error?.message || 'desconhecido'), 'err');
+      _pttCliLimpar();
+    };
+
+    _mediaRecorderCli.onstop = async () => {
+      if (_pttCliState.stream) {
+        try { _pttCliState.stream.getTracks().forEach(t => { try { t.stop(); } catch(e){} }); } catch(e){}
+        _pttCliState.stream = null;
+      }
+
+      isRecordingCli = false;
+      btn.style.color = 'white';
+      btn.style.background = 'var(--surf-3)';
+      btn.style.borderColor = 'var(--border)';
+      btn.disabled = true;
+      btn.innerHTML = '<span class="j-spinner"></span>';
+
+      try {
+        if (!_audioChunksCli.length) {
+          toast('Gravação vazia — fale algo antes de parar.', 'err');
+          _pttCliLimpar();
+          return;
+        }
+
+        const audioBlob = new Blob(_audioChunksCli, { type: _pttCliState.mime || 'audio/webm' });
+        if (audioBlob.size < 500) {
+          toast('Áudio muito curto.', 'err');
+          _pttCliLimpar();
+          return;
+        }
+
+        const fd = new FormData();
+        fd.append('file', audioBlob, 'ptt.' + (_pttCliState.mime.includes('mp4') ? 'm4a' : 'webm'));
+        fd.append('upload_preset', P.oficina?.cloudPreset || 'evolution');
+
+        const res = await fetch(`https://api.cloudinary.com/v1_1/${P.oficina?.cloudName || 'dmuvm1o6m'}/auto/upload`, { method:'POST', body:fd });
+        const data = await res.json();
+
+        if (!data.secure_url) {
+          throw new Error(data?.error?.message || 'Falha no upload do áudio.');
+        }
+
+        await db.collection('mensagens').add({
+          tenantId: P.tenantId,
+          clienteId: P.clienteId,
+          sender: 'cliente',
+          msg: '[AUDIO]' + data.secure_url,
+          lidaAdmin: false,
+          lidaCliente: true,
+          ts: Date.now()
+        });
+        toast('Áudio enviado com sucesso!', 'ok');
+
+      } catch (e) {
+        toast('Erro ao enviar áudio: ' + (e.message || e), 'err');
+      } finally {
+        _pttCliLimpar();
+      }
+    };
+
+    _mediaRecorderCli.start();
+    btn.style.color = 'white';
+    btn.style.background = 'var(--danger)';
+    btn.style.borderColor = 'var(--danger)';
+    btn.innerHTML = '⏹';
+    btn.setAttribute('aria-pressed', 'true');
+    toast('🔴 Gravando... Clique ⏹ para enviar.', 'warn');
+
+  } catch (err) {
+    toast('⚠ Permissão de microfone negada ou indisponível.', 'err');
+    _pttCliLimpar();
+  }
+}
+
+function _pttCliLimpar() {
+  if (_pttCliState.stream) {
+    try { _pttCliState.stream.getTracks().forEach(t => { try { t.stop(); } catch(e){} }); } catch(e){}
+  }
+  _pttCliState = { stream: null, mime: '' };
+  _audioChunksCli = [];
+  _mediaRecorderCli = null;
+  isRecordingCli = false;
+  const btn = document.getElementById('btnPttCli');
+  if (btn) {
+    btn.style.color = 'white';
+    btn.style.background = 'var(--surf-3)';
+    btn.style.borderColor = 'var(--border)';
+    btn.innerHTML = '🎤';
+    btn.disabled = false;
+    btn.removeAttribute('aria-pressed');
+  }
+}
+
+async function _enviarArquivoPortal(input) {
+  if (!input || !input.files || !input.files.length) return;
+  const file = input.files[0];
+  if (!file) return;
+
+  toast('Enviando anexo...', 'warn');
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('upload_preset', P.oficina?.cloudPreset || 'evolution');
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${P.oficina?.cloudName || 'dmuvm1o6m'}/auto/upload`, { method:'POST', body:fd });
+    const data = await res.json();
+
+    if (!data.secure_url) {
+      throw new Error(data?.error?.message || 'Falha no upload.');
+    }
+
+    const isImg = (data.resource_type === 'image') || /^image\//.test(file.type || '');
+    const prefixo = isImg ? '[IMAGEM]' : '[ARQUIVO]';
+
+    await db.collection('mensagens').add({
+      tenantId: P.tenantId,
+      clienteId: P.clienteId,
+      sender: 'cliente',
+      msg: prefixo + data.secure_url,
+      lidaAdmin: false,
+      lidaCliente: true,
+      ts: Date.now()
+    });
+    toast('Anexo enviado com sucesso!', 'ok');
+
+  } catch(e) {
+    toast('Erro no envio do anexo: ' + (e.message || e), 'err');
+  } finally {
+    try { input.value = ''; } catch(e){}
+  }
+}
+
+function _formatarMidiaChat(texto) {
+  if (texto == null) return '';
+  const limpo = String(texto).replace(/\uFEFF/g, '').replace(/\u200B/g, '').replace(/\u200C/g, '').replace(/\u200D/g, '').replace(/\u00A0/g, ' ').trim();
+  if (!limpo) return '';
+
+  const match = limpo.match(/^\s*\[\s*(AUDIO|IMAGEM|ARQUIVO)\s*\]\s*([\s\S]+)$/i);
+  if (!match) {
+    return _escapeHtmlCli(limpo).replace(/\n/g, '<br>');
+  }
+
+  const tipo = match[1].toUpperCase();
+  const url = match[2].trim().split(/\s+/)[0];
+
+  if (!/^https?:\/\/\S+/i.test(url)) {
+    return _escapeHtmlCli(limpo).replace(/\n/g, '<br>');
+  }
+
+  const u = _escapeAttrCli(url);
+  if (tipo === 'AUDIO') {
+    return `<audio src="${u}" controls preload="metadata" style="height:40px; max-width:100%; outline:none; border-radius:20px;"></audio>`;
+  }
+  if (tipo === 'IMAGEM') {
+    return `<img src="${u}" loading="lazy" alt="imagem" style="max-width:100%; max-height: 250px; border-radius:var(--r-md); cursor:zoom-in; border:1px solid var(--border);" onclick="window.open('${u}','_blank','noopener')">`;
+  }
+  if (tipo === 'ARQUIVO') {
+    return `<a href="${u}" target="_blank" rel="noopener" style="color:var(--brand);text-decoration:underline;font-weight:700;">📎 Abrir Anexo de Documento</a>`;
+  }
+
+  return _escapeHtmlCli(limpo).replace(/\n/g, '<br>');
+}
+
+function _renderChat(msgs) {
+  const container = document.getElementById('renderChatArea'); const badge = document.getElementById('cliChatBadge');
+  if (!container) return;
+  if (!msgs.length) { container.innerHTML = '<div style="text-align:center;color:var(--text-muted);font-size:0.85rem;padding:40px 20px;">Nenhuma mensagem ainda. Envie uma mensagem para a oficina.</div>'; if(badge) badge.style.display = 'none'; return; }
+  container.innerHTML = msgs.map(m => {
+    const t = m.ts ? new Date(m.ts).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
+    const dir = m.sender === 'cliente' ? 'outgoing' : 'incoming';
+    const author = m.sender === 'cliente' ? 'Você' : (m.autorTipo === 'equipe' && m.autorNome ? `${m.autorNome}${m.autorCargo ? ' (' + m.autorCargo + ')' : ''}` : (P.oficina?.nomeFantasia || 'Oficina'));
+    return `<div class="chat-msg ${dir}"><div class="chat-author">${_escapeHtmlCli(author)}</div>${_formatarMidiaChat(m.msg)}<div class="chat-time">${t}</div></div>`;
+  }).join('');
+  container.scrollTop = container.scrollHeight;
+  const nLidas = msgs.filter(m => m.sender === 'admin' && !m.lidaCliente).length;
+  if(badge) { badge.textContent = nLidas; badge.style.display = nLidas > 0 ? 'inline-block' : 'none'; }
+  if (document.getElementById('tabChat').classList.contains('active')) {
+    msgs.filter(m => m.sender === 'admin' && !m.lidaCliente).forEach(m => db.collection('mensagens').doc(m.id).update({ lidaCliente: true }).catch(()=>{}));
+  }
+}
+
+document.getElementById('portalChatInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); _enviarPortalMsg(); }
+});
+
+async function _enviarPortalMsg() {
+  const inp = document.getElementById('portalChatInput'); const msg = inp?.value?.trim();
+  if (!msg) return;
+  await db.collection('mensagens').add({ tenantId: P.tenantId, clienteId: P.clienteId, sender: 'cliente', msg, lidaAdmin: false, lidaCliente: true, ts: Date.now() });
+  inp.value = '';
+}
+
+function _negociarOrcamento(placa) {
+  switchCliTab('tabChat', document.querySelectorAll('.tab-btn')[1]);
+  const inp = document.getElementById('portalChatInput');
+  if(inp) { inp.value = `Gostaria de negociar o orçamento referente a placa ${placa}. `; inp.focus(); }
+}
+
+async function _aprovarOrcamento(osId) {
+  try {
+    const result = await (window.JOS || window.JarvisOSUtils).aprovarOrcamentoComSelecao({
+      db,
+      osId,
+      novoStatus: 'Aprovado',
+      cliente: P.cliente,
+      clientes: P.cliente ? [P.cliente] : [],
+      actorName: P.cliente?.nome || 'Cliente',
+      actorType: 'cliente',
+      toast
+    });
+    if (!result) return;
+    await db.collection('lixeira_auditoria').add({ tenantId: P.tenantId, modulo: 'PORTAL B2C', acao: `Orçamento APROVADO (${result.aprovacao?.status || 'selecionado'}): OS #${osId.slice(-5).toUpperCase()} - total ${formatter.format(result.totalAprovado || 0)}`, usuario: P.cliente?.nome || 'Cliente', ts: new Date().toISOString() });
+    toast('Orçamento aprovado com os itens selecionados. A oficina continuará o fluxo da O.S.', 'ok');
+  } catch (e) { toast('Erro ao aprovar: ' + e.message, 'err'); }
+}
+
+async function _recusarOrcamento(osId) {
+  if (!confirm('Tem certeza que deseja recusar? A Ordem de Serviço será CANCELADA permanentemente.')) return;
+  try {
+    const snap = await db.collection('ordens_servico').doc(osId).get();
+    const tl = snap.data().timeline || [];
+    tl.push({ dt: new Date().toISOString(), user: P.cliente?.nome || 'Cliente', acao: `Cliente RECUSOU o orçamento via Aplicativo B2C` });
+    await db.collection('ordens_servico').doc(osId).update({ status: 'Cancelado', timeline: tl, updatedAt: new Date().toISOString() });
+    await db.collection('lixeira_auditoria').add({ tenantId: P.tenantId, modulo: 'PORTAL B2C', acao: `Orçamento RECUSADO: OS #${osId.slice(-5).toUpperCase()}`, usuario: P.cliente?.nome || 'Cliente', ts: new Date().toISOString() });
+    toast('Orçamento recusado. Serviço cancelado.', 'warn');
+  } catch(e) { toast('Erro ao recusar: ' + e.message, 'err'); }
+}
+</script>
+
+<script src="elm-bridge.js"></script>
+<script src="elm327-service.js"></script>
+<script>
+// ── INTEGRAÇÃO OBD2 ROBUSTA (ELM327-SERVICE.JS) E DASHBOARD ──────────────────────────
+function _obdLog(msg, cor) {
+  const el = document.getElementById('obdLog'); if(!el) return;
+  const ts = new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  el.innerHTML += `<div style="color:${cor||'var(--text-muted)'}">[${ts}] ${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+  document.getElementById('obdWarnIOS').style.display = 'block';
+}
+
+// Lógica Trip Engine: processar estatísticas de viagem baseada em velocidade/rpm/tempo
+function _updateTripData(data) {
+    if(!_tripData.active) return;
+    const now = Date.now();
+    const diffHours = (now - _tripData.lastTime) / 3600000;
+    const speed = data.speed || 0;
+    const rpm = data.rpm || 0;
+
+    // Cálculo do Consumo em km/l (baseado em speed e rpm como simplificação comum do ELM327)
+    let kml = 0;
+    if (speed > 0 && rpm > 0) { kml = (speed / (rpm / 1000)) * 0.8; }
+    else if (speed > 0) { kml = 10; }
+
+    // Atualização cumulativa
+    if (speed > 0) {
+        const distInc = speed * diffHours;
+        _tripData.distanceKm += distInc;
+        if(kml > 0) { _tripData.fuelLiters += (distInc / kml); }
+    }
+    
+    _tripData.cost = _tripData.fuelLiters * _tripData.pricePerLiter;
+    _tripData.lastTime = now;
+
+    // Atualiza HTML do painel de viagem
+    const elDist = document.getElementById('tripDist');
+    const elTime = document.getElementById('tripTime');
+    const elFuel = document.getElementById('tripFuel');
+    const elCost = document.getElementById('tripCost');
+
+    if (elDist) elDist.textContent = _tripData.distanceKm.toFixed(2) + ' km';
+    if (elTime) {
+        const elapsedMin = Math.floor((now - _tripData.startTime) / 60000);
+        const elapsedSec = Math.floor(((now - _tripData.startTime) % 60000) / 1000);
+        elTime.textContent = `${elapsedMin}m ${elapsedSec}s`;
+    }
+    if (elFuel) elFuel.textContent = kml > 0 ? kml.toFixed(1) + ' km/l' : '--';
+    if (elCost) elCost.textContent = 'R$ ' + _tripData.cost.toFixed(2).replace('.', ',');
+}
+
+// Mapeamento dinâmico para suportar a classe ELM327Service injetada
+const obdScanner = typeof elm327Service !== 'undefined' ? elm327Service : (typeof elm327 !== 'undefined' ? elm327 : null);
+
+if (obdScanner) {
+  if (typeof obdScanner.onConnectionChange === 'function') {
+      // API nova do elm327-service.js (thIAguinho)
+      obdScanner.onConnectionChange((isConnected, errMsg) => {
+          if (isConnected) {
+              document.getElementById('obdLed').style.cssText = 'width:12px;height:12px;border-radius:50%;background:var(--success);box-shadow:0 0 8px var(--success);transition:0.4s;';
+              document.getElementById('obdLabel').textContent = 'Conectado';
+              document.getElementById('obdDevice').textContent = obdScanner.device ? obdScanner.device.name : 'ELM327 OBD-II';
+              document.getElementById('btnObd').textContent = '🔌 DESCONECTAR';
+              document.getElementById('btnObd').style.background = 'var(--danger-dim)';
+              document.getElementById('obdAcoes').style.display = 'block';
+              toast('ELM327 conectado!', 'ok');
+              _obdLog('Conexão Bluetooth GATT estabelecida.', 'var(--success)');
+          } else {
+              document.getElementById('obdLed').style.cssText = 'width:12px;height:12px;border-radius:50%;background:var(--text-muted);transition:0.4s;';
+              document.getElementById('obdLabel').textContent = 'Desconectado';
+              document.getElementById('obdDevice').textContent = 'Nenhum dispositivo';
+              document.getElementById('btnObd').textContent = '🔌 CONECTAR';
+              document.getElementById('btnObd').style.background = '';
+              document.getElementById('btnObd').className = 'btn btn-brand';
+              document.getElementById('obdAcoes').style.display = 'none';
+              document.getElementById('obdLive').style.display = 'none';
+              document.getElementById('obdHealthDash').style.display = 'none';
+              document.getElementById('obdTripDash').style.display = 'none';
+              toast(errMsg ? `Erro: ${errMsg}` : 'ELM327 desconectado', 'warn');
+              _obdLog('Scanner desconectado do veículo.', 'var(--warn)');
+          }
+      });
+
+      obdScanner.onDataReceived((payload) => {
+          if (payload && payload.type === 'liveData') {
+              _obdRenderGauges(payload.data);
+              _updateTripData(payload.data);
+          } else {
+              _obdLog(payload, 'var(--text-primary)');
+          }
+      });
+  } else if (typeof obdScanner.onLog === 'function') {
+      // Fallback para API legado
+      obdScanner.onLog((msg, type) => {
+          const cor = type==='ok'?'var(--success)':type==='warn'?'var(--warn)':type==='err'?'var(--danger)':'var(--text-muted)';
+          _obdLog(msg, cor);
+      });
+      obdScanner.onConnect(({ device }) => {
+          document.getElementById('obdLed').style.cssText = 'width:12px;height:12px;border-radius:50%;background:var(--success);box-shadow:0 0 8px var(--success);transition:0.4s;';
+          document.getElementById('obdLabel').textContent = 'Conectado';
+          document.getElementById('obdDevice').textContent = device || 'ELM327';
+          document.getElementById('btnObd').textContent = '🔌 DESCONECTAR';
+          document.getElementById('btnObd').style.background = 'var(--danger-dim)';
+          document.getElementById('obdAcoes').style.display = 'block';
+          toast('ELM327 conectado!', 'ok');
+      });
+      obdScanner.onDisconnect(() => {
+          document.getElementById('obdLed').style.cssText = 'width:12px;height:12px;border-radius:50%;background:var(--text-muted);transition:0.4s;';
+          document.getElementById('obdLabel').textContent = 'Desconectado';
+          document.getElementById('obdDevice').textContent = 'Nenhum dispositivo';
+          document.getElementById('btnObd').textContent = '🔌 CONECTAR';
+          document.getElementById('btnObd').style.background = '';
+          document.getElementById('btnObd').className = 'btn btn-brand';
+          document.getElementById('obdAcoes').style.display = 'none';
+          document.getElementById('obdLive').style.display = 'none';
+          document.getElementById('obdHealthDash').style.display = 'none';
+          document.getElementById('obdTripDash').style.display = 'none';
+          toast('ELM327 desconectado', 'warn');
+      });
+      obdScanner.onLiveData(data => {
+          _obdRenderGauges(data);
+          _updateTripData(data);
+      });
+  }
+}
+
+async function obdConectar() {
+  if (!obdScanner) { toast('Arquivo de serviço ELM327 não carregado.', 'err'); return; }
+  if (obdScanner.isConnected) { await obdScanner.disconnect(); return; }
+  if (!navigator.bluetooth) { toast('Web Bluetooth indisponível. Use o Google Chrome.', 'err'); return; }
+  try { 
+      _obdLog('Iniciando comunicação com adaptador...', 'var(--brand)');
+      await obdScanner.connect(); 
+  } catch(e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+async function obdLerDTCs() {
+  if (!obdScanner?.isConnected) { toast('Conecte o ELM327 primeiro.', 'warn'); return; }
+  toast('Lendo ECU...', 'warn');
+  _obdLog('Buscando códigos de falha na Injeção...', 'var(--warn)');
+  try {
+    let todos = [];
+    if (typeof obdScanner.readPendingDTCs === 'function') {
+        const [conf, pend] = await Promise.all([obdScanner.readDTCs(), obdScanner.readPendingDTCs()]);
+        todos = [...conf, ...pend.map(d=>({...d, status:'Pendente'}))];
+    } else {
+        todos = await obdScanner.readDTCs();
+    }
+    
+    window._ultimosDTCsLidos = todos.map(d => d.code || d); // Grava para o Dashboard de Saúde
+    _obdRenderDTCs(todos);
+    _obdSalvarFirebase(todos);
+    
+    if (todos.length === 0) {
+        toast('✅ Sem erros!', 'ok');
+        _obdLog('Leitura finalizada. Nenhum erro encontrado.', 'var(--success)');
+    } else {
+        toast(`⚠ ${todos.length} código(s) encontrado(s)`, 'warn');
+        _obdLog(`Leitura finalizada. ${todos.length} código(s) reportado(s).`, 'var(--danger)');
+    }
+  } catch(e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+async function obdLimparDTCs() {
+  if (!obdScanner?.isConnected) { toast('Conecte o ELM327 primeiro.', 'warn'); return; }
+  if (!confirm('Apagar os códigos de erro da ECU e apagar dados de Freeze Frame?')) return;
+  try {
+    _obdLog('Enviando comando para apagar memória da ECU...', 'var(--warn)');
+    const r = await obdScanner.clearDTCs();
+    const success = r.success !== undefined ? r.success : r;
+    toast(success ? '✅ DTCs apagados!' : '⚠ Falha ao apagar', success?'ok':'warn');
+    if (success) {
+        document.getElementById('obdDTCs').innerHTML = '';
+        window._ultimosDTCsLidos = []; // Limpa dashboard
+        _obdLog('Memória de falhas limpa com sucesso.', 'var(--success)');
+    }
+  } catch(e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+let _liveOn = false;
+function obdToggleLive() {
+  if (!obdScanner?.isConnected) { toast('Conecte o ELM327 primeiro.', 'warn'); return; }
+  if (_liveOn) {
+    if(typeof obdScanner.stopMonitoring === 'function') obdScanner.stopMonitoring();
+    else if(typeof obdScanner.stopLiveData === 'function') obdScanner.stopLiveData();
+    
+    _liveOn = false;
+    _tripData.active = false;
+    document.getElementById('btnLive').textContent = '📡 DADOS AO VIVO';
+    document.getElementById('obdLive').style.display = 'none';
+    document.getElementById('obdHealthDash').style.display = 'none';
+    document.getElementById('obdTripDash').style.display = 'none';
+    _obdLog('Leitura contínua interrompida.', 'var(--text-muted)');
+  } else {
+    if(typeof obdScanner.startMonitoring === 'function') obdScanner.startMonitoring(1000);
+    else if(typeof obdScanner.startLiveData === 'function') obdScanner.startLiveData(['rpm','speed','temp','throttle','fuel','voltage'], 1000);
+    
+    _liveOn = true;
+    _tripData = { active: true, startTime: Date.now(), distanceKm: 0, fuelLiters: 0, cost: 0, pricePerLiter: 5.80, lastTime: Date.now() }; // Inicia Trip Engine
+    document.getElementById('btnLive').textContent = '⏹ PARAR';
+    document.getElementById('obdLive').style.display = 'block';
+    document.getElementById('obdTripDash').style.display = 'block';
+    _obdLog('Iniciando leitura contínua de sensores (PIDs)...', 'var(--brand)');
+  }
+}
+
+async function obdVarredura() {
+  if (!obdScanner?.isConnected) { toast('Conecte o ELM327 primeiro.', 'warn'); return; }
+  toast('Varredura completa…', 'warn');
+  _obdLog('Iniciando varredura sistêmica completa (DTC + PIDs + Adapter Info)...', 'var(--brand)');
+  try {
+    let dtcs = [];
+    let liveData = null;
+    
+    if (typeof obdScanner.fullScan === 'function') {
+        const scan = await obdScanner.fullScan();
+        dtcs = [...scan.dtcs, ...scan.pending];
+        liveData = scan.live;
+    } else {
+        dtcs = await obdScanner.readDTCs();
+        if(typeof obdScanner.readLiveData === 'function') liveData = await obdScanner.readLiveData();
+    }
+
+    window._ultimosDTCsLidos = dtcs.map(d => d.code || d); // Grava para o Dashboard de Saúde
+    _obdRenderDTCs(dtcs);
+    if (liveData && Object.values(liveData).some(v=>v!==null)) {
+      _obdRenderGauges(liveData);
+      document.getElementById('obdLive').style.display = 'block';
+    }
+    
+    _obdSalvarFirebase(dtcs, liveData);
+    if (dtcs.length) {
+    }
+    
+    toast('Varredura concluída!', 'ok');
+    _obdLog('Varredura concluída com sucesso.', 'var(--success)');
+  } catch(e) { toast('Erro: ' + e.message, 'err'); }
+}
+
+function _obdRenderDTCs(dtcs) {
+  const el = document.getElementById('obdDTCs');
+  if (!dtcs.length) {
+    el.innerHTML = '<div style="text-align:center;padding:24px;background:var(--surf-1);border-radius:var(--r-xl);border:1px dashed var(--border);"><div style="font-size:2rem">✅</div><div style="font-family:var(--ff-display);font-size:1.1rem;font-weight:700;color:var(--success);margin-top:8px;">Sem erros detectados</div><div style="font-family:var(--ff-mono);font-size:0.7rem;color:var(--text-muted);margin-top:6px;">A ECU do seu veículo está sem códigos de falha ativos.</div></div>';
+    return;
+  }
+
+  // Guarda em memória para o botão "Notificar Oficina"
+  window._obdDtcsParaOficina = dtcs;
+
+  const SEV = {Alto:'var(--danger)',Médio:'var(--warn)',Baixo:'var(--brand)'};
+
+  // Dicionário de tradução cliente-friendly.
+  // Cliente NUNCA vê o código técnico. Vê: SINTOMA + CAUSA PROVÁVEL (em linguagem simples).
+  // A oficina vê TUDO via botão NOTIFICAR OFICINA.
+  const explicacaoCliente = (code, info) => {
+    const c = String(code || '').toUpperCase();
+    // Lambda / mistura
+    if (c.startsWith('P017') || c === 'P0171' || c === 'P0172') return { sintoma: 'Mistura ar/combustível fora do padrão', causa: 'Pode ser o *sensor de oxigênio (sonda lambda)* ou *bico injetor com vazamento*. Um dos bicos pode estar jogando combustível em excesso, ou a sonda está reportando errado.', urgencia: 'Médio' };
+    if (c === 'P0174' || c === 'P0175') return { sintoma: 'Motor com mistura irregular', causa: 'Possível falha na sonda lambda do banco 2 ou vazamento de ar na admissão.', urgencia: 'Médio' };
+    // Queima / misfire
+    if (c.startsWith('P030')) return { sintoma: 'Falha de ignição no motor', causa: 'Uma ou mais *velas de ignição* ou *bobinas* podem estar com problema. Isso causa trepidação e perda de força.', urgencia: 'Alto' };
+    // Catalisador
+    if (c === 'P0420' || c === 'P0430') return { sintoma: 'Catalisador com eficiência reduzida', causa: 'O catalisador pode estar desgastado ou entupido. Pode também ser problema antes dele (velas, sondas) que está afetando o sistema.', urgencia: 'Médio' };
+    // EGR
+    if (c.startsWith('P040')) return { sintoma: 'Problema no sistema de recirculação de gases (EGR)', causa: 'Válvula EGR pode estar entupida com carvão ou com defeito.', urgencia: 'Médio' };
+    // MAF/MAP
+    if (c === 'P0101' || c === 'P0102' || c === 'P0103') return { sintoma: 'Sensor de fluxo de ar (MAF) reportando leitura estranha', causa: 'Sensor MAF sujo ou com defeito. Pode causar marcha lenta irregular e aumento de consumo.', urgencia: 'Médio' };
+    if (c === 'P0106' || c === 'P0107' || c === 'P0108') return { sintoma: 'Sensor de pressão da admissão (MAP) fora do padrão', causa: 'Sensor MAP com defeito ou mangueira de vácuo furada/desconectada.', urgencia: 'Médio' };
+    // Temperatura motor
+    if (c === 'P0117' || c === 'P0118' || c === 'P0128') return { sintoma: 'Sensor de temperatura do motor com leitura incorreta', causa: 'Sensor CTS defeituoso ou termostato travado aberto.', urgencia: 'Médio' };
+    // Borboleta
+    if (c.startsWith('P012') || c.startsWith('P013') || c.startsWith('P014')) return { sintoma: 'Corpo de borboleta / acelerador eletrônico', causa: 'Corpo de borboleta sujo ou com defeito no sensor de posição.', urgencia: 'Médio' };
+    // Airbag / SRS
+    if (c.startsWith('B00')) return { sintoma: 'Sistema de airbag com alerta', causa: 'Sensor de impacto, cabeamento ou módulo do airbag pode estar com falha. Importante verificar para sua segurança.', urgencia: 'Alto' };
+    // ABS
+    if (c.startsWith('C00') || c.startsWith('C1')) return { sintoma: 'Sistema de freios ABS com alerta', causa: 'Sensor de roda ABS, cabeamento ou módulo pode estar com falha. Recomenda-se inspecionar os freios.', urgencia: 'Alto' };
+    // Rede CAN
+    if (c.startsWith('U00')) return { sintoma: 'Comunicação entre módulos eletrônicos com falha', causa: 'Pode ser um módulo específico ou a rede CAN do veículo. Requer diagnóstico eletrônico.', urgencia: 'Médio' };
+    // Genérico por prefixo
+    if (c.startsWith('P0')) return { sintoma: 'Alerta no sistema de motor/transmissão', causa: info?.description || 'Requer análise técnica com scanner profissional para identificar a causa exata.', urgencia: info?.severity || 'Médio' };
+    if (c.startsWith('B')) return { sintoma: 'Alerta no sistema da carroceria/conforto', causa: 'Módulo eletrônico da carroceria reportou uma falha. Um técnico deve investigar.', urgencia: info?.severity || 'Médio' };
+    if (c.startsWith('C')) return { sintoma: 'Alerta no sistema do chassi/freios', causa: 'Módulo de chassi reportou uma falha. Recomenda-se inspecionar freios e suspensão.', urgencia: info?.severity || 'Médio' };
+    return { sintoma: info?.description || 'Alerta técnico no sistema eletrônico do veículo', causa: 'Requer diagnóstico profissional.', urgencia: info?.severity || 'Médio' };
+  };
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div style="font-family:var(--ff-display);font-size:1rem;font-weight:700;color:white;">⚠ ${dtcs.length} alerta(s) detectado(s)</div>
+      <button onclick="_obdNotificarOficina()" style="background:var(--brand);border:none;color:white;font-family:var(--ff-display);font-size:0.75rem;font-weight:700;padding:8px 16px;border-radius:var(--r-md);cursor:pointer;letter-spacing:1px;">📨 NOTIFICAR OFICINA</button>
+    </div>` +
+    dtcs.map(d => {
+      const code = d.code || d;
+      const info = _dtcDatabase[code] || { description: d.description || '', severity: d.severity || 'Médio' };
+      const trad = explicacaoCliente(code, info);
+      const cor = SEV[trad.urgencia] || SEV['Médio'];
+      // NUNCA mostra o código técnico ao cliente final
+      return `<div style="background:var(--surf-1);border:1px solid var(--border);border-left:4px solid ${cor};border-radius:var(--r-md);padding:14px;margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:10px;">
+          <div style="font-size:0.95rem;font-weight:700;color:white;line-height:1.3;">${trad.sintoma}</div>
+          <span style="font-family:var(--ff-mono);font-size:0.58rem;padding:3px 9px;border-radius:10px;background:${cor};color:#000;font-weight:700;letter-spacing:1px;flex-shrink:0;">${trad.urgencia.toUpperCase()}</span>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-primary);line-height:1.5;margin-bottom:10px;">
+          <strong style="color:var(--brand);">Causa provável:</strong> ${trad.causa.replace(/\*(.*?)\*/g,'<strong style="color:white">$1</strong>')}
+        </div>
+        <div style="font-family:var(--ff-mono);font-size:0.65rem;color:var(--text-muted);margin-top:4px;border-top:1px dashed rgba(255,255,255,0.08);padding-top:8px;">
+          💡 Recomendamos que você notifique a oficina usando o botão acima. Eles recebem o relatório técnico completo e agendam uma revisão.
+        </div>
+      </div>`;
+    }).join('');
+}
+
+/**
+ * Envia relatório COMPLETO dos DTCs para a oficina.
+ * A oficina recebe os códigos técnicos reais. Cliente só vê confirmação.
+ */
+window._obdNotificarOficina = async function() {
+  const dtcs = window._obdDtcsParaOficina || [];
+  if (!dtcs.length) { toast('Nenhum código detectado para notificar.', 'warn'); return; }
+
+  if (!P?.tenantId) { toast('Não foi possível identificar sua oficina. Tente novamente depois.', 'err'); return; }
+
+  // Encontra a OS ativa mais recente (ou deixa null se não houver)
+  const osAtiva = (_osDoCliente || []).find(o =>
+    !['Entregue','Cancelado','entregue','cancelado'].includes(o.status)
+  );
+
+  // Monta mensagem para o chat da oficina (ela vê CÓDIGOS REAIS + descrições técnicas)
+  const nomeCli = P?.cliente?.nome || 'Cliente';
+  const placaVeic = (_osDoCliente[0]?.placa) || (P?.veiculosDoCliente?.[0]?.placa) || 'sem placa';
+  const dtcsFmt = dtcs.map(d => {
+    const code = d.code || d;
+    const info = _dtcDatabase[code] || {};
+    return `• ${code} — ${info.description || d.description || 'código OBD'} (${info.severity || d.severity || 'Médio'})`;
+  }).join('\n');
+
+  const msg = `🔔 *Relatório OBD do cliente*\n\n` +
+              `Cliente: ${nomeCli}\n` +
+              `Veículo: ${placaVeic}\n` +
+              `Data: ${new Date().toLocaleString('pt-BR')}\n\n` +
+              `*Códigos detectados pelo scanner:*\n${dtcsFmt}\n\n` +
+              `(relatório gerado automaticamente pelo portal do cliente)`;
+
+  try {
+    // Salva os DTCs na OS ativa (se houver) — fica disponível pra oficina
+    if (osAtiva) {
+      const tl = [...(osAtiva.timeline || [])];
+      tl.push({
+        dt: new Date().toISOString(),
+        user: nomeCli,
+        acao: `📡 Cliente enviou relatório OBD: ${dtcs.length} código(s) detectado(s) via scanner.`
+      });
+      await db.collection('ordens_servico').doc(osAtiva.id).update({
+        dtcsCliente: dtcs.map(d => ({
+          code: d.code || d,
+          description: d.description || (_dtcDatabase[d.code||d]?.description || ''),
+          severity: d.severity || (_dtcDatabase[d.code||d]?.severity || 'Médio'),
+          status: d.status || 'Pendente'
+        })),
+        dtcsTs: new Date().toISOString(),
+        timeline: tl,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    // Envia mensagem no chat da oficina (ela vê no jarvis)
+    await db.collection('mensagens').add({
+      tenantId: P.tenantId,
+      clienteId: P.clienteId,
+      texto: msg,
+      autor: 'cliente',
+      autorNome: nomeCli,
+      lida: false,
+      ts: new Date().toISOString()
+    });
+
+    toast('✓ Oficina notificada! Eles vão entrar em contato em breve.', 'ok');
+  } catch (e) {
+    console.error('Erro notificar oficina:', e);
+    toast('Erro ao notificar: ' + e.message, 'err');
+  }
+};
+
+function _obdRenderGauges(data) {
+  // Mostra o Dashboard de Saúde Premium (Baseado no thIAguinho-assistente-main)
+  const healthDash = document.getElementById('obdHealthDash');
+  if (healthDash) {
+      healthDash.style.display = 'flex';
+      
+      // Card 1: Status do Motor (Lido da Varredura)
+      const motorEl = document.getElementById('dashMotorStatus');
+      const motorIcon = motorEl.parentElement.previousElementSibling;
+      const dtcsLidos = window._ultimosDTCsLidos || [];
+      if (dtcsLidos.length > 0) {
+          motorEl.textContent = `${dtcsLidos.length} Falha(s)`;
+          motorEl.style.color = 'var(--danger)';
+          motorIcon.style.background = 'var(--danger-dim)';
+          motorIcon.style.color = 'var(--danger)';
+          motorIcon.innerHTML = `<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+      } else {
+          motorEl.textContent = 'Normal';
+          motorEl.style.color = 'var(--success)';
+          motorIcon.style.background = 'var(--success-dim)';
+          motorIcon.style.color = 'var(--success)';
+          motorIcon.innerHTML = `<svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+      }
+
+      // Card 2: Próxima Revisão — LOTE C (agora procura em QUALQUER OS: ativa OU última entregue)
+      // Lógica correta: o gestor preenche proxRev/proxKm normalmente ao ENTREGAR a OS,
+      // então precisamos procurar na OS mais recente (entregue ou não) que tenha esse dado.
+      const revEl = document.getElementById('dashRevStatus');
+      const todasOS = (_osDoCliente.length ? _osDoCliente : (P?.osDoCliente || []));
+      // Ordena por data desc e pega a primeira que tenha proxRev ou proxKm
+      const osComRev = todasOS
+        .slice()
+        .sort((a, b) => (b.updatedAt || b.createdAt || '').localeCompare(a.updatedAt || a.createdAt || ''))
+        .find(o => o.proxRev || o.proxKm);
+
+      if (osComRev && osComRev.proxRev) {
+          const dtRev = new Date(osComRev.proxRev + 'T00:00:00');
+          const hoje = new Date(); hoje.setHours(0,0,0,0);
+          const diffDias = Math.ceil((dtRev - hoje) / (1000 * 60 * 60 * 24));
+          if (diffDias < 0)       { revEl.textContent = `Atrasada (${Math.abs(diffDias)}d)`; revEl.style.color = 'var(--danger)'; }
+          else if (diffDias === 0){ revEl.textContent = 'Hoje!';               revEl.style.color = 'var(--warn)'; }
+          else if (diffDias <= 7) { revEl.textContent = `Em ${diffDias} dias`; revEl.style.color = 'var(--warn)'; }
+          else                    { revEl.textContent = `Em ${diffDias} dias`; revEl.style.color = 'white'; }
+          if (revEl.parentElement) revEl.parentElement.title = `Próxima revisão agendada pela oficina: ${dtRev.toLocaleDateString('pt-BR')}${osComRev.proxKm ? ' (aos '+Number(osComRev.proxKm).toLocaleString('pt-BR')+' km)' : ''}`;
+      } else if (osComRev && osComRev.proxKm) {
+          revEl.textContent = `Aos ${Number(osComRev.proxKm).toLocaleString('pt-BR')} km`;
+          revEl.style.color = 'white';
+      } else {
+          revEl.textContent = 'Em dia';
+          revEl.style.color = 'var(--success)';
+      }
+
+      // Card 3: Nível de Combustível (Barra animada)
+      const fuelLvl = data.fuelLevel !== undefined ? data.fuelLevel : (data.fuel !== undefined ? data.fuel : null);
+      if (fuelLvl !== null) {
+          document.getElementById('dashFuelVal').textContent = `${fuelLvl.toFixed(1)}%`;
+          const bar = document.getElementById('dashFuelBar');
+          bar.style.width = `${Math.min(100, Math.max(0, fuelLvl))}%`;
+          if (fuelLvl <= 15) bar.style.background = 'var(--danger)';
+          else if (fuelLvl <= 40) bar.style.background = 'var(--warn)';
+          else bar.style.background = 'var(--success)';
+      }
+  }
+
+  // Renderiza Gauges Menores Tradicionais
+  const el = document.getElementById('obdGauges'); if(!el) return;
+  const L = { rpm:{l:'RPM',u:'rpm',c:'var(--brand)'}, speed:{l:'VELOCIDADE',u:'km/h',c:'var(--success)'}, temp:{l:'TEMP.MOTOR',u:'°C',c:'var(--danger)'}, temperature:{l:'TEMP.MOTOR',u:'°C',c:'var(--danger)'}, throttle:{l:'ACELERADOR',u:'%',c:'var(--warn)'}, fuel:{l:'COMBUSTÍVEL',u:'%',c:'var(--success)'}, fuelLevel:{l:'COMBUSTÍVEL',u:'%',c:'var(--success)'}, voltage:{l:'BATERIA',u:'V',c:'var(--brand)'} };
+  el.innerHTML = Object.entries(data).filter(([k,v])=>k!=='timestamp'&&v!==null&&L[k]&&k!=='fuel'&&k!=='fuelLevel').map(([k,v])=>{
+    const i=L[k]; const val=typeof v==='number'?v.toFixed(v>100?0:1):'--';
+    return `<div style="background:var(--surf-2);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px;text-align:center;">
+      <div style="font-family:var(--ff-mono);font-size:0.55rem;color:${i.c};letter-spacing:1px;margin-bottom:6px;">${i.l}</div>
+      <div style="font-family:var(--ff-display);font-size:1.8rem;font-weight:800;color:${i.c};line-height:1;">${val}</div>
+      <div style="font-family:var(--ff-mono);font-size:0.6rem;color:var(--text-muted);margin-top:4px;">${i.u}</div>
+    </div>`;
+  }).join('');
+}
+
+async function _obdSalvarFirebase(dtcs, scan) {
+  if (!P?.tenantId) return;
+  const osAtiva = (P.osDoCliente||_osDoCliente).find(o=>!['Entregue','Cancelado','entregue','cancelado'].includes(o.status));
+  if (!osAtiva) return;
+  try {
+    const tl = [...(osAtiva.timeline||[])];
+    tl.push({ dt:new Date().toISOString(), user:P.cliente?.nome||'Cliente', acao: dtcs.length===0 ? 'Efetuou varredura OBD: Sistema OK.' : `Efetuou varredura OBD. Falhas: ${dtcs.map(d=>(d.code||d)).join(', ')}` });
+    const upd = { dtcsCliente:dtcs, dtcsTs:new Date().toISOString(), timeline:tl, updatedAt:new Date().toISOString() };
+    if (scan) upd.obdScan = scan;
+    await db.collection('ordens_servico').doc(osAtiva.id).update(upd);
+  } catch(e) { console.warn('Firebase OBD save falhou:', e); }
+}
+</script>
+<script src="js/theme.js"></script>
+<script src="js/hardening-comercial.js?v=26.13.0"></script>
+<script src="js/uix-theme-fix.js"></script>
+<script src="js/thia-firestore-runtime-v2612.js?v=26.13.0"></script>
+<script src="js/portal-firestore-profissional-v2612.js?v=26.12.0"></script>
+</body>
+</html>
