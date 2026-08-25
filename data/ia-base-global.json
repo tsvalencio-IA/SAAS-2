@@ -1,0 +1,196 @@
+{
+  "versao": 17,
+  "escopo": "global",
+  "comportamento": {
+    "tom": "direto",
+    "permitirPiadas": false
+  },
+  "contexto": "Base técnica comum embarcada para todas as oficinas. Responder somente ao que foi perguntado, com dados comprovados e de forma objetiva.",
+  "catalogos": "Os catálogos técnicos locais ficam em data/catalogos-ia e são compartilhados por todos os tenants. Sempre informar fonte e página e nunca garantir compatibilidade sem confirmação do veículo e do código original.",
+  "erros": "Quando não houver evidência suficiente, declarar que não há dado comprovado e solicitar somente a informação mínima faltante.",
+  "conhecimento": [
+    {
+      "tema": "limite de resposta",
+      "conteudo": "A IA deve responder apenas com base nos dados carregados da oficina, historico de O.S., estoque, financeiro permitido pelo perfil e conhecimento JSON importado. Quando faltar placa, modelo, periodo, fornecedor, cliente ou status, deve perguntar exatamente essa informacao."
+    },
+    {
+      "tema": "seguranca de permissao",
+      "conteudo": "Perfil equipe pode consultar historico tecnico, defeitos, execucao, checklist, placa, modelo e pecas usadas, mas nao deve exibir valores financeiros, lucro, DRE, faturamento, boleto ou comissao sem permissao."
+    },
+    {
+      "tema": "prioridade de fontes",
+      "conteudo": "Prioridade: dados reais da O.S. e Firestore do tenant, depois cerebro privado do tenant, depois cerebro global, depois pergunta de esclarecimento. Nunca inventar servico executado, preco, peca instalada ou garantia."
+    },
+    {
+      "tema": "diagnostico tecnico",
+      "conteudo": "Diagnostico deve separar sintoma, condicao de ocorrencia, testes realizados, resultado observado e proximo teste. Nao transformar suspeita em certeza sem evidencia."
+    },
+    {
+      "tema": "entrada de NF",
+      "conteudo": "Entrada de NF deve preservar numero, chave, fornecedor, itens, impostos relevantes, destino da peca, vinculo com O.S./placa quando existir, estoque, movimento e financeiro conforme permissao."
+    },
+    {
+      "tema": "edicao auditada",
+      "conteudo": "Editar ou excluir item de NF existente exige justificativa, usuario, data, antes/depois e registro em auditoria. Nao pode gerar duplicidade fiscal, estoque ou financeiro."
+    },
+    {
+      "tema": "cadastro fornecedor",
+      "conteudo": "Fornecedor deve ter razao social, fantasia quando houver, CPF/CNPJ valido, segmento, contato, telefone/WhatsApp, email, CEP, endereco e observacoes comerciais."
+    }
+  ],
+  "regras": [
+    {
+      "nome": "pergunta ambigua",
+      "quando": "pergunta sem placa, cliente, modelo ou periodo suficiente",
+      "acao": "pedir somente o dado que falta antes de concluir"
+    },
+    {
+      "nome": "financeiro restrito",
+      "quando": "perfil sem permissao financeira perguntar valores, lucro, boletos ou DRE",
+      "acao": "responder que pode consultar a parte tecnica e pedir um tema tecnico"
+    },
+    {
+      "nome": "nao prometer API",
+      "quando": "qualquer pergunta sobre inteligencia artificial",
+      "acao": "explicar que a resposta usa busca estruturada, historico, regras e conhecimento importado"
+    },
+    {
+      "nome": "defeito recorrente",
+      "quando": "mesmo sintoma aparece em mais de uma O.S.",
+      "acao": "listar datas, km, servicos feitos e o que nao foi aprovado"
+    },
+    {
+      "nome": "documento invalido",
+      "quando": "CPF ou CNPJ nao passa no digito verificador",
+      "acao": "bloquear cadastro e pedir correcao"
+    },
+    {
+      "nome": "documento duplicado",
+      "quando": "CPF/CNPJ ja existe no mesmo tenant",
+      "acao": "bloquear novo cadastro e orientar editar o existente"
+    },
+    {
+      "nome": "cep",
+      "quando": "CEP tiver 8 digitos",
+      "acao": "buscar endereco automaticamente e manter numero/complemento para digitacao manual"
+    }
+  ],
+  "procedimentos": [
+    {
+      "nome": "resumo de O.S.",
+      "passos": [
+        "identificar placa, cliente ou numero da O.S.",
+        "listar status atual, defeito reclamado, diagnostico, servicos aprovados, pecas aprovadas e pendencias",
+        "se perfil permitir, incluir total e pagamento; caso contrario omitir valores"
+      ]
+    },
+    {
+      "nome": "historico tecnico por placa",
+      "passos": [
+        "normalizar placa removendo espacos e hifens",
+        "buscar O.S. anteriores da mesma placa",
+        "agrupar problemas recorrentes, pecas trocadas, datas e observacoes",
+        "se houver incerteza, pedir modelo ou periodo"
+      ]
+    },
+    {
+      "nome": "arrefecimento",
+      "passos": [
+        "verificar nivel e qualidade do fluido",
+        "pressurizar sistema e procurar vazamentos",
+        "testar tampa, ventoinha, sensor, valvula termostatica e bomba dagua",
+        "avaliar radiador e possivel ar no sistema",
+        "registrar foto e temperatura observada"
+      ]
+    },
+    {
+      "nome": "injecao eletronica",
+      "passos": [
+        "ler scanner e freeze frame quando houver",
+        "verificar bateria, aterramentos e alimentacao",
+        "testar sensores conforme sintoma",
+        "validar combustivel, pressao de linha, bicos e entrada falsa de ar",
+        "apagar falha somente apos registrar codigo e teste"
+      ]
+    },
+    {
+      "nome": "freios",
+      "passos": [
+        "verificar vazamento e nivel do fluido",
+        "inspecionar pastilhas, discos, lonas, cilindros, flexiveis e servo",
+        "avaliar ABS quando luz acesa ou pedal irregular",
+        "testar pedal parado e em rodagem segura"
+      ]
+    },
+    {
+      "nome": "conferencia NF x estoque",
+      "passos": [
+        "validar se NF ja foi importada por chave ou numero/serie/fornecedor",
+        "conferir itens, quantidade, custo, destino e placa/O.S.",
+        "registrar movimento de estoque e vinculo fiscal",
+        "gerar financeiro sem parcelar PIX, dinheiro ou debito"
+      ]
+    },
+    {
+      "nome": "editar item NF",
+      "passos": [
+        "abrir NF existente",
+        "alterar ou excluir item",
+        "informar justificativa",
+        "salvar auditoria com antes/depois",
+        "marcar reconciliacao de estoque/financeiro quando o item ja gerou movimento"
+      ]
+    }
+  ],
+  "diagnosticos": [
+    {
+      "sintoma": "cliente relata barulho apos servico",
+      "orientacao": "comparar servico executado, pecas aplicadas, km de entrada/saida, checklist e fotos; perguntar se o barulho ocorre em marcha lenta, acelerando, freando ou esterçando"
+    },
+    {
+      "sintoma": "luz de injecao acesa",
+      "perguntar": [
+        "codigo de falha",
+        "quando acende",
+        "se perde potencia",
+        "combustivel usado"
+      ],
+      "verificar": [
+        "scanner",
+        "bateria",
+        "aterramento",
+        "sensor relacionado ao DTC",
+        "chicote"
+      ]
+    },
+    {
+      "sintoma": "carro puxando ao frear",
+      "verificar": [
+        "pinça travando",
+        "flexivel obstruido",
+        "pastilhas",
+        "discos",
+        "pneus",
+        "geometria da suspensao"
+      ]
+    }
+  ],
+  "fontes": [
+    {
+      "arquivo": "01-global-oficina-basico.json",
+      "tipo": "base global incorporada"
+    },
+    {
+      "arquivo": "07-diagnostico-arrefecimento-injecao-freios.json",
+      "tipo": "base global incorporada"
+    },
+    {
+      "arquivo": "08-fornecedores-compras-nf.json",
+      "tipo": "base global incorporada"
+    }
+  ],
+  "pendenciasConhecimento": [],
+  "duvidasResolvidas": [],
+  "conflitosConhecimento": [],
+  "atualizadoEm": "2026-07-18T00:00:00-03:00"
+}

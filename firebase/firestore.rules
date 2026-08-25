@@ -1,0 +1,317 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════════════
+// thIAguinho ERP — FIRESTORE SECURITY RULES
+//
+// Estratégia:
+//   - Multi-tenant: cada documento operacional carrega tenantId.
+//   - RBAC: a role do usuário fica em /users/{uid}.role
+//   - Mecânico NUNCA pode ler subcoleção financial (preço/total/margem).
+//   - Cliente NUNCA pode ler internalNotes nem financial.
+//   - Auditoria é append-only: ninguém edita ou apaga auditLogs.
+//
+// Powered by thIAguinho Soluções Digitais
+// ═══════════════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── HELPERS ──────────────────────────────────────────────────
+    function signedIn() { return request.auth != null; }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function role() { return userDoc().role; }
+    function userTenant() { return userDoc().tenantId; }
+
+    function isSuper()   { return signedIn() && role() == 'superadmin'; }
+    function isAdmin()   { return signedIn() && role() == 'oficina_admin'; }
+    function isFinanc()  { return signedIn() && role() == 'financeiro'; }
+    function isMec()     { return signedIn() && role() == 'mecanico'; }
+    function isCli()     { return signedIn() && role() == 'cliente'; }
+    function isStaff()   { return isSuper() || isAdmin() || isFinanc() || isMec(); }
+
+    // Documento pertence ao tenant do usuário?
+    function sameTenantRead() {
+      return isSuper() || (signedIn() && resource.data.tenantId == userTenant());
+    }
+    function sameTenantWrite() {
+      return isSuper() || (signedIn() && request.resource.data.tenantId == userTenant());
+    }
+    // Bloqueia troca de tenantId numa atualização
+    function noTenantSwitch() {
+      return !('tenantId' in resource.data)
+          || request.resource.data.tenantId == resource.data.tenantId;
+    }
+    // Verifica que o cliente é dono do recurso (via uid mapeado em customers)
+    function clienteEhDono(customerId) {
+      return signedIn() && isCli()
+          && exists(/databases/$(database)/documents/customers/$(customerId))
+          && get(/databases/$(database)/documents/customers/$(customerId)).data.userId == request.auth.uid;
+    }
+
+    // ─── /users — perfil do usuário ───────────────────────────────
+    match /users/{uid} {
+      allow read:   if signedIn() && (isSuper() || request.auth.uid == uid
+                                      || (isStaff() && resource.data.tenantId == userTenant()));
+      allow create: if isSuper(); // criação de usuário só pelo superadmin (ou Cloud Function)
+      allow update: if isSuper()
+                    || (request.auth.uid == uid && noTenantSwitch()
+                        && request.resource.data.role == resource.data.role); // user não muda própria role
+      allow delete: if false;
+    }
+
+    // ─── /tenants — oficinas SaaS ─────────────────────────────────
+    match /tenants/{tid} {
+      allow read:  if isSuper() || (signedIn() && userTenant() == tid);
+      allow write: if isSuper();
+    }
+
+    match /oficinas/{tid} {
+      allow read:  if isSuper() || (signedIn() && userTenant() == tid);
+      allow write: if isSuper();
+    }
+
+    // ─── /superadmins ─────────────────────────────────────────────
+    match /superadmins/{uid} {
+      allow read:  if isSuper() || (signedIn() && request.auth.uid == uid);
+      allow write: if isSuper();
+    }
+
+    // ─── /clientes ────────────────────────────────────────────────
+    match /clientes/{id} {
+      allow read:   if sameTenantRead() || (isCli() && resource.data.userId == request.auth.uid);
+      allow create: if sameTenantWrite() && (isAdmin() || isSuper());
+      allow update: if sameTenantRead() && noTenantSwitch() && (isAdmin() || isSuper());
+      allow delete: if false; // soft delete via campo deletedAt
+    }
+
+    // ─── /veiculos ────────────────────────────────────────────────
+    match /veiculos/{id} {
+      allow read:   if sameTenantRead();
+      allow create: if sameTenantWrite() && (isAdmin() || isSuper());
+      allow update: if sameTenantRead() && noTenantSwitch() && (isAdmin() || isSuper());
+      allow delete: if false;
+    }
+
+    // ─── /funcionarios ────────────────────────────────────────────
+    match /funcionarios/{id} {
+      allow read:   if sameTenantRead();
+      allow create: if sameTenantWrite() && (isAdmin() || isSuper());
+      allow update: if sameTenantRead() && noTenantSwitch() && (isAdmin() || isSuper());
+      allow delete: if false;
+    }
+
+    // ─── /fornecedores ────────────────────────────────────────────
+    match /fornecedores/{id} {
+      allow read:   if sameTenantRead();
+      allow create: if sameTenantWrite() && (isAdmin() || isFinanc() || isSuper());
+      allow update: if sameTenantRead() && noTenantSwitch() && (isAdmin() || isFinanc() || isSuper());
+      allow delete: if false;
+    }
+
+    // ─── /estoqueItems — peças do estoque ─────────────────────────
+    // Mecânico pode LER (precisa saber se tem peça), mas NÃO vê custo/venda.
+    // Aplicação client-side oculta os campos sensíveis. Auditoria de baixa
+    // só pelo admin/financeiro.
+    match /estoqueItems/{id} {
+      allow read:   if sameTenantRead();
+      allow create: if sameTenantWrite() && (isAdmin() || isFinanc() || isSuper());
+      allow update: if sameTenantRead() && noTenantSwitch() && (isAdmin() || isFinanc() || isMec() || isSuper());
+      allow delete: if false;
+    }
+
+    // ─── /agendamentos ────────────────────────────────────────────
+    match /agendamentos/{id} {
+      allow read:   if sameTenantRead();
+      allow write:  if sameTenantWrite() && isStaff();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  /ordens_servico — OPERACIONAL
+    //  ▸ NÃO contém preço/total/custo/margem (esses ficam em
+    //    subcoleção /financial protegida abaixo).
+    //  ▸ Mecânico LÊ. Cliente lê SOMENTE a própria OS.
+    // ═══════════════════════════════════════════════════════════════
+    match /ordens_servico/{orderId} {
+      allow read: if sameTenantRead()
+                  || (isCli() && clienteEhDono(resource.data.clienteId));
+      allow create: if sameTenantWrite() && isStaff();
+      allow update: if sameTenantRead() && noTenantSwitch() && isStaff();
+      allow delete: if false;
+
+      // ─── ITENS — operacional, sem preço ─────────────────────────
+      match /items/{itemId} {
+        allow read:   if sameTenantRead()
+                      || (isCli() && clienteEhDono(get(/databases/$(database)/documents/ordens_servico/$(orderId)).data.clienteId));
+        allow create: if sameTenantWrite() && isStaff();
+        allow update: if sameTenantRead() && noTenantSwitch() && isStaff();
+        allow delete: if false;
+      }
+
+      // ─── FINANCIAL — preço/total/custo/margem/pagamento ─────────
+      // BLINDADO: mecânico e cliente NUNCA leem.
+      match /financial/{financialId} {
+        allow read:   if isSuper() || isAdmin() || isFinanc();
+        allow create: if (isSuper() || isAdmin() || isFinanc())
+                      && sameTenantWrite();
+        allow update: if (isSuper() || isAdmin() || isFinanc())
+                      && sameTenantRead() && noTenantSwitch();
+        allow delete: if false;
+      }
+
+      // ─── INTERNAL NOTES — equipe técnica/admin, sem cliente ─────
+      match /internalNotes/{noteId} {
+        allow read:   if isSuper() || isAdmin() || isMec() || isFinanc();
+        allow create: if (isSuper() || isAdmin() || isMec()) && sameTenantWrite();
+        allow update: if false; // nota interna é imutável (auditoria)
+        allow delete: if false;
+      }
+
+      // ─── PUBLIC TIMELINE — cliente vê ───────────────────────────
+      match /publicTimeline/{eventId} {
+        allow read: if sameTenantRead()
+                    || (isCli() && clienteEhDono(get(/databases/$(database)/documents/ordens_servico/$(orderId)).data.clienteId));
+        allow create: if sameTenantWrite() && isStaff();
+        allow update: if false;
+        allow delete: if false;
+      }
+
+      // ─── EXECUTION — status item-a-item para mecânico/admin ─────
+      match /execution/{executionId} {
+        allow read:   if sameTenantRead();
+        allow create: if sameTenantWrite() && (isAdmin() || isMec() || isSuper());
+        allow update: if sameTenantRead() && noTenantSwitch() && (isAdmin() || isMec() || isSuper());
+        allow delete: if false;
+      }
+    }
+
+    // ─── /financeiro — caixa/DRE/contas ────────────────────────────
+    // BLINDADO: só admin/financeiro/super.
+    match /financeiro/{id} {
+      allow read:   if (isSuper() || isAdmin() || isFinanc()) && sameTenantRead();
+      allow create: if (isSuper() || isAdmin() || isFinanc()) && sameTenantWrite();
+      allow update: if (isSuper() || isAdmin() || isFinanc()) && sameTenantRead() && noTenantSwitch();
+      allow delete: if false;
+    }
+
+    // ─── /saas_financeiro — só superadmin ─────────────────────────
+    match /saas_financeiro/{id} {
+      allow read, write: if isSuper();
+    }
+
+    // ─── /mensagens — chat cliente/oficina ────────────────────────
+    match /mensagens/{id} {
+      allow read:   if sameTenantRead()
+                    || (isCli() && resource.data.clienteId != null
+                        && clienteEhDono(resource.data.clienteId));
+      allow create: if signedIn() && (
+                       (isStaff() && sameTenantWrite())
+                    || (isCli() && request.resource.data.clienteId != null
+                        && clienteEhDono(request.resource.data.clienteId))
+                    );
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ─── /chat_equipe — só staff ──────────────────────────────────
+    match /chat_equipe/{id} {
+      allow read:   if isStaff() && sameTenantRead();
+      allow create: if isStaff() && sameTenantWrite();
+      allow update: if isStaff() && sameTenantRead() && noTenantSwitch();
+      allow delete: if false;
+    }
+
+    // ─── /serviceCategories — categorias para KPI exato ───────────
+    // Cada item da OS guarda categoryId/categoryNameSnapshot/kpiGroup.
+    // KPIs usam SOMENTE categoria real, nunca heurística por texto.
+    match /serviceCategories/{id} {
+      allow read:   if sameTenantRead();
+      allow create: if (isAdmin() || isSuper()) && sameTenantWrite();
+      allow update: if (isAdmin() || isSuper()) && sameTenantRead() && noTenantSwitch();
+      allow delete: if false;
+    }
+
+    // ─── /lixeira_auditoria — APPEND-ONLY ─────────────────────────
+    match /lixeira_auditoria/{id} {
+      allow read:   if sameTenantRead() && (isSuper() || isAdmin() || isFinanc());
+      allow create: if signedIn() && sameTenantWrite();
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ─── /auditLogs — APPEND-ONLY ─────────────────────────────────
+    match /auditLogs/{id} {
+      allow read:   if sameTenantRead() && (isSuper() || isAdmin() || isFinanc());
+      allow create: if signedIn() && sameTenantWrite()
+                    && request.resource.data.actorId == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // ─── /notificacoes_live ───────────────────────────────────────
+    // Cotacoes de pecas aprovadas da O.S. (RFQ interno + portal tokenizado)
+    match /cotacoes_pecas/{id} {
+      allow read:   if sameTenantRead() && (isSuper() || isAdmin() || isFinanc());
+      allow create: if signedIn() && sameTenantWrite() && (isSuper() || isAdmin() || isFinanc());
+      allow update: if sameTenantRead() && noTenantSwitch() && (isSuper() || isAdmin() || isFinanc());
+      allow delete: if false;
+    }
+
+    function cotacaoPublicaAtiva(token) {
+      return exists(/databases/$(database)/documents/cotacoes_publicas/$(token))
+        && get(/databases/$(database)/documents/cotacoes_publicas/$(token)).data.status == 'aberta'
+        && (!('expiraEmTs' in get(/databases/$(database)/documents/cotacoes_publicas/$(token)).data)
+            || request.time < get(/databases/$(database)/documents/cotacoes_publicas/$(token)).data.expiraEmTs);
+    }
+
+    match /cotacoes_publicas/{token} {
+      allow read: if resource.data.status == 'aberta'
+                  && (!('expiraEmTs' in resource.data) || request.time < resource.data.expiraEmTs);
+      allow create: if signedIn() && sameTenantWrite() && (isSuper() || isAdmin() || isFinanc());
+      allow update: if sameTenantRead() && noTenantSwitch() && (isSuper() || isAdmin() || isFinanc());
+      allow delete: if false;
+
+      match /respostas/{id} {
+        allow read: if sameTenantRead() && (isSuper() || isAdmin() || isFinanc());
+        allow create: if cotacaoPublicaAtiva(token)
+          && request.resource.data.token == token
+          && request.resource.data.tenantId == get(/databases/$(database)/documents/cotacoes_publicas/$(token)).data.tenantId
+          && request.resource.data.cotacaoId == get(/databases/$(database)/documents/cotacoes_publicas/$(token)).data.cotacaoId
+          && request.resource.data.osId == get(/databases/$(database)/documents/cotacoes_publicas/$(token)).data.osId
+          && request.resource.data.itemKey == get(/databases/$(database)/documents/cotacoes_publicas/$(token)).data.itemKey
+          && request.resource.data.valorUnitario is number
+          && request.resource.data.valorUnitario > 0;
+        allow update, delete: if false;
+      }
+    }
+
+    match /cotacoes_respostas/{id} {
+      allow read: if sameTenantRead() && (isSuper() || isAdmin() || isFinanc());
+      allow create: if request.resource.data.token is string
+        && cotacaoPublicaAtiva(request.resource.data.token)
+        && request.resource.data.tenantId == get(/databases/$(database)/documents/cotacoes_publicas/$(request.resource.data.token)).data.tenantId
+        && request.resource.data.cotacaoId == get(/databases/$(database)/documents/cotacoes_publicas/$(request.resource.data.token)).data.cotacaoId
+        && request.resource.data.osId == get(/databases/$(database)/documents/cotacoes_publicas/$(request.resource.data.token)).data.osId
+        && request.resource.data.itemKey == get(/databases/$(database)/documents/cotacoes_publicas/$(request.resource.data.token)).data.itemKey
+        && request.resource.data.valorUnitario is number
+        && request.resource.data.valorUnitario > 0;
+      allow update: if sameTenantRead() && noTenantSwitch() && (isSuper() || isAdmin() || isFinanc());
+      allow delete: if false;
+    }
+
+    match /notificacoes_live/{id} {
+      allow read:   if sameTenantRead();
+      allow create: if signedIn() && sameTenantWrite();
+      allow update: if signedIn() && sameTenantRead() && noTenantSwitch();
+      allow delete: if signedIn() && sameTenantRead();
+    }
+
+    // ─── DEFAULT DENY ─────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
