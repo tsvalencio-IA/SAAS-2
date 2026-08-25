@@ -1,0 +1,50 @@
+CORREÇÃO FISCAL/NFE PRO — thIAguinho SaaS
+
+Fonte única usada: Valenc_IA-3-main.zip enviado nesta conversa.
+
+Arquivos alterados/adicionados:
+- jarvis.html
+- js/os.js
+- js/fiscal-nfe-pro.js  (novo módulo fiscal profissional)
+- service-worker.js
+- js/service-worker.js
+
+O que mudou:
+1) Entrada de NF/XML agora lê os campos fiscais reais da NFe 4.00:
+   - chave, número, série, natureza, data de emissão
+   - fornecedor: CNPJ, razão social, fantasia, IE, telefone, CEP, rua, bairro, cidade, UF
+   - itens: código/OEM, EAN/GTIN, descrição real, NCM, CEST, CFOP, unidade, quantidade, custo unitário, desconto, total, impostos principais
+   - cobrança: duplicatas, vencimentos e valores
+
+2) Vínculo de peça por item:
+   - Estoque
+   - Vincular a O.S./veículo
+   - Separar por placa
+   - Uso interno
+   - Garantia
+   - Devolução
+   - Outro
+
+3) Quando vincula peça a O.S., aparece seleção com:
+   - número/código da O.S.
+   - placa
+   - veículo
+   - cliente
+   - status/etapa
+   - data
+
+4) Salvar NF agora grava:
+   - notasFiscaisEntrada
+   - nf_itens_vinculos
+   - estoqueItems, quando aplicável
+   - financeiro com duplicatas reais do XML, quando existirem
+
+5) Cadastro de fornecedor agora tem campos reais:
+   - CNPJ/CPF, IE, fantasia, e-mail, telefone, CEP, rua, número, bairro, cidade, UF, complemento e observações
+   - CEP automático via ViaCEP
+
+6) Tipo de veículo na O.S. foi ampliado para:
+   - compacto, hatch, sedan, SUV, pickup, van, caminhão, moto, bicicleta e outro
+   Isso preserva a tempária existente e melhora o filtro por tipo/porte do veículo.
+
+Nada foi removido de Cilia, assinatura, guincho, financeiro, cliente, clienteOficial, equipe, superadmin, PDF, planilha, PWA, APK ou EXE.

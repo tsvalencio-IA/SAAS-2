@@ -1,0 +1,48 @@
+OFICIN-IA V16 — VERSÃO LEVE COM IA LOCAL DOCUMENTAL
+Data: 18/07/2026
+
+O QUE FOI FEITO
+
+1. A cotação automática por robô/Prec_IA/ValorIA foi removida.
+2. A cotação manual foi mantida completa: formulário, links individuais por
+   fornecedor, mensagens, WhatsApp, e-mail, compartilhamento, respostas e
+   escolha da melhor proposta.
+3. A IA externa e suas telas, credenciais, endpoint e arquivos foram removidos.
+4. Nenhuma chave de Google AI/Gemini é necessária.
+5. A configuração web do Firebase foi mantida porque ela conecta o sistema ao
+   banco de dados. Ela não é uma chave de IA.
+6. A IA interna agora consulta os dez catálogos fornecidos, com nome do PDF e
+   página em cada resposta.
+7. Dados e catálogos pesados são carregados progressivamente, somente quando a
+   tela ou a pergunta precisar deles.
+
+COMO PUBLICAR
+
+- Envie TODO o conteúdo desta pasta para o repositório, substituindo a versão
+  anterior e preservando a mesma estrutura de pastas.
+- Na Vercel, apenas mande fazer um novo deploy. O build prepara automaticamente
+  a pasta web-dist e publica somente os arquivos necessários ao site.
+- No GitHub Pages, os arquivos HTML na raiz continuam prontos para uso.
+- Os dados existentes no Firebase não são apagados ao trocar os arquivos.
+
+COMO USAR A COTAÇÃO
+
+Abra uma O.S. > Cotação de peças > escolha os fornecedores > clique em
+GERAR FORMULÁRIOS E MENSAGENS. O sistema cria um formulário/link individual
+para cada fornecedor e você confirma cada envio manualmente.
+
+COMO CONSULTAR OS CATÁLOGOS NA IA
+
+Exemplos:
+- aplicação do código 087069 no catálogo AJE
+- procure no catálogo DNI o código da peça
+- pastilha Jurid para Corolla
+- código Wahler 14001
+
+A resposta mostra a fonte e a página. Sempre confirme veículo, ano, motor,
+versão e código antes da compra ou aplicação.
+
+LEIA TAMBÉM
+
+RELATORIO_V16_LEVE_IA_LOCAL_20260718.md contém o inventário técnico, as fontes
+dos catálogos, o que foi removido e todos os testes realizados.

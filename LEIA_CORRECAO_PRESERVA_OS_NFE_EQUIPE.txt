@@ -1,0 +1,26 @@
+Correção feita sobre VERSAO ATUAL.zip (Valenc_IA-2-main).
+
+Arquivos alterados:
+- jarvis.html
+- equipe.html
+- js/os.js
+- js/nfe-real-pro.js
+- service-worker.js
+- js/service-worker.js
+- capacitor-android/www/jarvis.html
+- capacitor-android/www/equipe.html
+- capacitor-android/www/js/os.js
+- capacitor-android/www/js/nfe-real-pro.js
+- capacitor-android/www/service-worker.js
+- capacitor-android/www/js/service-worker.js
+
+Mudanças:
+1) Tipo de veículo da O.S. agora é campo separado para tempária/PMSP e não filtra/remove veículo vinculado.
+2) Ao abrir O.S. existente, carrega tipo salvo sem apagar placa/veículo.
+3) Ao salvar, preserva placa antiga se o campo ficar vazio por falha visual.
+4) Painel equipe/pátio não mostra valores R$, aprovado, faturado ou orçamento. Mostra apenas status operacional.
+5) Importação NFe separa código fornecedor, código/OEM, descrição limpa e marca.
+6) NCM, CFOP e CEST aparecem em campos próprios.
+7) Cache PWA/APK atualizado.
+
+Nada foi removido de Cilia, assinatura, guincho, exportação PDF/XLSX, financeiro, cliente, clienteOficial ou superadmin.

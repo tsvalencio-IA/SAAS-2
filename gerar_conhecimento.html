@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>J.A.R.V.I.S - Motor de Ingestão REAL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Bibliotecas reais para processar os arquivos no navegador -->
+    <script src="assets/vendor/pdf.min.js"></script>
+    <script src="assets/vendor/jszip.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'assets/vendor/pdf.worker.min.js';</script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        html { min-height: 100%; }
+        body { font-family: 'Inter', sans-serif; background-color: #0b0f19; color: #8b9bb4; min-height: 100vh; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0b0f19; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        .input-bg { background-color: #1f2937; border: 1px solid #374151; color: #e2e8f0; }
+        .input-bg:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 1px #3b82f6; }
+        .header-text { color: #64748b; font-size: 0.70rem; letter-spacing: 0.05em; font-weight: 700; text-transform: uppercase; }
+        .blink { animation: blinker 1s linear infinite; }
+        @keyframes blinker { 50% { opacity: 0; } }
+        .app-shell { min-height: 0; }
+        .generator-main { min-width: 0; }
+        .editor-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        textarea, pre, input, button { max-width: 100%; }
+        @media (max-width: 1024px) {
+            body { height: auto; overflow-y: auto; }
+            .app-shell { flex-direction: column; overflow: visible; }
+            .generator-sidebar { width: 100%; border-right: 0; border-bottom: 1px solid #1f2937; max-height: none; }
+            .generator-main { overflow: visible; padding: 18px; }
+            #terminalOutput { min-height: 150px; max-height: 230px; flex: none; }
+            .editor-grid { grid-template-columns: 1fr; gap: 16px; }
+            #jsonOutput { height: 260px; }
+        }
+        @media (max-width: 640px) {
+            header { align-items: flex-start; }
+            .generator-main { padding: 14px; }
+            .drop-copy { font-size: 0.72rem; }
+            .header-text { font-size: 0.64rem; line-height: 1.35; }
+            textarea { min-height: 130px; }
+            #jsonOutput { height: 240px; font-size: 10px; }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col overflow-x-hidden">
+
+    <header class="bg-[#0b0f19] border-b border-[#1f2937] px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row justify-between sm:items-center gap-3 shrink-0">
+        <div class="flex items-center gap-3 min-w-0">
+            <i class="ph ph-cpu text-2xl text-blue-500"></i>
+            <h1 class="text-sm font-bold text-slate-200 tracking-wider leading-snug">MOTOR DE INGESTÃO REAL (DATA PARSER)</h1>
+        </div>
+        <div class="text-xs text-slate-500 flex items-center gap-2 whitespace-nowrap">
+            <span class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></span> Sistema JARVIS Online
+        </div>
+    </header>
+
+    <div class="app-shell flex flex-1 overflow-hidden">
+        
+        <!-- COLUNA ESQUERDA: Upload e Terminal -->
+        <aside class="generator-sidebar w-[400px] border-r border-[#1f2937] bg-[#0b0f19] flex flex-col z-10 shrink-0">
+            <div class="p-4 sm:p-5 border-b border-[#1f2937]">
+                <h2 class="header-text mb-3">Ingestão de Arquivos Brutos</h2>
+                <div id="dropZone" class="border border-dashed border-[#374151] hover:border-blue-500 bg-[#111827] rounded-lg p-5 sm:p-6 text-center transition cursor-pointer flex flex-col items-center gap-3">
+                    <i class="ph ph-database text-3xl text-slate-400"></i>
+                    <div class="space-y-1 relative z-10">
+                        <p class="drop-copy text-xs font-semibold text-slate-300">Arraste arquivos ou clique</p>
+                        <p class="text-[10px] text-slate-500">PDF, APK, ZIP, XLSX, DOCX, EXE, TXT, CSV, JSON</p>
+                    </div>
+                    <input type="file" id="fileInput" class="hidden" accept=".apk,.aab,.zip,.jar,.docx,.xlsx,.exe,.dll,.msi,.db,.sqlite,.pdf,.txt,.csv,.json,.xml,.html,.htm,.png,.jpg,.jpeg">
+                </div>
+            </div>
+
+            <!-- Terminal Real -->
+            <div class="flex-1 bg-[#05080f] p-4 font-mono text-[10px] text-green-400/80 overflow-y-auto flex flex-col gap-1" id="terminalOutput">
+                <div class="text-slate-500">>> JARVIS Data Parser v3.0</div>
+                <div class="text-slate-500">>> Inicializando motor de leitura real...</div>
+            </div>
+
+            <div class="p-4 border-t border-[#1f2937] bg-[#111827]">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div class="flex-1">
+                        <label class="block text-[10px] text-slate-500 mb-1 uppercase">Escopo</label>
+                        <input type="text" id="inpEscopo" value="tenant" class="w-full input-bg rounded p-2 text-xs" oninput="updateJSON()">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-[10px] text-slate-500 mb-1 uppercase">Tom da IA</label>
+                        <input type="text" id="inpTom" value="direto" class="w-full input-bg rounded p-2 text-xs" oninput="updateJSON()">
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- COLUNA DIREITA: Edição -->
+        <main class="generator-main flex-1 overflow-y-auto p-8 relative">
+            <div class="max-w-5xl mx-auto space-y-6">
+                
+                <div class="editor-grid grid gap-6">
+                    <div class="space-y-2">
+                        <label class="header-text flex items-center justify-between">Contexto Operacional <button class="text-blue-500 text-[10px]" onclick="clearField('inpContexto')">Limpar</button></label>
+                        <textarea id="inpContexto" rows="4" class="w-full input-bg rounded-lg p-3 text-xs resize-none" oninput="updateJSON()"></textarea>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="header-text flex items-center justify-between">
+                            Catálogos / Peças (o texto cai aqui)
+                            <button class="text-blue-500 text-[10px]" onclick="clearField('inpCatalogos')">Limpar</button>
+                        </label>
+                        <textarea id="inpCatalogos" rows="4" class="w-full input-bg rounded-lg p-3 text-xs resize-y" placeholder="O texto extraído do seu PDF aparecerá aqui para você editar..." oninput="updateJSON()"></textarea>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="header-text flex items-center justify-between">Erros / DTC / Diagnósticos</label>
+                        <textarea id="inpErros" rows="4" class="w-full input-bg rounded-lg p-3 text-xs resize-y" oninput="updateJSON()"></textarea>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="header-text flex items-center justify-between">Regras Internas</label>
+                        <textarea id="inpRegras" rows="4" class="w-full input-bg rounded-lg p-3 text-xs resize-y" oninput="updateJSON()"></textarea>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="header-text flex items-center justify-between">Procedimentos Técnicos</label>
+                    <textarea id="inpProcedimentos" rows="4" class="w-full input-bg rounded-lg p-3 text-xs resize-y" oninput="updateJSON()"></textarea>
+                </div>
+
+                <div class="editor-grid grid gap-6">
+                    <div class="space-y-2">
+                        <label class="header-text flex items-center justify-between">Fontes Importadas</label>
+                        <textarea id="inpFontes" rows="4" class="w-full input-bg rounded-lg p-3 text-xs resize-y" oninput="updateJSON()" placeholder="Preenchido automaticamente com nome, tipo e resumo dos arquivos analisados."></textarea>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="header-text flex items-center justify-between">Dúvidas / Divergências para Validar</label>
+                        <textarea id="inpPendencias" rows="4" class="w-full input-bg rounded-lg p-3 text-xs resize-y" oninput="updateJSON()" placeholder="Quando o gerador encontrar possível conflito, registre aqui a pergunta para o Superadmin/Jarvis responder."></textarea>
+                    </div>
+                </div>
+
+                <!-- Painel JSON -->
+                <div class="space-y-2 pt-4">
+                    <label class="header-text text-blue-400">JSON COMPLETO (REALTIME)</label>
+                    <div class="bg-[#111827] border border-[#1f2937] rounded-lg flex flex-col">
+                        <pre id="jsonOutput" class="w-full h-[300px] p-4 text-[11px] font-mono text-slate-300 overflow-auto outline-none"></pre>
+                        <div class="bg-[#1f2937] p-3 border-t border-[#374151]">
+                            <button onclick="baixarJSON()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded text-xs font-semibold uppercase transition">
+                                Baixar JSON do Conhecimento
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // UI Elements
+        const inputs = {
+            escopo: document.getElementById('inpEscopo'),
+            tom: document.getElementById('inpTom'),
+            contexto: document.getElementById('inpContexto'),
+            catalogos: document.getElementById('inpCatalogos'),
+            erros: document.getElementById('inpErros'),
+            regras: document.getElementById('inpRegras'),
+            procedimentos: document.getElementById('inpProcedimentos'),
+            fontes: document.getElementById('inpFontes'),
+            pendencias: document.getElementById('inpPendencias')
+        };
+        const jsonOutput = document.getElementById('jsonOutput');
+        const terminal = document.getElementById('terminalOutput');
+        const MAX_TEXT_BYTES = 2_000_000;
+        const MAX_ARCHIVE_FILES = 180;
+        const state = { fontes: [], pendencias: [], conhecimento: [], diagnosticos: [] };
+        const SISTEMAS_AUTO = [
+            { id: 'freio', termos: ['freio','pastilha','disco','tambor','abs','fluido de freio','cilindro mestre'] },
+            { id: 'suspensao', termos: ['suspensao','amortecedor','bandeja','bieleta','pivo','mola','batente','coxim'] },
+            { id: 'direcao', termos: ['direcao','terminal','barra axial','caixa de direcao','hidraulica'] },
+            { id: 'motor', termos: ['motor','cabecote','comando','correia dentada','vela','bobina','cilindro','compressao'] },
+            { id: 'arrefecimento', termos: ['arrefecimento','radiador','agua','bomba dagua','valvula termostatica','reservatorio'] },
+            { id: 'injecao', termos: ['injecao','bico','sensor','sonda','lambda','tbi','corpo de borboleta','map','maf'] },
+            { id: 'eletrica', termos: ['eletrica','alternador','bateria','chicote','fusivel','rele','modulo'] },
+            { id: 'cambio', termos: ['cambio','embreagem','transmissao','diferencial','semieixo'] },
+            { id: 'combustivel', termos: ['combustivel','bomba de combustivel','tanque','filtro de combustivel'] },
+            { id: 'ar_condicionado', termos: ['ar condicionado','compressor','condensador','evaporador','gas do sistema'] },
+            { id: 'funilaria_pintura', termos: ['funilaria','pintura','parachoque','paralama','porta','capo','lanterna'] },
+            { id: 'lubrificacao', termos: ['oleo','lubrificacao','filtro oleo','carter'] }
+        ];
+
+        function clearField(id) { document.getElementById(id).value = ''; updateJSON(); }
+
+        function addLog(msg, type = 'info') {
+            const div = document.createElement('div');
+            if (type === 'error') div.className = 'text-red-400 font-bold';
+            else if (type === 'success') div.className = 'text-blue-400 font-bold';
+            else div.className = 'text-slate-400';
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            terminal.appendChild(div);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // ==========================================
+        // LÓGICA DE EXTRAÇÃO REAL DE ARQUIVOS
+        // ==========================================
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-500'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault(); dropZone.classList.remove('border-blue-500');
+            if (e.dataTransfer.files.length) processRealFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) processRealFile(e.target.files[0]);
+        });
+
+        async function processRealFile(file) {
+            terminal.innerHTML = '<div class="text-slate-500">>> JARVIS Data Parser v3.0</div>';
+            addLog(`>> Iniciando leitura física de: ${file.name}`);
+            addLog(`>> Tamanho: ${(file.size / 1024).toFixed(2)} KB`);
+
+            try {
+                let extractedText = "";
+
+                const ext = getExt(file.name);
+                if (file.type === "application/pdf" || ext === 'pdf') {
+                    addLog("Formato PDF detectado. Extraindo texto com pdf.js...");
+                    extractedText = await extractRealPDF(file);
+                } 
+                else if (file.type.startsWith("image/")) {
+                    addLog("Imagem detectada. OCR externo está desativado neste gerador local.");
+                    extractedText = extractImageLocalHint(file);
+                } 
+                else if (['apk','aab','zip','jar','docx','xlsx'].includes(ext)) {
+                    addLog(ext.toUpperCase() + " detectado. Abrindo estrutura compactada com JSZip...");
+                    extractedText = await extractArchive(file, ext);
+                }
+                else if (['exe','dll','msi','bin','db','sqlite'].includes(ext)) {
+                    addLog(ext.toUpperCase() + " detectado. Extraindo assinaturas e strings legíveis sem executar o arquivo...");
+                    extractedText = await extractBinaryKnowledge(file, ext);
+                }
+                else {
+                    addLog("Lendo como texto/csv bruto...");
+                    extractedText = await file.text();
+                }
+
+                if (!extractedText || extractedText.trim() === "") {
+                    throw new Error("Não foi encontrado texto legível neste arquivo.");
+                }
+
+                addLog("Extração concluída com sucesso!", "success");
+                
+                const pacote = buildKnowledgePackage(file, ext, extractedText);
+                appendKnowledgePackage(pacote);
+                
+                // Pisca a textarea para mostrar onde o texto caiu
+                inputs.catalogos.classList.add('ring-2', 'ring-blue-500');
+                setTimeout(() => inputs.catalogos.classList.remove('ring-2', 'ring-blue-500'), 1500);
+                
+                updateJSON();
+
+            } catch (error) {
+                addLog(`FALHA: ${error.message}`, "error");
+                console.error(error);
+            }
+        }
+
+        // --- 1. Extração REAL de PDF ---
+        async function extractRealPDF(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = "";
+            
+            const pagesToRead = pdf.numPages;
+            addLog(`PDF contem ${pdf.numPages} pagina(s). Lendo tudo e preservando marcador de pagina...`);
+            
+            for (let i = 1; i <= pagesToRead; i++) {
+                addLog(`Lendo pagina ${i}...`);
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(" ");
+                fullText += `\n\n[PAGINA ${i}]\n` + pageText + "\n";
+                if (i % 3 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+            }
+            return fullText;
+        }
+
+        function getExt(name) {
+            return String(name || '').split('.').pop().toLowerCase();
+        }
+
+        function simpleHash(text) {
+            let h = 2166136261;
+            const s = String(text || '');
+            for (let i = 0; i < s.length; i++) {
+                h ^= s.charCodeAt(i);
+                h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+            }
+            return (h >>> 0).toString(16).padStart(8, '0');
+        }
+
+        function cleanExtractedText(text) {
+            return String(text || '')
+                .replace(/\u0000/g, ' ')
+                .replace(/[ \t]{2,}/g, ' ')
+                .replace(/\n{4,}/g, '\n\n')
+                .trim()
+                .slice(0, MAX_TEXT_BYTES);
+        }
+
+        function likelyTextFile(name) {
+            return /\.(txt|csv|json|xml|html|htm|md|ini|cfg|properties|sql|log|yml|yaml)$/i.test(name);
+        }
+
+        function xmlToText(xml) {
+            return String(xml || '')
+                .replace(/<[^>]+>/g, ' ')
+                .replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#39;/g, "'")
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function stringsFromBytes(bytes, minLen = 5) {
+            const ascii = [];
+            let cur = '';
+            for (let i = 0; i < bytes.length; i++) {
+                const b = bytes[i];
+                if (b >= 32 && b <= 126) cur += String.fromCharCode(b);
+                else {
+                    if (cur.length >= minLen) ascii.push(cur);
+                    cur = '';
+                }
+            }
+            if (cur.length >= minLen) ascii.push(cur);
+
+            const utf16 = [];
+            cur = '';
+            for (let i = 0; i < bytes.length - 1; i += 2) {
+                const b = bytes[i], z = bytes[i + 1];
+                if (z === 0 && b >= 32 && b <= 126) cur += String.fromCharCode(b);
+                else {
+                    if (cur.length >= minLen) utf16.push(cur);
+                    cur = '';
+                }
+            }
+            if (cur.length >= minLen) utf16.push(cur);
+
+            return Array.from(new Set([...ascii, ...utf16]))
+                .filter(s => !/^[\W_]+$/.test(s))
+                .slice(0, 600)
+                .join('\n');
+        }
+
+        // --- 2. Extração de compactados: APK, ZIP, JAR, DOCX, XLSX ---
+        async function extractArchive(file, ext) {
+            const zip = new JSZip();
+            addLog("Carregando estrutura do ZIP/APK...");
+            const contents = await zip.loadAsync(file);
+            const names = Object.keys(contents.files).filter(n => !contents.files[n].dir);
+            let resultText = "ESTRUTURA DO ARQUIVO ENCONTRADA:\n";
+            let dbCount = 0;
+            let textCount = 0;
+            let readCount = 0;
+            const picked = [];
+
+            resultText += names.slice(0, 120).map(n => '- ' + n).join('\n');
+            if (names.length > 120) resultText += `\n... ${names.length - 120} arquivos omitidos no índice.`;
+
+            for (const filename of names.slice(0, MAX_ARCHIVE_FILES)) {
+                const entry = contents.files[filename];
+                const low = filename.toLowerCase();
+                if (/\.(db|sqlite)$/i.test(low)) dbCount++;
+                if (ext === 'docx' && low === 'word/document.xml') {
+                    const xml = await entry.async('text');
+                    picked.push('\n[DOCX word/document.xml]\n' + xmlToText(xml));
+                    textCount++;
+                    continue;
+                }
+                if (ext === 'xlsx' && (low === 'xl/sharedstrings.xml' || low.startsWith('xl/worksheets/'))) {
+                    const xml = await entry.async('text');
+                    picked.push('\n[XLSX ' + filename + ']\n' + xmlToText(xml));
+                    textCount++;
+                    continue;
+                }
+                if (likelyTextFile(filename) && readCount < 55) {
+                    const txt = await entry.async('text').catch(() => '');
+                    if (txt && txt.trim()) {
+                        picked.push('\n[' + filename + ']\n' + cleanExtractedText(txt).slice(0, 16000));
+                        textCount++;
+                    }
+                    readCount++;
+                    continue;
+                }
+                if ((/assets|res|catalog|catalogo|parts|pecas|produtos|precos|price|tabela|manual|dados/i.test(filename)) && readCount < 70) {
+                    const bytes = await entry.async('uint8array').catch(() => null);
+                    if (bytes && bytes.length) {
+                        const strings = stringsFromBytes(bytes.slice(0, 900000));
+                        if (strings) picked.push('\n[STRINGS ' + filename + ']\n' + strings.slice(0, 16000));
+                    }
+                    readCount++;
+                }
+            }
+
+            resultText += `\n\nResumo técnico: ${names.length} arquivo(s) internos; ${textCount} arquivo(s) textuais extraídos; ${dbCount} base(s) SQLite detectada(s).\n`;
+            if (dbCount) resultText += "Atenção: bases SQLite foram detectadas, mas leitura relacional profunda exige processamento backend. O navegador extraiu nomes e strings úteis sem executar código.\n";
+            resultText += picked.join('\n');
+            return cleanExtractedText(resultText);
+        }
+
+        async function extractBinaryKnowledge(file, ext) {
+            const max = Math.min(file.size, 14 * 1024 * 1024);
+            const bytes = new Uint8Array(await file.slice(0, max).arrayBuffer());
+            const signature = Array.from(bytes.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+            const isPE = bytes[0] === 0x4d && bytes[1] === 0x5a;
+            const strings = stringsFromBytes(bytes);
+            return cleanExtractedText([
+                'ARQUIVO BINÁRIO ANALISADO SEM EXECUÇÃO',
+                'Nome: ' + file.name,
+                'Extensão: ' + ext,
+                'Tamanho lido: ' + max + ' bytes de ' + file.size,
+                'Assinatura inicial: ' + signature,
+                isPE ? 'Formato provável: Windows PE/EXE/DLL.' : 'Formato PE não confirmado pelos primeiros bytes.',
+                '',
+                'STRINGS LEGÍVEIS EXTRAÍDAS:',
+                strings || 'Nenhuma string útil encontrada no trecho analisado.'
+            ].join('\n'));
+        }
+
+        // --- 3. Imagem sem provedor externo ---
+        function extractImageLocalHint(file) {
+            return [
+                "IMAGEM RECEBIDA: " + file.name,
+                "OCR automático externo está desativado para manter o gerador 100% local.",
+                "Se esta imagem tiver tabela, manual, etiqueta ou catálogo, transcreva o conteúdo relevante neste campo ou converta o arquivo para PDF/texto antes de importar.",
+                "Campos sugeridos: código da peça, descrição, aplicação, marca, modelo, ano, observação técnica e fonte."
+            ].join("\n");
+        }
+
+        function lines(text) {
+            return String(text || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+        }
+
+        function normText(text) {
+            return String(text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        }
+
+        function inferSistema(text) {
+            const n = normText(text);
+            const found = SISTEMAS_AUTO.find(s => s.termos.some(t => n.includes(normText(t))));
+            return found ? found.id : 'geral';
+        }
+
+        function detectarMetadadosAutomotivos(file, text) {
+            const fonte = `${file.name}\n${String(text || '').slice(0, 5000)}`;
+            const upper = fonte.toUpperCase();
+            const marcas = ['RENAULT','CHEVROLET','GM','FIAT','FORD','VOLKSWAGEN','VW','TOYOTA','HONDA','HYUNDAI','KIA','NISSAN','PEUGEOT','CITROEN','MITSUBISHI','JEEP','BMW','MERCEDES','AUDI','VOLVO','IVECO','SCANIA','MAN'];
+            const marca = marcas.find(m => upper.includes(m)) || '';
+            const anoMatch = upper.match(/\b(19[8-9]\d|20[0-4]\d)\b/);
+            const motorMatch = upper.match(/\b\d[,.]\d\s*(?:8V|12V|16V|20V|24V|V6|V8|TURBO|FLEX)?\b/);
+            let modelo = '';
+            if (marca) {
+                const cleanedName = file.name.replace(/\.[^.]+$/, '').replace(/[_+.-]+/g, ' ');
+                const afterMarca = cleanedName.split(new RegExp(marca, 'i'))[1] || '';
+                modelo = afterMarca
+                    .replace(/\b(19[8-9]\d|20[0-4]\d)\b/g, '')
+                    .replace(/\b\d[,.]\d.*$/i, '')
+                    .trim()
+                    .split(/\s+/)
+                    .slice(0, 4)
+                    .join(' ');
+            }
+            return {
+                marca,
+                modelo,
+                anoInicial: anoMatch ? Number(anoMatch[1]) : null,
+                anoFinal: anoMatch ? Number(anoMatch[1]) : null,
+                motor: motorMatch ? motorMatch[0].replace(',', '.') : ''
+            };
+        }
+
+        function extrairCodigos(text) {
+            const codigos = new Set();
+            const s = String(text || '').toUpperCase();
+            (s.match(/\bP[0-9A-F]{4}\b/g) || []).forEach(c => codigos.add(c));
+            (s.match(/\b[A-Z]{2,5}[- ]?\d{2,6}[A-Z0-9-]*\b/g) || []).forEach(c => codigos.add(c.replace(/\s+/g, ' ')));
+            (s.match(/\b\d{4,8}[A-Z]{0,3}\b/g) || []).forEach(c => codigos.add(c));
+            return Array.from(codigos).slice(0, 24);
+        }
+
+        function tipoConhecimento(text) {
+            const n = normText(text);
+            if (/\bP[0-9A-F]{4}\b/i.test(text) || /(falha|defeito|dtc|sintoma|causa|diagnostico)/.test(n)) return 'diagnostico';
+            if (/(procedimento|remover|instalar|substituir|regular|torque|aperto|verificar|testar)/.test(n)) return 'procedimento';
+            if (/(codigo|peca|aplicacao|catalogo|referencia|oem)/.test(n)) return 'catalogo';
+            return 'manual_tecnico';
+        }
+
+        function tituloDoBloco(text) {
+            const primeira = lines(text)[0] || String(text || '').slice(0, 90);
+            return primeira.replace(/\s+/g, ' ').slice(0, 110);
+        }
+
+        function chunkTexto(text, maxLen = 1200) {
+            const partes = String(text || '').split(/\n{2,}|(?<=\.)\s+(?=[A-Z0-9])/).map(s => s.trim()).filter(s => s.length > 30);
+            const chunks = [];
+            let atual = '';
+            partes.forEach(parte => {
+                if ((atual + '\n' + parte).length > maxLen && atual) {
+                    chunks.push(atual.trim());
+                    atual = parte;
+                } else {
+                    atual += (atual ? '\n' : '') + parte;
+                }
+            });
+            if (atual.trim()) chunks.push(atual.trim());
+            return chunks.length ? chunks : lines(text).slice(0, 80);
+        }
+
+        function montarConhecimentoAutomotivo(file, ext, text) {
+            const meta = detectarMetadadosAutomotivos(file, text);
+            const paginas = String(text || '').split(/\n\s*\[PAGINA\s+(\d+)\]\s*\n/i);
+            const blocos = [];
+            if (paginas.length > 1) {
+                for (let i = 1; i < paginas.length; i += 2) {
+                    const pagina = Number(paginas[i]);
+                    const pageText = cleanExtractedText(paginas[i + 1] || '');
+                    chunkTexto(pageText).forEach((chunk, idx) => blocos.push({ pagina, chunk, idx }));
+                }
+            } else {
+                chunkTexto(text).forEach((chunk, idx) => blocos.push({ pagina: null, chunk, idx }));
+            }
+            return blocos.slice(0, 1500).map(b => {
+                const sistema = inferSistema(b.chunk);
+                const tipo = tipoConhecimento(b.chunk);
+                return {
+                    id: simpleHash([file.name, b.pagina || 'sem-pagina', b.idx, b.chunk.slice(0, 220)].join('|')),
+                    tipo,
+                    titulo: tituloDoBloco(b.chunk),
+                    texto: b.chunk,
+                    sistema,
+                    codigos: extrairCodigos(b.chunk),
+                    marca: meta.marca,
+                    modelo: meta.modelo,
+                    motor: meta.motor,
+                    anoInicial: meta.anoInicial,
+                    anoFinal: meta.anoFinal,
+                    fonte: {
+                        arquivo: file.name,
+                        tipo: ext || file.type || 'desconhecido',
+                        pagina: b.pagina,
+                        hashTrecho: simpleHash(b.chunk)
+                    },
+                    confianca: sistema === 'geral' ? 0.62 : 0.78
+                };
+            });
+        }
+
+        function detectDivergences(newText) {
+            const oldLines = new Set(lines(inputs.catalogos.value).map(s => s.toLowerCase()));
+            const found = [];
+            lines(newText).forEach(line => {
+                const code = line.match(/\b[A-Z0-9][A-Z0-9.\-\/]{4,}\b/);
+                if (!code) return;
+                const c = code[0].toLowerCase();
+                const old = Array.from(oldLines).find(x => x.includes(c));
+                if (old && old !== line.toLowerCase()) {
+                    found.push('Validar possível divergência para código ' + code[0] + ': novo="' + line.slice(0, 180) + '" | existente="' + old.slice(0, 180) + '"');
+                }
+            });
+            return found.slice(0, 40);
+        }
+
+        function buildKnowledgePackage(file, ext, extractedText) {
+            const text = cleanExtractedText(extractedText);
+            const divergencias = detectDivergences(text);
+            const conhecimento = montarConhecimentoAutomotivo(file, ext, text);
+            const diagnosticos = conhecimento.filter(k => k.tipo === 'diagnostico');
+            return {
+                versao: 2,
+                escopo: inputs.escopo.value || 'tenant',
+                comportamento: { tom: inputs.tom.value || 'direto', permitirPiadas: false },
+                fonte: {
+                    nome: file.name,
+                    tipo: ext || file.type || 'desconhecido',
+                    tamanho: file.size,
+                    hashTexto: simpleHash(text),
+                    paginasDetectadas: (text.match(/\[PAGINA\s+\d+\]/gi) || []).length || null,
+                    importadoEm: new Date().toISOString()
+                },
+                catalogos: text,
+                conhecimento,
+                diagnosticos,
+                pendenciasConhecimento: divergencias.map((d, idx) => ({
+                    id: simpleHash(file.name + ':div:' + idx + ':' + d),
+                    pergunta: d,
+                    status: 'pendente',
+                    origem: file.name,
+                    criadaEm: new Date().toISOString()
+                })),
+                atualizadoEm: new Date().toISOString()
+            };
+        }
+
+        function appendKnowledgePackage(pkg) {
+            const prefix = `\n\n--- DADOS EXTRAÍDOS DE ${pkg.fonte.nome} | ${pkg.fonte.tipo} | hash ${pkg.fonte.hashTexto} ---\n`;
+            inputs.catalogos.value = inputs.catalogos.value + prefix + pkg.catalogos;
+            state.fontes.push(pkg.fonte);
+            const jaExiste = new Set(state.conhecimento.map(k => k.id));
+            (pkg.conhecimento || []).forEach(k => { if (k && !jaExiste.has(k.id)) { state.conhecimento.push(k); jaExiste.add(k.id); } });
+            const diagExiste = new Set(state.diagnosticos.map(k => k.id));
+            (pkg.diagnosticos || []).forEach(k => { if (k && !diagExiste.has(k.id)) { state.diagnosticos.push(k); diagExiste.add(k.id); } });
+            state.pendencias.push(...(pkg.pendenciasConhecimento || []));
+            inputs.fontes.value = state.fontes.map(f => `${f.importadoEm} | ${f.nome} | ${f.tipo} | ${f.tamanho} bytes | hash ${f.hashTexto}`).join('\n');
+            inputs.pendencias.value = state.pendencias.map(p => p.pergunta || p).join('\n');
+            addLog(`Conhecimento gerado: ${pkg.conhecimento.length} linha(s), ${pkg.pendenciasConhecimento.length} pendência(s).`, pkg.pendenciasConhecimento.length ? 'error' : 'success');
+        }
+
+        // ==========================================
+        // ATUALIZAÇÃO DO JSON LIVE
+        // ==========================================
+        function updateJSON() {
+            const splitByLine = (text) => text.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+
+            const appState = {
+                versao: 2,
+                escopo: inputs.escopo.value,
+                comportamento: {
+                    tom: inputs.tom.value,
+                    permitirPiadas: false
+                },
+                contexto: inputs.contexto.value.trim(),
+                catalogos: inputs.catalogos.value.trim(),
+                erros: inputs.erros.value.trim(),
+                regras: splitByLine(inputs.regras.value).map(r => ({ tipo: "Regra", descricao: r })),
+                procedimentos: splitByLine(inputs.procedimentos.value),
+                diagnosticos: state.diagnosticos.length ? state.diagnosticos : [],
+                conhecimento: state.conhecimento.length ? state.conhecimento : splitByLine(inputs.catalogos.value),
+                fontes: state.fontes.length ? state.fontes : splitByLine(inputs.fontes.value),
+                pendenciasConhecimento: splitByLine(inputs.pendencias.value).map(p => ({ pergunta: p, status: "pendente" })),
+                atualizadoEm: new Date().toISOString()
+            };
+
+            const jsonStr = JSON.stringify(appState, null, 2);
+            jsonOutput.innerHTML = colorizeJSON(jsonStr);
+        }
+
+        function colorizeJSON(jsonStr) {
+            return jsonStr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                    let color = '#93c5fd'; 
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) color = '#e2e8f0'; 
+                        else color = '#86efac'; 
+                    } else if (/true|false/.test(match)) color = '#fca5a5'; 
+                    return `<span style="color: ${color}">${match}</span>`;
+                });
+        }
+
+        function baixarJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(JSON.parse(jsonOutput.innerText), null, 2));
+            const dl = document.createElement('a');
+            dl.setAttribute("href", dataStr);
+            dl.setAttribute("download", `conhecimento_ia_${Date.now()}.json`);
+            document.body.appendChild(dl);
+            dl.click();
+            dl.remove();
+        }
+
+        updateJSON();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Cotação de Peças - thIAguinho</title>
+  <meta name="theme-color" content="#0b1220">
+  <script>(function(){try{var t=localStorage.getItem('thiaguinho_theme');document.documentElement.setAttribute('data-theme',t==='light'?'light':'dark');}catch(e){document.documentElement.setAttribute('data-theme','dark');}})();</script>
+  <style>
+    :root{
+      --bg:#101722;--panel:#172233;--panel2:#213047;--text:#edf3f8;--muted:#a7b4c2;
+      --line:rgba(210,222,232,.16);--ok:#6dbb8d;--warn:#d8ad5f;--danger:#df6f7b;--brand:#7fb7d6;
+      --font:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;--mono:"JetBrains Mono",Consolas,monospace;
+    }
+    :root[data-theme="light"]{
+      --bg:#f6f8fb;--panel:#ffffff;--panel2:#eef3f7;--text:#182536;--muted:#637588;
+      --line:rgba(24,37,54,.14);--ok:#2f7d55;--warn:#946b2d;--danger:#a3434d;--brand:#2f6f8f;
+    }
+    *{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,var(--bg),color-mix(in srgb,var(--bg) 88%,#000 12%));color:var(--text);font-family:var(--font);min-height:100vh}
+    .wrap{width:min(980px,100%);margin:0 auto;padding:18px}
+    header{padding:18px 0 12px;border-bottom:1px solid var(--line);margin-bottom:16px}
+    .brand{font-family:var(--mono);font-size:.72rem;color:var(--brand);font-weight:800;letter-spacing:1px;text-transform:uppercase}
+    h1{margin:6px 0 4px;font-size:clamp(1.35rem,4vw,2.15rem);line-height:1.1}
+    .sub{color:var(--muted);font-size:.92rem;margin:0}
+    .card{background:rgba(17,26,46,.94);border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:14px;box-shadow:0 16px 42px rgba(0,0,0,.28)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+    label{display:block;font-family:var(--mono);font-size:.68rem;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.7px;margin:0 0 5px}
+    input,select,textarea{width:100%;background:color-mix(in srgb,var(--panel) 86%,#000 14%);border:1px solid var(--line);border-radius:5px;color:var(--text);padding:11px;font:inherit;min-height:44px}
+    :root[data-theme="light"] input,:root[data-theme="light"] select,:root[data-theme="light"] textarea{background:#fff;color:#182536}
+    textarea{resize:vertical;min-height:86px}
+    input::placeholder,textarea::placeholder{color:#6f8199}
+    .info{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:12px}
+    .info div{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:10px}
+    .info span{display:block;color:var(--muted);font-family:var(--mono);font-size:.62rem;text-transform:uppercase;margin-bottom:4px}
+    .info b{font-size:.92rem}
+    button{border:0;border-radius:5px;min-height:46px;padding:0 16px;font-weight:800;cursor:pointer;color:#06111f;background:var(--ok)}
+    .itens-cotacao{display:grid;gap:10px;margin-top:12px}
+    .cot-item-resposta{border:1px solid var(--line);border-radius:6px;background:rgba(255,255,255,.035);padding:10px}
+    .cot-item-head{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+    .cot-item-head strong{font-size:.9rem}
+    .cot-item-head small{font-family:var(--mono);color:var(--muted)}
+    button.secondary{background:transparent;color:var(--text);border:1px solid var(--line)}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+    .status{display:none;border-radius:6px;padding:12px;margin-top:12px;font-weight:700}
+    .status.ok{display:block;background:rgba(49,208,132,.12);border:1px solid rgba(49,208,132,.35);color:var(--ok)}
+    .status.err{display:block;background:rgba(255,90,111,.12);border:1px solid rgba(255,90,111,.35);color:var(--danger)}
+    .status.warn{display:block;background:rgba(244,197,66,.12);border:1px solid rgba(244,197,66,.35);color:var(--warn)}
+    .hide{display:none!important}
+    footer{padding:18px 0 8px;color:var(--muted);font-family:var(--mono);font-size:.66rem;text-align:center}
+    @media(max-width:620px){.wrap{padding:12px}.card{padding:13px}.actions button{width:100%}}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header>
+      <div class="brand">thIAguinho Soluções Digitais</div>
+      <h1>Cotação de peça</h1>
+      <p class="sub">Informe preço, prazo, marca, modelo e disponibilidade para a oficina decidir a compra.</p>
+    </header>
+
+    <section class="card" id="loadingCard">
+      <strong>Carregando cotação...</strong>
+      <p class="sub">Se a página não carregar, confirme se o link está completo.</p>
+    </section>
+
+    <section class="card hide" id="cotacaoCard">
+      <div class="brand" id="oficinaNome">OFICINA</div>
+      <h2 id="pecaTitulo" style="margin:6px 0 4px;font-size:1.2rem;">Peca</h2>
+      <p class="sub" id="pecaObs"></p>
+      <div class="info">
+        <div><span>Quantidade</span><b id="pecaQtd">1</b></div>
+        <div><span>Veiculo</span><b id="veiculoInfo">-</b></div>
+        <div><span>Placa / Prefixo</span><b id="veiculoPlacaPrefixo">-</b></div>
+        <div><span>Ano / Cor</span><b id="veiculoAnoCor">-</b></div>
+        <div><span>Chassi</span><b id="veiculoChassi">-</b></div>
+        <div><span>Tipo / KM</span><b id="veiculoTipoKm">-</b></div>
+        <div><span>Câmbio / Motor</span><b id="veiculoCambioMotor">-</b></div>
+        <div><span>Prioridade</span><b id="prioridadeInfo">Normal</b></div>
+        <div><span>Validade</span><b id="validadeInfo">-</b></div>
+      </div>
+      <div id="itensCotacao" class="itens-cotacao"></div>
+    </section>
+
+    <section class="card hide" id="formCard">
+      <form id="cotacaoForm" onsubmit="event.preventDefault();window.enviarRespostaCotacaoFornecedor();">
+        <div class="grid">
+          <div><label>Responsavel</label><input id="respNome" autocomplete="name" placeholder="Seu nome"></div>
+          <div><label>Telefone / WhatsApp</label><input id="respContato" autocomplete="tel" placeholder="(00) 00000-0000"></div>
+        </div>
+        <div class="grid legacy-single-fields" style="margin-top:10px;">
+          <div><label>Valor unitário</label><input id="valorUnitario" inputmode="decimal" placeholder="0,00"></div>
+          <div><label>Marca</label><input id="marca" placeholder="Marca ofertada"></div>
+          <div><label>Modelo / código</label><input id="modelo" placeholder="Modelo, linha ou código ofertado"></div>
+          <div><label>Disponibilidade</label><select id="disponibilidade"><option>Disponível imediato</option><option>Disponível hoje</option><option>Encomenda</option><option>Indisponível</option></select></div>
+        </div>
+        <div class="grid" style="margin-top:10px;">
+          <div><label>Prazo</label><input id="prazo" placeholder="Ex: 2h, hoje, 1 dia"></div>
+          <div><label>Frete</label><input id="frete" inputmode="decimal" placeholder="0,00"></div>
+          <div><label>Condição</label><input id="condicao" placeholder="PIX, boleto, retirada, entrega..."></div>
+        </div>
+        <div style="margin-top:10px;"><label>Observação</label><textarea id="observacao" placeholder="Detalhes da peça, garantia, substituição, prazo real..."></textarea></div>
+        <div class="actions">
+          <button id="btnEnviar" type="submit">ENVIAR COTAÇÃO</button>
+          <button class="secondary" type="button" onclick="window.print()">EXPORTAR / IMPRIMIR</button>
+          <button class="secondary" type="button" onclick="window.location.reload()">RECARREGAR</button>
+        </div>
+        <div id="statusMsg" class="status"></div>
+      </form>
+    </section>
+
+    <footer>Link individual e auditavel. Nao compartilhe com terceiros.<br>Powered by thIAguinho Solu&ccedil;&otilde;es Digitais</footer>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/12.17.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore-compat.js"></script>
+  <script src="js/config.js?v=26.13.0"></script>
+  <script src="js/tenant-modules.js"></script>
+  <script src="js/cotacao-fornecedor.js"></script>
+  <script src="js/uix-theme-fix.js"></script>
+</body>
+</html>

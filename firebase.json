@@ -1,0 +1,52 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firebase/**",
+      "**/.*",
+      "**/node_modules/**",
+      "capacitor-android/**",
+      "electron/**",
+      "scripts/**",
+      "package.json",
+      "package-lock.json",
+      "dist-pc/**",
+      "web-dist/**",
+      "**/*.jks"
+    ],
+    "headers": [
+      {
+        "source": "service-worker.js",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(html|json)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firebase/firestore.rules",
+    "indexes": "firebase/firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "firebase/storage.rules"
+  }
+}

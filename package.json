@@ -1,0 +1,65 @@
+{
+  "name": "thiaguinho-erp-cliente",
+  "version": "1.0.26-12",
+  "description": "thIAguinho ERP V26.12 — otimização profissional e compatível do Firestore em produção: consultas por cliente e mecânico, listeners únicos, cache, fiscal sob demanda, auditoria limitada e inventário responsivo real, sem alterar histórico, coleções ou regras de negócio. Powered by thIAguinho Soluções Digitais",
+  "main": "electron/main.js",
+  "scripts": {
+    "build": "bash scripts/build-web.sh",
+    "sync": "npx cap sync android",
+    "open": "npx cap open android",
+    "prepare:www": "bash scripts/prepare-capacitor-www.sh",
+    "pc:win": "electron-builder --win nsis portable --x64 --publish never",
+    "pc:dir": "electron-builder --dir --publish never"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.0",
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/app": "^6.0.2",
+    "@capacitor/camera": "^6.1.2",
+    "@capacitor/filesystem": "^6.0.3",
+    "@capacitor/preferences": "^6.0.3",
+    "@capacitor/share": "^6.0.3",
+    "@capacitor/splash-screen": "^6.0.3",
+    "@capacitor/status-bar": "^6.0.2",
+    "@capacitor/toast": "^6.0.3",
+    "@capacitor-community/bluetooth-le": "^6.1.0"
+  },
+  "author": "thIAguinho Soluções Digitais",
+  "license": "UNLICENSED",
+  "private": true,
+  "build": {
+    "appId": "br.com.thiaguinho.saas",
+    "productName": "thIAguinho SAAS Oficina",
+    "asar": false,
+    "files": [
+      "electron/**/*",
+      "*.html",
+      "manifest.json",
+      "checklist.webmanifest",
+      "service-worker.js",
+      "elm327-service.js",
+      "elm-bridge.js",
+      "favicon.ico",
+      "js/**/*",
+      "css/**/*",
+      "assets/**/*",
+      "data/**/*"
+    ],
+    "directories": {
+      "output": "dist-pc"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "artifactName": "thIAguinhoSAAS-${version}-${arch}.${ext}"
+    },
+    "publish": null
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "installCommand": "",
+  "buildCommand": "npm run build",
+  "outputDirectory": "web-dist",
+  "rewrites": [
+    {
+      "source": "/jarvis",
+      "destination": "/jarvis.html"
+    },
+    {
+      "source": "/equipe",
+      "destination": "/equipe.html"
+    },
+    {
+      "source": "/superadmin",
+      "destination": "/superadmin.html"
+    },
+    {
+      "source": "/cliente",
+      "destination": "/cliente.html"
+    },
+    {
+      "source": "/c",
+      "destination": "/c.html"
+    },
+    {
+      "source": "/cotacao",
+      "destination": "/cotacao.html"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+node_modules/
+tmp/
+web-dist/
+dist-pc/
+capacitor-android/android/.gradle/
+capacitor-android/android/app/build/
+capacitor-android/node_modules/
