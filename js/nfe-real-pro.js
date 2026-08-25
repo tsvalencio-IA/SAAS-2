@@ -28,35 +28,51 @@
     const n = Number(v) || 0;
     return Number.isInteger(n) ? String(n) : String(n).replace('.', ',');
   };
-  function fatorOperacionalSugeridoNF(item){
-    const informado = Number(item?.fatorOperacional ?? item?.fatorConversao ?? 0);
-    if (Number.isFinite(informado) && informado > 0) return informado;
-    const unidade = String(item?.unidade || item?.unidadeFiscal || item?.und || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-    const desc = String(item?.descricao || item?.desc || item?.descricaoOriginal || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-    const qtdFiscal = Number(item?.quantidadeFiscal ?? item?.qtdFiscal ?? item?.quantidade ?? item?.qtd ?? 1) || 1;
-
-    // Quantidade operacional = quantidade física que realmente entra no estoque/O.S.
-    // Regra automotiva: um JOGO/KIT de pastilhas é 1 conjunto operacional, não 2 peças.
-    if (/\b(PASTILHA|PASTILHAS)\b/.test(desc) && (/\b(JG|JOGO|KIT)\b/.test(unidade) || /\b(JOGO|KIT)\b/.test(desc))) return 1;
-
-    // Unidades fiscais JG/JOGO/KIT representam um conjunto fechado e permanecem 1:1.
-    if (/\b(JG|JOGO|KIT)\b/.test(unidade)) return 1;
-
-    // PAR/PARES representa duas unidades físicas, salvo quando o XML já informa quantidade > 1.
-    if (qtdFiscal <= 1 && (/\b(PAR|PARES)\b/.test(unidade) || /\b(PAR|PARES)\b/.test(desc))) return 2;
-
-    // Disco de freio normalmente é aplicado em par por eixo. Só converte quando o XML trouxe 1 unidade fiscal.
-    if (qtdFiscal <= 1 && /\bDISCOS?\b/.test(desc) && /\bFREIO\b/.test(desc) && !/\b(UNITARIO|UNITARIA|1\s*UN|UMA\s+UNIDADE)\b/.test(desc)) return 2;
-    return 1;
-  }
   function quantidadeFiscalNF(item){
     const q = Number(item?.quantidadeFiscal ?? item?.qtdFiscal ?? item?.quantidade ?? item?.qtd ?? 1);
     return Number.isFinite(q) && q > 0 ? q : 1;
   }
-  function quantidadeOperacionalNF(item){
-    const informada = Number(item?.quantidadeOperacional ?? item?.qtdOperacional ?? item?.quantidadeReal ?? item?.qtdReal ?? 0);
+  function quantidadeRealSugeridaNF(item){
+    // IMPORTANTE: "Fator real" na tela significa QUANTIDADE FÍSICA REAL TOTAL,
+    // não multiplicador. Ex.: XML com 2 KIT => real 2 => operacional 2 (nunca 4).
+    const informada = Number(item?.fatorReal ?? item?.quantidadeReal ?? item?.qtdReal ?? item?.quantidadeOperacional ?? item?.qtdOperacional ?? 0);
     if (Number.isFinite(informada) && informada > 0) return informada;
-    return quantidadeFiscalNF(item) * fatorOperacionalSugeridoNF(item);
+
+    const qtdFiscal = quantidadeFiscalNF(item);
+    const unidade = String(item?.unidade || item?.unidadeFiscal || item?.und || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+    const desc = String(item?.descricao || item?.desc || item?.descricaoOriginal || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+
+    // JG/JOGO/KIT é um conjunto fechado. A quantidade real acompanha exatamente o XML.
+    // 1 kit = 1; 2 kits = 2; 3 jogos = 3. Não há multiplicação automática.
+    if (/\b(JG|JOGO|KIT|KITS)\b/.test(unidade) || /\b(JOGO|JOGOS|KIT|KITS)\b/.test(desc)) return qtdFiscal;
+
+    // PAR/PARES com uma única unidade fiscal pode representar duas unidades físicas.
+    if (qtdFiscal <= 1 && (/\b(PAR|PARES)\b/.test(unidade) || /\b(PAR|PARES)\b/.test(desc))) return 2;
+
+    // Disco de freio normalmente trabalha em par por eixo. Só sugere 2 quando o XML trouxe 1.
+    if (qtdFiscal <= 1 && /\bDISCOS?\b/.test(desc) && /\bFREIO\b/.test(desc) && !/\b(UNITARIO|UNITARIA|1\s*UN|UMA\s+UNIDADE)\b/.test(desc)) return 2;
+
+    // Qualquer outro item preserva a quantidade fiscal como quantidade real.
+    return qtdFiscal;
+  }
+  function fatorOperacionalSugeridoNF(item){
+    // Campo técnico mantido por compatibilidade com estoque/movimentos antigos.
+    // Ele é derivado da quantidade real e NÃO é mais o valor exibido como "Fator real".
+    const informado = Number(item?.fatorOperacional ?? item?.fatorConversao ?? 0);
+    if (Number.isFinite(informado) && informado > 0 && !(Number(item?.fatorReal ?? item?.quantidadeReal ?? item?.qtdReal ?? 0) > 0)) return informado;
+    const qtdFiscal = quantidadeFiscalNF(item);
+    const qtdReal = quantidadeRealSugeridaNF(item);
+    return qtdFiscal > 0 ? (qtdReal / qtdFiscal) : 1;
+  }
+  function quantidadeOperacionalNF(item){
+    const informada = Number(item?.quantidadeOperacional ?? item?.qtdOperacional ?? item?.quantidadeReal ?? item?.qtdReal ?? item?.fatorReal ?? 0);
+    if (Number.isFinite(informada) && informada > 0) return informada;
+
+    // Compatibilidade com registros antigos que tinham apenas fatorOperacional multiplicador.
+    const fatorLegado = Number(item?.fatorOperacional ?? item?.fatorConversao ?? 0);
+    if (Number.isFinite(fatorLegado) && fatorLegado > 0) return quantidadeFiscalNF(item) * fatorLegado;
+
+    return quantidadeRealSugeridaNF(item);
   }
   function unidadeFiscalNF(item){
     return String(item?.unidadeFiscal || item?.unidade || item?.und || 'UN').trim() || 'UN';
@@ -235,8 +251,10 @@
         unidadeFiscal: getFirstText(prod, 'uCom') || getFirstText(prod, 'uTrib') || 'UN',
         quantidade: q,
         quantidadeFiscal: q,
+        fatorReal: quantidadeRealSugeridaNF({ quantidade:q, quantidadeFiscal:q, unidade:getFirstText(prod, 'uCom') || getFirstText(prod, 'uTrib') || 'UN', descricao:_splitProd.descricaoLimpa, descricaoOriginal:_splitProd.descricaoOriginal }),
+        quantidadeReal: quantidadeRealSugeridaNF({ quantidade:q, quantidadeFiscal:q, unidade:getFirstText(prod, 'uCom') || getFirstText(prod, 'uTrib') || 'UN', descricao:_splitProd.descricaoLimpa, descricaoOriginal:_splitProd.descricaoOriginal }),
         fatorOperacional: fatorOperacionalSugeridoNF({ quantidade:q, quantidadeFiscal:q, unidade:getFirstText(prod, 'uCom') || getFirstText(prod, 'uTrib') || 'UN', descricao:_splitProd.descricaoLimpa, descricaoOriginal:_splitProd.descricaoOriginal }),
-        quantidadeOperacional: q * fatorOperacionalSugeridoNF({ quantidade:q, quantidadeFiscal:q, unidade:getFirstText(prod, 'uCom') || getFirstText(prod, 'uTrib') || 'UN', descricao:_splitProd.descricaoLimpa, descricaoOriginal:_splitProd.descricaoOriginal }),
+        quantidadeOperacional: quantidadeRealSugeridaNF({ quantidade:q, quantidadeFiscal:q, unidade:getFirstText(prod, 'uCom') || getFirstText(prod, 'uTrib') || 'UN', descricao:_splitProd.descricaoLimpa, descricaoOriginal:_splitProd.descricaoOriginal }),
         valorUnitario: vu, valorProduto: vp, desconto: vd, valorLiquido: vItem,
         eanTrib: getFirstText(prod, 'cEANTrib'), unidadeTrib: getFirstText(prod, 'uTrib'), quantidadeTrib: parseNum(getFirstText(prod,'qTrib')), valorUnitarioTrib: parseNum(getFirstText(prod,'vUnTrib')),
         icms, ipi, pis, cofins,
@@ -504,8 +522,9 @@
   function rowTemplate(item){
     const i = item || {};
     const qtdFiscal = quantidadeFiscalNF(i);
-    const fator = fatorOperacionalSugeridoNF(i);
     const qtdOperacional = quantidadeOperacionalNF(i);
+    // Na tela, Fator real e Qtd operacional representam o mesmo total físico real.
+    const fatorReal = qtdOperacional;
     const unidade = unidadeFiscalNF(i);
     const destinosArr = Array.isArray(i.destinosOperacionais) ? i.destinosOperacionais : (Array.isArray(i.destinos) ? i.destinos : []);
     const destinoBase = destinosArr[0] || i;
@@ -531,9 +550,9 @@
         </div>
         <div style="display:grid;grid-template-columns:110px 110px 130px 1fr;gap:8px;align-items:end;" class="nf-real-grid-operacional">
           <div><label class="j-label">Unid. fiscal</label><input class="j-input nf-unidade" value="${esc(unidade)}"></div>
-          <div><label class="j-label">Fator real</label><input class="j-input nf-fator-operacional" inputmode="decimal" value="${esc(fmtQtd(fator))}" oninput="window._nfeProAtualizarQuantidadeOperacional(this)"></div>
+          <div><label class="j-label">Fator real</label><input class="j-input nf-fator-operacional" inputmode="decimal" value="${esc(fmtQtd(fatorReal))}" oninput="window._nfeProAtualizarQuantidadeOperacional(this)"></div>
           <div><label class="j-label">Qtd operacional</label><input class="j-input nf-qtd-operacional" inputmode="decimal" value="${esc(fmtQtd(qtdOperacional))}" oninput="window._nfeProAtualizarSaldoDestino(this)"></div>
-          <div style="font-family:var(--fm);font-size:.64rem;color:var(--muted);line-height:1.45;">Use <b>Qtd operacional</b> para representar a quantidade física real. Ex.: jogo/kit de pastilhas = 1 conjunto; disco de freio com 1 unidade fiscal = sugestão de 2 unidades, podendo ser corrigido manualmente.</div>
+          <div style="font-family:var(--fm);font-size:.64rem;color:var(--muted);line-height:1.45;"><b>Fator real = quantidade física real total.</b> Ex.: XML com 2 KIT = 2 real = 2 operacional. Dividir entre O.S./veículos apenas distribui essa quantidade; não multiplica. Disco de freio com 1 unidade fiscal pode sugerir 2.</div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:end;" class="nf-real-grid-fiscal">
           <div><label class="j-label">NCM</label><input class="j-input nf-ncm-input" value="${esc(i.ncm||'')}"></div>
@@ -592,15 +611,37 @@
     const row = input?.closest?.('.nf-real-row');
     if(!row) return;
     const q = parseNum(row.querySelector('.nf-qtd')?.value) || 0;
-    const fator = parseNum(row.querySelector('.nf-fator-operacional')?.value) || 1;
+    const realEl = row.querySelector('.nf-fator-operacional');
     const qop = row.querySelector('.nf-qtd-operacional');
-    if(qop) qop.value = fmtQtd(q * fator);
+
+    let qtdReal = parseNum(realEl?.value) || 0;
+
+    // Se o gestor alterar a quantidade fiscal, recalcula a sugestão real sem multiplicar.
+    // KIT/JOGO acompanha o XML (2 => 2). Disco 1 UN pode sugerir 2.
+    if (input?.classList?.contains('nf-qtd')) {
+      qtdReal = quantidadeRealSugeridaNF({
+        quantidadeFiscal: q,
+        quantidade: q,
+        unidade: row.querySelector('.nf-unidade')?.value || 'UN',
+        descricao: row.querySelector('.nf-desc')?.value || ''
+      });
+      if(realEl) realEl.value = fmtQtd(qtdReal);
+    }
+
+    // O campo visível "Fator real" é a própria quantidade real total.
+    // Portanto 2 fiscal + 2 real = 2 operacional, e não 4.
+    if(qop) qop.value = fmtQtd(qtdReal);
     W._nfeProAtualizarSaldoDestino(input);
   };
   W._nfeProAtualizarSaldoDestino = function(input){
     const row = input?.closest?.('.nf-real-row');
     if(!row) return;
     const qop = parseNum(row.querySelector('.nf-qtd-operacional')?.value) || 0;
+    // Se a quantidade operacional for corrigida manualmente, mantenha o "Fator real" sincronizado.
+    if (input?.classList?.contains('nf-qtd-operacional')) {
+      const realEl = row.querySelector('.nf-fator-operacional');
+      if(realEl) realEl.value = fmtQtd(qop);
+    }
     const extras = Array.from(row.querySelectorAll('.nf-split-qtd')).reduce((s, el) => s + (parseNum(el.value) || 0), 0);
     const saldo = Math.round((qop - extras) * 1000) / 1000;
     const el = row.querySelector('.nf-destinos-saldo');
@@ -1159,8 +1200,10 @@
       let base = {};
       try{ base = JSON.parse(row.querySelector('.nf-json')?.value || '{}'); }catch(_){ base = {}; }
       const qtdFiscal = parseNum(row.querySelector('.nf-qtd')?.value);
-      const fatorOperacional = parseNum(row.querySelector('.nf-fator-operacional')?.value) || fatorOperacionalSugeridoNF(base);
-      const qtdOperacional = parseNum(row.querySelector('.nf-qtd-operacional')?.value) || (qtdFiscal * fatorOperacional);
+      const fatorReal = parseNum(row.querySelector('.nf-fator-operacional')?.value) || quantidadeRealSugeridaNF(Object.assign({}, base, { quantidadeFiscal:qtdFiscal, quantidade:qtdFiscal }));
+      const qtdOperacional = parseNum(row.querySelector('.nf-qtd-operacional')?.value) || fatorReal;
+      // fatorOperacional continua salvo apenas como razão técnica para compatibilidade legada.
+      const fatorOperacional = qtdFiscal > 0 ? (qtdOperacional / qtdFiscal) : 1;
       const destinos = collectDestinosNF(row, qtdOperacional);
       const destinoPrincipal = destinos[0] || {};
       return Object.assign({}, base, {
@@ -1173,6 +1216,9 @@
         unidade: row.querySelector('.nf-unidade')?.value || base.unidade || base.und || 'UN',
         unidadeFiscal: row.querySelector('.nf-unidade')?.value || base.unidadeFiscal || base.unidade || 'UN',
         quantidade: qtdFiscal, qtd: qtdFiscal, quantidadeFiscal: qtdFiscal, qtdFiscal,
+        fatorReal: qtdOperacional,
+        quantidadeReal: qtdOperacional,
+        qtdReal: qtdOperacional,
         fatorOperacional,
         quantidadeOperacional: qtdOperacional,
         qtdOperacional,
