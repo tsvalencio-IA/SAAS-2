@@ -1,0 +1,17 @@
+{
+  "name": "oficin-ia-checklist-solo-v14-seguro",
+  "version": "14.0.0",
+  "private": true,
+  "description": "APK separado somente para o checklist.html do OFICIN-IA com login interno obrigatório e packageId único v14",
+  "scripts": {
+    "sync": "npx cap sync android",
+    "build:android": "cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "latest",
+    "@capacitor/core": "latest"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "latest"
+  }
+}

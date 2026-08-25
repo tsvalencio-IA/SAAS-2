@@ -1,0 +1,730 @@
+{
+  "versao": "20260623-checklist-concessionaria-v11-gestao-edicao-apk",
+  "origem": "Histórico OFICIN-IA + planilhas ITENS_AGRUPADOS + checklist padrão concessionária",
+  "sintomas": [
+    {
+      "id": "freio",
+      "emoji": "🛑",
+      "label": "Freios",
+      "abrir": [
+        "freios",
+        "rodas_pneus"
+      ]
+    },
+    {
+      "id": "suspensao",
+      "emoji": "🔩",
+      "label": "Suspensão",
+      "abrir": [
+        "suspensao_direcao",
+        "rodas_pneus"
+      ]
+    },
+    {
+      "id": "motor",
+      "emoji": "⚙️",
+      "label": "Motor",
+      "abrir": [
+        "motor_cofre",
+        "injecao_alimentacao",
+        "eletrica_bateria"
+      ]
+    },
+    {
+      "id": "arrefecimento",
+      "emoji": "🌡️",
+      "label": "Arrefecimento",
+      "abrir": [
+        "arrefecimento",
+        "vazamentos_fluidos"
+      ]
+    },
+    {
+      "id": "eletrica",
+      "emoji": "💡",
+      "label": "Elétrica e luzes",
+      "abrir": [
+        "iluminacao",
+        "eletrica_bateria",
+        "interior_comandos"
+      ]
+    },
+    {
+      "id": "vazamento",
+      "emoji": "💧",
+      "label": "Vazamentos",
+      "abrir": [
+        "vazamentos_fluidos",
+        "motor_cofre",
+        "transmissao"
+      ]
+    },
+    {
+      "id": "porta_vidro",
+      "emoji": "🚪",
+      "label": "Portas, vidros e borrachas",
+      "abrir": [
+        "portas_borrachas",
+        "vidros_palhetas",
+        "interior_comandos"
+      ]
+    },
+    {
+      "id": "rodagem",
+      "emoji": "🛣️",
+      "label": "Teste de rodagem",
+      "abrir": [
+        "teste_rodagem",
+        "suspensao_direcao",
+        "freios"
+      ]
+    }
+  ],
+  "secoes": [
+    {
+      "id": "identificacao_visual",
+      "emoji": "🚗",
+      "titulo": "Identificação e visual externo",
+      "hint": "Conferência rápida antes de desmontar.",
+      "itens": [
+        "Placa dianteira e traseira",
+        "Chassi/etiqueta visível",
+        "Hodômetro / KM atual",
+        "Manual / chave reserva",
+        "Lataria com avarias",
+        "Para-choque dianteiro",
+        "Para-choque traseiro",
+        "Retrovisores",
+        "Maçanetas externas",
+        "Tampa do combustível",
+        "Grade frontal",
+        "Emblemas e acabamentos externos",
+        "Protetor de cárter",
+        "Parabarro dianteiro",
+        "Parabarro traseiro"
+      ]
+    },
+    {
+      "id": "iluminacao",
+      "emoji": "💡",
+      "titulo": "Iluminação e sinalização",
+      "hint": "Lâmpadas e sinalização, item muito recorrente nas planilhas.",
+      "itens": [
+        "Farol baixo LD",
+        "Farol baixo LE",
+        "Farol alto LD",
+        "Farol alto LE",
+        "Luz de posição / meia luz LD",
+        "Luz de posição / meia luz LE",
+        "Pisca dianteiro LD",
+        "Pisca dianteiro LE",
+        "Pisca traseiro LD",
+        "Pisca traseiro LE",
+        "Lanterna traseira LD",
+        "Lanterna traseira LE",
+        "Luz de freio LD",
+        "Luz de freio LE",
+        "Brake light",
+        "Luz de ré",
+        "Luz de placa",
+        "Farol de milha / neblina",
+        "Regulagem dos faróis",
+        "Soquete de lâmpada",
+        "Chicote de iluminação",
+        "Fusíveis de iluminação"
+      ]
+    },
+    {
+      "id": "vidros_palhetas",
+      "emoji": "🧽",
+      "titulo": "Vidros, palhetas e lavador",
+      "hint": "Itens simples que o mecânico deve lembrar antes de liberar.",
+      "itens": [
+        "Palheta dianteira LD",
+        "Palheta dianteira LE",
+        "Palheta traseira",
+        "Braço do limpador dianteiro",
+        "Braço do limpador traseiro",
+        "Motor do limpador",
+        "Esguicho dianteiro",
+        "Esguicho traseiro",
+        "Reservatório do lavador",
+        "Bomba do lavador",
+        "Vidro dianteiro",
+        "Vidro traseiro",
+        "Vidro porta motorista",
+        "Vidro porta passageiro",
+        "Máquina de vidro",
+        "Botão do vidro elétrico",
+        "Canaleta do vidro",
+        "Película / insufilm danificado"
+      ]
+    },
+    {
+      "id": "portas_borrachas",
+      "emoji": "🚪",
+      "titulo": "Portas, borrachas e fechaduras",
+      "hint": "Acabamentos e vedação, fácil de esquecer.",
+      "itens": [
+        "Fechadura porta motorista",
+        "Fechadura porta passageiro",
+        "Fechadura porta traseira LD",
+        "Fechadura porta traseira LE",
+        "Cilindro da chave",
+        "Trava elétrica",
+        "Controle remoto / alarme",
+        "Limitador de porta",
+        "Dobradiça de porta",
+        "Maçaneta interna",
+        "Maçaneta externa",
+        "Borracha porta motorista",
+        "Borracha porta passageiro",
+        "Borracha porta traseira LD",
+        "Borracha porta traseira LE",
+        "Borracha tampa traseira",
+        "Borracha capô",
+        "Porta desalinhada",
+        "Ruído de vento/vedação",
+        "Infiltração de água",
+        "Regulagem de porta dianteira esquerda",
+        "Regulagem de porta dianteira direita",
+        "Regulagem de porta traseira esquerda",
+        "Regulagem de porta traseira direita",
+        "Regulagem de fechadura de porta",
+        "Regulagem de batente de porta",
+        "Lubrificação de fechaduras e dobradiças",
+        "Substituição de borracha de porta",
+        "Substituição de canaleta de vidro",
+        "Ajuste de máquina de vidro"
+      ]
+    },
+    {
+      "id": "interior_comandos",
+      "emoji": "🎛️",
+      "titulo": "Interior, botões e acessórios",
+      "hint": "Checklist visual para conforto, comandos e segurança.",
+      "itens": [
+        "Painel com luzes acesas",
+        "Botão pisca-alerta",
+        "Botão vidro elétrico",
+        "Botão trava elétrica",
+        "Botão retrovisor elétrico",
+        "Comando de farol",
+        "Comando limpador",
+        "Buzina",
+        "Tomada 12V / USB",
+        "Rádio/multimídia",
+        "Câmera de ré",
+        "Sensor de estacionamento",
+        "Alto-falantes",
+        "Cinto motorista",
+        "Cinto passageiro",
+        "Banco motorista",
+        "Banco passageiro",
+        "Trilhos dos bancos",
+        "Tapetes",
+        "Forração de porta",
+        "Maçaneta interna",
+        "Luz interna",
+        "Quebra-sol",
+        "Porta-luvas",
+        "Acabamentos soltos",
+        "Ruídos internos"
+      ]
+    },
+    {
+      "id": "seguranca",
+      "emoji": "🦺",
+      "titulo": "Segurança obrigatória",
+      "hint": "Itens básicos de entrega e vistoria.",
+      "itens": [
+        "Triângulo",
+        "Macaco",
+        "Chave de roda",
+        "Estepe",
+        "Calibragem do estepe",
+        "Extintor quando aplicável",
+        "Airbag/luz painel",
+        "ABS/luz painel",
+        "Cinto de segurança",
+        "Freio de estacionamento",
+        "Travas de segurança",
+        "Documentos do veículo"
+      ]
+    },
+    {
+      "id": "vazamentos_fluidos",
+      "emoji": "💧",
+      "titulo": "Fluidos e vazamentos",
+      "hint": "Marque atenção/trocar quando houver baixa, contaminação ou vazamento.",
+      "itens": [
+        "Óleo do motor",
+        "Filtro de óleo",
+        "Fluido de freio",
+        "Fluido direção hidráulica",
+        "Fluido de arrefecimento/aditivo",
+        "Óleo do câmbio",
+        "Óleo diferencial",
+        "Fluido embreagem",
+        "Reservatório de expansão",
+        "Tampa reservatório",
+        "Vazamento no cárter",
+        "Vazamento tampa de válvula",
+        "Vazamento retentor dianteiro",
+        "Vazamento retentor traseiro",
+        "Vazamento câmbio",
+        "Vazamento direção hidráulica",
+        "Vazamento bomba d'água",
+        "Vazamento mangueiras",
+        "Vazamento radiador",
+        "Vazamento combustível"
+      ]
+    },
+    {
+      "id": "motor_cofre",
+      "emoji": "⚙️",
+      "titulo": "Motor e cofre",
+      "hint": "Itens de motor, mecânica e manutenção preventiva.",
+      "itens": [
+        "Filtro de ar",
+        "Filtro de combustível",
+        "Filtro cabine",
+        "Velas de ignição",
+        "Cabos de vela",
+        "Bobina de ignição",
+        "Correia dentada",
+        "Tensor correia dentada",
+        "Correia alternador/acessórios",
+        "Tensor correia acessórios",
+        "Coxim motor",
+        "Coxim câmbio",
+        "Junta tampa de válvula",
+        "Junta cárter",
+        "Retentor comando",
+        "Retentor virabrequim",
+        "Tampa óleo",
+        "Vareta óleo",
+        "Mangueira respiro",
+        "TBI/corpo borboleta",
+        "Limpeza TBI",
+        "Descarbonização",
+        "Compressão do motor",
+        "Ruído interno do motor",
+        "Regulagem de válvulas",
+        "Conferência de folga de válvulas",
+        "Substituição de junta da tampa de válvulas",
+        "Teste de compressão dos cilindros",
+        "Teste de vazamento de cilindros",
+        "Conferência de sincronismo do motor"
+      ]
+    },
+    {
+      "id": "arrefecimento",
+      "emoji": "🌡️",
+      "titulo": "Arrefecimento",
+      "hint": "Quando tiver superaquecimento, água baixando ou ventoinha acionando errado.",
+      "itens": [
+        "Radiador",
+        "Bomba d'água",
+        "Válvula termostática",
+        "Carcaça válvula termostática",
+        "Sensor temperatura",
+        "Cebolão/interruptor térmico",
+        "Ventoinha",
+        "Resistência da ventoinha",
+        "Relé da ventoinha",
+        "Mangueira superior radiador",
+        "Mangueira inferior radiador",
+        "Mangueiras do ar quente",
+        "Reservatório expansão",
+        "Tampa reservatório",
+        "Aditivo / limpeza sistema",
+        "Abraçadeiras",
+        "Teste de pressão do sistema",
+        "Sangria do sistema"
+      ]
+    },
+    {
+      "id": "injecao_alimentacao",
+      "emoji": "⛽",
+      "titulo": "Injeção e alimentação",
+      "hint": "Falha, consumo alto, luz injeção, não pega.",
+      "itens": [
+        "Leitura scanner",
+        "Código de falha salvo",
+        "Bico injetor",
+        "Limpeza de bicos",
+        "Bomba combustível",
+        "Pré-filtro bomba",
+        "Filtro combustível",
+        "Regulador pressão",
+        "Sensor MAP",
+        "Sensor MAF",
+        "Sonda lambda pré",
+        "Sonda lambda pós",
+        "Sensor rotação",
+        "Sensor fase",
+        "Sensor TPS",
+        "Atuador marcha lenta",
+        "Corpo borboleta",
+        "Entrada falsa de ar",
+        "Canister",
+        "Catalisador"
+      ]
+    },
+    {
+      "id": "eletrica_bateria",
+      "emoji": "🔋",
+      "titulo": "Elétrica e bateria",
+      "hint": "Partida, carga, fuga de corrente e chicote.",
+      "itens": [
+        "Bateria",
+        "Teste CCA bateria",
+        "Alternador",
+        "Motor de partida/arranque",
+        "Correia alternador",
+        "Cabo positivo",
+        "Cabo negativo/aterramento",
+        "Bornes da bateria",
+        "Fusíveis principais",
+        "Caixa de fusíveis",
+        "Relés",
+        "Chicote motor",
+        "Chicote painel",
+        "Fuga de corrente",
+        "Sensor de porta",
+        "Alarme",
+        "Imobilizador",
+        "Chave codificada",
+        "Scanner módulos",
+        "Luzes no painel"
+      ]
+    },
+    {
+      "id": "freios",
+      "emoji": "🛑",
+      "titulo": "Freios",
+      "hint": "Pastilha, disco e fluido aparecem muito juntos. O sistema sugere o conjunto.",
+      "itens": [
+        "Pastilha freio dianteira",
+        "Disco freio dianteiro",
+        "Pastilha freio traseira",
+        "Disco freio traseiro",
+        "Sapatas traseiras",
+        "Tambor freio",
+        "Cilindro de roda",
+        "Cilindro mestre",
+        "Servo freio/hidrovácuo",
+        "Flexível freio dianteiro LD",
+        "Flexível freio dianteiro LE",
+        "Flexível freio traseiro",
+        "Pinça freio LD",
+        "Pinça freio LE",
+        "Fluido de freio",
+        "Sangria do sistema",
+        "Sensor ABS",
+        "Cubo/rolamento com ABS",
+        "Freio de estacionamento",
+        "Regulagem freio traseiro",
+        "Ruído ao frear",
+        "Vibração ao frear",
+        "Retífica de disco dianteiro",
+        "Retífica de disco traseiro",
+        "Retífica de tambor de freio",
+        "Retífica de campana",
+        "Trocar lona de freio",
+        "Trocar sapata de freio",
+        "Regulagem de alavanca do freio de estacionamento",
+        "Regulagem do freio de mão",
+        "Sangria completa do sistema de freio",
+        "Limpeza e regulagem de tambor/campana"
+      ]
+    },
+    {
+      "id": "suspensao_direcao",
+      "emoji": "🔩",
+      "titulo": "Suspensão e direção",
+      "hint": "Grupo recorrente: amortecedor + kit + bieleta + buchas + alinhamento.",
+      "itens": [
+        "Amortecedor dianteiro direito",
+        "Amortecedor dianteiro esquerdo",
+        "Amortecedor traseiro direito",
+        "Amortecedor traseiro esquerdo",
+        "Kit amortecedor dianteiro",
+        "Batente amortecedor",
+        "Coifa amortecedor",
+        "Coxim amortecedor",
+        "Rolamento coxim amortecedor",
+        "Mola dianteira",
+        "Mola traseira",
+        "Bieleta LD",
+        "Bieleta LE",
+        "Barra estabilizadora",
+        "Bucha barra estabilizadora",
+        "Bandeja suspensão LD",
+        "Bandeja suspensão LE",
+        "Bucha bandeja",
+        "Pivô suspensão",
+        "Terminal direção LD",
+        "Terminal direção LE",
+        "Axial direção LD",
+        "Axial direção LE",
+        "Caixa de direção",
+        "Coifa direção",
+        "Cubo roda dianteiro",
+        "Rolamento roda dianteiro",
+        "Cubo roda traseiro",
+        "Rolamento roda traseiro",
+        "Alinhamento",
+        "Balanceamento",
+        "Cambagem/caster quando aplicável"
+      ]
+    },
+    {
+      "id": "rodas_pneus",
+      "emoji": "🛞",
+      "titulo": "Rodas e pneus",
+      "hint": "Sem rolagem lateral, conferência rápida de pneus e rodas.",
+      "itens": [
+        "Pneu dianteiro direito",
+        "Pneu dianteiro esquerdo",
+        "Pneu traseiro direito",
+        "Pneu traseiro esquerdo",
+        "Estepe",
+        "Calibragem pneus",
+        "Rodízio de pneus",
+        "Balanceamento dianteiro LD",
+        "Balanceamento dianteiro LE",
+        "Balanceamento traseiro LD",
+        "Balanceamento traseiro LE",
+        "Bico de pneu",
+        "Válvula TPMS",
+        "Roda amassada",
+        "Parafuso/prisioneiro de roda",
+        "Porca de roda",
+        "Alinhamento direção",
+        "Desgaste irregular",
+        "Bolha/corte no pneu"
+      ]
+    },
+    {
+      "id": "transmissao",
+      "emoji": "⚙️",
+      "titulo": "Câmbio e transmissão",
+      "hint": "Câmbio, embreagem, homocinética e vazamentos.",
+      "itens": [
+        "Óleo câmbio",
+        "Vazamento câmbio",
+        "Junta tampa câmbio",
+        "Retentor semieixo",
+        "Semieixo LD",
+        "Semieixo LE",
+        "Coifa homocinética LD",
+        "Coifa homocinética LE",
+        "Junta homocinética LD",
+        "Junta homocinética LE",
+        "Embreagem",
+        "Atuador embreagem",
+        "Cilindro mestre embreagem",
+        "Cilindro auxiliar embreagem",
+        "Cabo embreagem",
+        "Trambulador",
+        "Coxim câmbio",
+        "Ruído câmbio",
+        "Patinação embreagem",
+        "Trepidação saída",
+        "Regulagem de alavanca de câmbio",
+        "Regulagem de trambulador",
+        "Conferência de cabo de embreagem",
+        "Conferência de atuador de embreagem"
+      ]
+    },
+    {
+      "id": "escapamento",
+      "emoji": "💨",
+      "titulo": "Escapamento",
+      "hint": "Ruídos, catalisador e fixações.",
+      "itens": [
+        "Coletor escapamento",
+        "Junta coletor",
+        "Catalisador",
+        "Sonda lambda no escapamento",
+        "Silencioso intermediário",
+        "Silencioso traseiro",
+        "Abafador",
+        "Coxim escapamento",
+        "Abraçadeira escapamento",
+        "Vazamento escapamento",
+        "Ruído metálico",
+        "Protetor térmico"
+      ]
+    },
+    {
+      "id": "ar_condicionado",
+      "emoji": "❄️",
+      "titulo": "Ar-condicionado e ventilação",
+      "hint": "Conforto, filtro e ventilação interna.",
+      "itens": [
+        "Filtro cabine/ar-condicionado",
+        "Higienização ar-condicionado",
+        "Carga de gás",
+        "Compressor ar-condicionado",
+        "Correia compressor",
+        "Condensador",
+        "Evaporador",
+        "Ventoinha interna",
+        "Resistência ventilação",
+        "Botão/comando ar",
+        "Mangueira ar-condicionado",
+        "Vazamento gás",
+        "Temperatura insuficiente",
+        "Mau cheiro no ar"
+      ]
+    },
+    {
+      "id": "funilaria_acabamento",
+      "emoji": "🎨",
+      "titulo": "Funilaria, pintura e acabamento",
+      "hint": "Avarias e itens visuais para relatório com foto.",
+      "itens": [
+        "Risco na lataria",
+        "Amassado",
+        "Pintura queimada",
+        "Paralama dianteiro LD",
+        "Paralama dianteiro LE",
+        "Paralama traseiro LD",
+        "Paralama traseiro LE",
+        "Capô",
+        "Tampa traseira",
+        "Teto",
+        "Saia lateral",
+        "Spoiler/acessório",
+        "Forro porta",
+        "Presilhas/acabamentos",
+        "Emblemas",
+        "Suporte para-choque",
+        "Grade/churrasqueira"
+      ]
+    },
+    {
+      "id": "teste_rodagem",
+      "emoji": "🛣️",
+      "titulo": "Teste de rodagem",
+      "hint": "Final da avaliação, com conclusão simples.",
+      "itens": [
+        "Partida a frio",
+        "Marcha lenta",
+        "Aceleração",
+        "Retomada",
+        "Ruído motor",
+        "Ruído suspensão dianteira",
+        "Ruído suspensão traseira",
+        "Freio em baixa velocidade",
+        "Freio em alta velocidade",
+        "Volante puxa",
+        "Volante torto",
+        "Vibração volante",
+        "Vibração carroceria",
+        "Câmbio engates",
+        "Embreagem",
+        "Temperatura normal",
+        "Ventoinha armou",
+        "Luzes painel após teste",
+        "Cheiro combustível/óleo",
+        "Conclusão do teste de rodagem"
+      ]
+    }
+  ],
+  "sugestoes": {
+    "Pastilha freio dianteira": [
+      "Disco freio dianteiro",
+      "Fluido de freio",
+      "Sangria do sistema",
+      "Sensor ABS"
+    ],
+    "Disco freio dianteiro": [
+      "Pastilha freio dianteira",
+      "Cubo roda dianteiro",
+      "Rolamento roda dianteiro"
+    ],
+    "Amortecedor dianteiro direito": [
+      "Amortecedor dianteiro esquerdo",
+      "Kit amortecedor dianteiro",
+      "Batente amortecedor",
+      "Coifa amortecedor",
+      "Coxim amortecedor",
+      "Alinhamento"
+    ],
+    "Amortecedor traseiro direito": [
+      "Amortecedor traseiro esquerdo",
+      "Batente amortecedor",
+      "Coifa amortecedor",
+      "Alinhamento"
+    ],
+    "Bieleta LD": [
+      "Bieleta LE",
+      "Bucha barra estabilizadora",
+      "Barra estabilizadora"
+    ],
+    "Bateria": [
+      "Teste CCA bateria",
+      "Alternador",
+      "Motor de partida/arranque",
+      "Fuga de corrente",
+      "Bornes da bateria"
+    ],
+    "Radiador": [
+      "Aditivo / limpeza sistema",
+      "Tampa reservatório",
+      "Mangueira superior radiador",
+      "Mangueira inferior radiador",
+      "Teste de pressão do sistema"
+    ],
+    "Bomba d'água": [
+      "Válvula termostática",
+      "Aditivo / limpeza sistema",
+      "Correia dentada",
+      "Tensor correia dentada"
+    ],
+    "Palheta dianteira LD": [
+      "Palheta dianteira LE",
+      "Esguicho dianteiro",
+      "Reservatório do lavador"
+    ],
+    "Lâmpada farol baixo LD": [
+      "Farol baixo LE",
+      "Regulagem dos faróis",
+      "Soquete de lâmpada"
+    ],
+    "Pastilha dianteira": [
+      "Retífica de disco dianteiro",
+      "Sangria completa do sistema de freio",
+      "Fluido de freio"
+    ],
+    "Disco dianteiro": [
+      "Retífica de disco dianteiro",
+      "Pastilha dianteira",
+      "Sangria completa do sistema de freio"
+    ],
+    "Tambor de freio": [
+      "Retífica de tambor de freio",
+      "Trocar lona de freio",
+      "Regulagem do freio de mão"
+    ],
+    "Lona de freio": [
+      "Trocar sapata de freio",
+      "Retífica de campana",
+      "Regulagem de alavanca do freio de estacionamento"
+    ],
+    "Porta dianteira esquerda": [
+      "Regulagem de porta dianteira esquerda",
+      "Regulagem de fechadura de porta",
+      "Lubrificação de fechaduras e dobradiças"
+    ],
+    "Vazamento tampa de válvulas": [
+      "Regulagem de válvulas",
+      "Substituição de junta da tampa de válvulas",
+      "Conferência de folga de válvulas"
+    ]
+  }
+}

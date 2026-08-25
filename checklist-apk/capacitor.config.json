@@ -1,0 +1,8 @@
+{
+  "appId": "br.com.thiaguinhosolucoes.oficinia.checklist.solo.v14.seguro",
+  "appName": "Checklist OFICIN-IA V14 Seguro",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

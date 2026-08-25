@@ -1,0 +1,64 @@
+{
+  "versao": 1,
+  "escopo": "global",
+  "comportamento": {
+    "tom": "tecnico",
+    "permitirPiadas": false
+  },
+  "conhecimento": [
+    {
+      "tema": "diagnostico tecnico",
+      "conteudo": "Diagnostico deve separar sintoma, condicao de ocorrencia, testes realizados, resultado observado e proximo teste. Nao transformar suspeita em certeza sem evidencia."
+    }
+  ],
+  "regras": [
+    {
+      "nome": "defeito recorrente",
+      "quando": "mesmo sintoma aparece em mais de uma O.S.",
+      "acao": "listar datas, km, servicos feitos e o que nao foi aprovado"
+    }
+  ],
+  "procedimentos": [
+    {
+      "nome": "arrefecimento",
+      "passos": [
+        "verificar nivel e qualidade do fluido",
+        "pressurizar sistema e procurar vazamentos",
+        "testar tampa, ventoinha, sensor, valvula termostatica e bomba dagua",
+        "avaliar radiador e possivel ar no sistema",
+        "registrar foto e temperatura observada"
+      ]
+    },
+    {
+      "nome": "injecao eletronica",
+      "passos": [
+        "ler scanner e freeze frame quando houver",
+        "verificar bateria, aterramentos e alimentacao",
+        "testar sensores conforme sintoma",
+        "validar combustivel, pressao de linha, bicos e entrada falsa de ar",
+        "apagar falha somente apos registrar codigo e teste"
+      ]
+    },
+    {
+      "nome": "freios",
+      "passos": [
+        "verificar vazamento e nivel do fluido",
+        "inspecionar pastilhas, discos, lonas, cilindros, flexiveis e servo",
+        "avaliar ABS quando luz acesa ou pedal irregular",
+        "testar pedal parado e em rodagem segura"
+      ]
+    }
+  ],
+  "diagnosticos": [
+    {
+      "sintoma": "luz de injecao acesa",
+      "perguntar": ["codigo de falha", "quando acende", "se perde potencia", "combustivel usado"],
+      "verificar": ["scanner", "bateria", "aterramento", "sensor relacionado ao DTC", "chicote"]
+    },
+    {
+      "sintoma": "carro puxando ao frear",
+      "verificar": ["pinça travando", "flexivel obstruido", "pastilhas", "discos", "pneus", "geometria da suspensao"]
+    }
+  ],
+  "atualizadoEm": "2026-05-18T00:00:00-03:00"
+}

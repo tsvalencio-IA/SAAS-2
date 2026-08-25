@@ -1,0 +1,15 @@
+{
+  "name": "Checklist OFICIN-IA Seguro V14",
+  "short_name": "Checklist V14",
+  "id": "/checklist.html?app=checklist-solo-v14-seguro",
+  "start_url": "/checklist.html?app=checklist-solo-v14-seguro",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f4f7fb",
+  "theme_color": "#0f172a",
+  "description": "Aplicativo separado do Checklist OFICIN-IA com login obrigatório e APK próprio.",
+  "icons": [
+    {"src":"assets/icons/checklist-192.png","sizes":"192x192","type":"image/png"},
+    {"src":"assets/icons/checklist-512.png","sizes":"512x512","type":"image/png"}
+  ]
+}

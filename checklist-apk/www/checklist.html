@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Checklist Inteligente • OFICIN-IA</title>
+  <meta name="theme-color" content="#0f172a">
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="./js/config.js"></script>
+  <style>
+    :root{--bg:#f4f7fb;--card:#fff;--card2:#eef4fb;--text:#0f172a;--muted:#64748b;--line:#d7e2ef;--brand:#1d4ed8;--brand2:#2563eb;--ok:#15803d;--warn:#b45309;--bad:#b91c1c;--na:#475569;--shadow:0 12px 30px rgba(15,23,42,.10);--r:18px;--tap:50px}
+    [data-theme="dark"]{--bg:#07111f;--card:#0f1b2d;--card2:#12243a;--text:#edf5ff;--muted:#a9bad1;--line:#2a3c58;--brand:#60a5fa;--brand2:#3b82f6;--shadow:0 14px 34px rgba(0,0,0,.34)}
+    *{box-sizing:border-box;min-width:0}html,body{margin:0;width:100%;max-width:100%;min-height:100%;overflow-x:hidden;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.35}button,input,textarea,select{font:inherit}.app{width:100%;max-width:980px;margin:0 auto;padding:10px 10px 96px;overflow-x:hidden}.top{position:sticky;top:0;z-index:20;margin:-10px -10px 8px;padding:10px;background:linear-gradient(180deg,var(--bg) 88%,rgba(0,0,0,0));backdrop-filter:blur(10px)}
+    .hero{display:grid;grid-template-columns:1fr;gap:8px;background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:20px;padding:12px}.hero-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.hero h1{margin:0;font-size:1.08rem;letter-spacing:-.02em}.sub{font-size:.78rem;color:var(--muted);margin-top:3px}.session{display:flex;gap:6px;flex-wrap:wrap}.pill{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-weight:900;font-size:.75rem;color:var(--text);max-width:100%;overflow:hidden;text-overflow:ellipsis}.steps{display:flex;gap:6px;margin-top:8px}.step{height:8px;flex:1;border-radius:99px;background:var(--line)}.step.on{background:var(--brand)}
+    .card{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:var(--r);padding:12px;margin-bottom:10px;overflow:hidden;max-width:100%}.title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:wrap}.title h2{font-size:1rem;margin:0}.btn{border:0;background:var(--brand);color:#fff;border-radius:14px;min-height:var(--tap);padding:11px 13px;font-weight:950;cursor:pointer;touch-action:manipulation;text-align:center;white-space:normal;line-height:1.18;word-break:normal;display:inline-flex;align-items:center;justify-content:center;gap:6px}.btn.secondary{background:var(--card2);color:var(--text);border:1px solid var(--line)}.btn.ok{background:var(--ok)}.btn.warn{background:var(--warn)}.btn.bad{background:var(--bad)}.btn:active{transform:scale(.99)}.btn.small{min-height:42px;padding:8px 10px;font-size:.85rem}.btn.full{width:100%}.grid-actions{display:grid;grid-template-columns:1fr;gap:8px}@media(min-width:620px){.grid-actions{grid-template-columns:repeat(3,1fr)}}
+    label{display:block;margin:0 0 4px;font-size:.76rem;font-weight:900;color:var(--muted)}.inp,textarea,select{width:100%;max-width:100%;min-height:var(--tap);border:1px solid var(--line);background:var(--card2);color:var(--text);border-radius:14px;padding:11px;outline:none}textarea{min-height:86px;resize:vertical}.inp:focus,textarea:focus,select:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(37,99,235,.15)}.row2,.row3{display:grid;grid-template-columns:1fr;gap:8px}@media(min-width:680px){.row2{grid-template-columns:1fr 1fr}.row3{grid-template-columns:1fr 1fr 1fr}}@media(max-width:420px){.btn{width:100%}.session .pill{width:100%;justify-content:center}}
+    .notice,.hist-card{border:1px solid var(--line);background:var(--card2);border-radius:14px;padding:10px;color:var(--text);font-size:.86rem}.notice.warn{border-color:rgba(180,83,9,.35);background:rgba(180,83,9,.10)}.notice.bad{border-color:rgba(185,28,28,.35);background:rgba(185,28,28,.10)}.hist-card{border-left:4px solid var(--brand)}
+    .section-picker{display:grid;grid-template-columns:1fr 1fr;gap:8px}@media(min-width:620px){.section-picker{grid-template-columns:repeat(4,1fr)}}.symptom{min-height:74px;border:1px solid var(--line);background:var(--card2);color:var(--text);border-radius:16px;padding:10px;display:flex;align-items:center;text-align:left;gap:9px;font-weight:950;white-space:normal;line-height:1.18}.symptom.active{border-color:var(--brand);background:rgba(37,99,235,.12);outline:2px solid rgba(37,99,235,.16)}.symptom.done{border-color:rgba(21,128,61,.45);background:rgba(21,128,61,.10)}.draw{font-size:1.55rem;line-height:1;flex:0 0 auto}.symptom .prog{display:block;font-size:.71rem;color:var(--muted);font-weight:800;margin-top:3px;line-height:1.18}.search-stick{position:sticky;top:122px;z-index:15;background:var(--bg);padding:0 0 8px}.sec{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:8px 0;overflow:hidden}.sec summary{list-style:none;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:1000;cursor:pointer}.sec summary::-webkit-details-marker{display:none}.sec small{font-size:.72rem;color:var(--muted);white-space:nowrap}.hint{color:var(--muted);font-size:.78rem;padding:0 12px 10px}.items{display:grid;gap:8px;padding:0 10px 10px}.item{border:1px solid var(--line);background:var(--card2);border-radius:16px;padding:10px;display:grid;gap:8px;overflow:hidden}.item-head{display:grid;grid-template-columns:38px 1fr;gap:8px;align-items:start}.item-icon{width:36px;height:36px;display:grid;place-items:center;border-radius:12px;background:var(--card);border:1px solid var(--line);font-size:1.2rem}.mini{font-size:.75rem;color:var(--muted)}.hist{border-left:4px solid var(--brand);background:var(--card);border-radius:12px;padding:8px;font-size:.8rem}.hist.empty{border-left-color:var(--line);color:var(--muted)}
+    .status-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}@media(min-width:520px){.status-grid{grid-template-columns:repeat(4,1fr)}}.status-grid button{min-height:46px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:12px;font-weight:950;white-space:normal;line-height:1.15;padding:7px}.status-grid button.on.ok{background:rgba(21,128,61,.15);border-color:var(--ok);color:var(--ok)}.status-grid button.on.warn{background:rgba(180,83,9,.15);border-color:var(--warn);color:var(--warn)}.status-grid button.on.bad{background:rgba(185,28,28,.15);border-color:var(--bad);color:var(--bad)}.status-grid button.on.na{background:rgba(71,85,105,.15);border-color:var(--na);color:var(--na)}.obs{min-height:62px;font-size:.9rem}.item-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}.filebtn{display:inline-flex!important;align-items:center;justify-content:center;min-height:42px;padding:8px 12px;border-radius:12px;background:var(--card);border:1px solid var(--line);font-weight:950;color:var(--text);margin:0!important}.photo-count{font-size:.78rem;color:var(--muted)}.sug-title{font-size:.76rem;font-weight:950;color:var(--muted);margin-bottom:4px}.sug{border:1px dashed var(--brand);background:rgba(37,99,235,.08);color:var(--text);border-radius:12px;min-height:38px;padding:8px 10px;margin:3px 3px 0 0;font-weight:900;text-align:left;white-space:normal}
+    .section-closed{border:1px solid var(--line);background:var(--card2);border-radius:16px;padding:12px;margin:8px 0;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;width:100%;color:var(--text);text-align:left}.section-closed b{display:block}.section-closed small{color:var(--muted);font-weight:850}.section-closed.done{border-color:rgba(21,128,61,.42);background:rgba(21,128,61,.08)}.sec.open-focus{outline:2px solid rgba(37,99,235,.18)}.sec-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 10px 10px}.quick-help{font-size:.8rem;color:var(--muted);padding:8px 10px 0}.empty-pick{padding:12px;border:1px dashed var(--line);background:var(--card2);border-radius:16px;margin-top:8px;color:var(--muted);font-weight:850}.photo-grid{display:grid;grid-template-columns:1fr;gap:8px}.photo{display:grid;grid-template-columns:86px 1fr;gap:8px;background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:8px}.photo img{width:86px;height:72px;object-fit:cover;border-radius:10px}.photo button{margin-top:6px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:7px;font-weight:900}.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px}.kpi{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:10px;text-align:center}.kpi b{font-size:1.25rem;display:block}.resume-line{display:grid;grid-template-columns:1fr auto;gap:8px;border-bottom:1px dashed var(--line);padding:9px 0}.resume-line span{display:block;color:var(--muted);font-size:.78rem}.resume-line strong{font-size:.74rem;border-radius:999px;padding:6px 8px;align-self:start}.resume-line strong.warn{background:rgba(180,83,9,.15);color:var(--warn)}.resume-line strong.bad{background:rgba(185,28,28,.15);color:var(--bad)}.hidden{display:none!important}.consulta-list{display:grid;gap:8px;margin-top:10px}.consulta-card{border:1px solid var(--line);background:var(--card2);border-radius:14px;padding:10px}.consulta-card b{display:block}.consulta-card small{color:var(--muted)}.hist-full{box-shadow:none;margin-top:10px}.hist-full h3{font-size:.92rem;margin:12px 0 6px}.hist-line{border-bottom:1px dashed var(--line);padding:8px 0}.hist-line b{display:block;font-size:.86rem}.hist-line span{display:block;color:var(--muted);font-size:.76rem}.manual-print-note{font-size:.78rem;color:var(--muted);margin-top:6px}.after-final{border:1px solid var(--line);background:var(--card2);border-radius:16px;padding:10px;margin-top:12px}.after-final b{display:block;margin-bottom:6px}.after-final .grid-actions{margin-top:8px}
+
+    .delivery-head{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px}.delivery-progress{height:12px;background:var(--line);border-radius:999px;overflow:hidden}.delivery-progress span{display:block;height:100%;background:var(--ok);width:0%}.delivery-item{border:1px solid var(--line);background:var(--card2);border-radius:16px;padding:10px;margin-bottom:8px;display:grid;gap:8px}.delivery-item.done{border-color:rgba(21,128,61,.45);background:rgba(21,128,61,.10)}.delivery-item.pending{border-color:rgba(180,83,9,.38)}.delivery-meta{display:flex;gap:6px;flex-wrap:wrap}.delivery-meta .pill{font-size:.7rem;padding:6px 8px}.delivery-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px}.delivery-actions button{min-height:46px;border-radius:12px;border:1px solid var(--line);font-weight:950;background:var(--card);color:var(--text);white-space:normal}.delivery-actions button.on{background:rgba(21,128,61,.16);border-color:var(--ok);color:var(--ok)}.delivery-actions button.badon{background:rgba(185,28,28,.14);border-color:var(--bad);color:var(--bad)}
+    .bottom{position:fixed;left:0;right:0;bottom:0;z-index:25;background:rgba(244,247,251,.92);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding:10px max(10px,env(safe-area-inset-left)) calc(10px + env(safe-area-inset-bottom))}[data-theme="dark"] .bottom{background:rgba(7,17,31,.92)}.bottom-inner{max-width:980px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:8px}.toast{position:fixed;left:10px;right:10px;bottom:88px;z-index:50;background:var(--text);color:var(--bg);border-radius:14px;padding:12px 14px;display:none;font-weight:950;box-shadow:var(--shadow);max-width:900px;margin:auto}.toast.show{display:block}
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="hero">
+      <div class="hero-row">
+        <div><h1>Checklist Inteligente OFICIN-IA</h1><div class="sub">Padrão concessionária • edição por gestão • exclusão autorizada • app próprio • login interno • A4 manual</div></div>
+        <button class="btn secondary small" id="btnTheme" type="button">🌗 Tema</button>
+      </div>
+      <div class="session"><span class="pill" id="sessOficina">Oficina</span><span class="pill" id="sessMecanico">Responsável</span><span class="pill" id="sessStatus">Sessão</span></div>
+    </div>
+    <div class="steps"><span class="step on"></span><span class="step"></span><span class="step"></span><span class="step"></span></div>
+  </div>
+
+  <section class="card" id="screenAccess">
+    <div class="title"><h2>🔐 Login do Checklist</h2></div>
+    <div class="notice bad">Acesso bloqueado sem login. Entre com o mesmo usuário e senha do SaaS/Jarvis/equipe. Clientes não acessam checklists.</div>
+    <div class="row2" style="margin-top:10px">
+      <div><label>Usuário / e-mail</label><input id="loginUsr" class="inp" autocomplete="username" placeholder="Usuário, login ou e-mail"></div>
+      <div><label>Senha</label><input id="loginPwd" class="inp" type="password" autocomplete="current-password" placeholder="Senha"></div>
+    </div>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;color:var(--text);font-size:.86rem;font-weight:850">
+      <input id="loginRemember" type="checkbox" checked style="width:20px;height:20px;flex:0 0 auto"> Manter este checklist logado neste aparelho
+    </label>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-top:8px;color:var(--text);font-size:.86rem;font-weight:850">
+      <input id="loginLgpd" type="checkbox" checked style="width:20px;height:20px;flex:0 0 auto"> Aceito usar dados internos somente para execução do checklist técnico
+    </label>
+    <div id="loginErr" class="notice bad hidden" style="margin-top:10px"></div>
+    <div class="grid-actions" style="margin-top:10px">
+      <button class="btn full" id="btnLoginChecklist" type="button">Entrar no Checklist</button>
+      <button class="btn secondary full" id="btnAbrirSaasLogin" type="button">Abrir login do SaaS em outra aba</button>
+    </div>
+    <div class="notice" style="margin-top:10px">APK separado: este login é interno do checklist. Ele não deve abrir checklists salvos sem sessão autorizada.</div>
+  </section>
+
+  <section class="card hidden" id="screenStart">
+    <div class="title"><h2>1) Identificação</h2><span class="pill" id="draftInfo">Rascunho automático</span></div>
+    <div class="row2">
+      <div><label>Placa</label><input id="placa" class="inp" maxlength="8" placeholder="ABC1D23" autocomplete="off"></div>
+      <div><label>O.S. / Prisma / Referência</label><input id="osRef" class="inp" placeholder="Opcional"></div>
+    </div>
+    <div class="row2" style="margin-top:8px">
+      <div><label>Responsável logado</label><input id="mecanico" class="inp" placeholder="Nome do responsável" readonly></div>
+      <div><label>KM atual</label><input id="km" class="inp" inputmode="numeric" placeholder="Ex: 154320"></div>
+    </div>
+    <div class="grid-actions" style="margin-top:10px">
+      <button class="btn" id="btnBuscarPlaca" type="button">🔎 Buscar histórico da placa</button>
+      <button class="btn secondary" id="btnNovo" type="button">🆕 Novo / zerar checklist</button>
+      <button class="btn secondary" id="btnAbrirConsulta" type="button">📚 Consultar checklists</button>
+      <button class="btn secondary" id="btnIrSistema" type="button">🏠 Ir para sistema SaaS</button>
+      <button class="btn secondary" id="btnInstalarApp" type="button">📲 Instalar checklist</button>
+      <button class="btn secondary" id="btnManualTopo" type="button">🖨️ Checklist manual A4</button>
+    </div>
+    <div id="historicoResumo" style="margin-top:10px"></div>
+    <div id="historicoDetalhado" style="margin-top:10px"></div>
+  </section>
+
+  <section class="card hidden" id="screenConsulta">
+    <div class="title"><h2>📚 Consulta de checklists</h2><button class="btn secondary small" id="btnFecharConsulta" type="button">Fechar</button></div>
+    <div class="row3">
+      <div><label>Placa</label><input id="consultaPlaca" class="inp" placeholder="Opcional"></div>
+      <div><label>Responsável / mecânico</label><input id="consultaMecanico" class="inp" placeholder="Nome, gestor, gerente ou todos"></div>
+      <div><label>Quantidade</label><select id="consultaQtd" class="inp"><option>20</option><option>50</option><option>100</option></select></div>
+    </div>
+    <div style="margin-top:8px"><button class="btn full" id="btnConsultar" type="button">Pesquisar checklists salvos</button></div>
+    <div class="notice" style="margin-top:8px">Gestores/gerentes/admins verão os botões <b>Editar</b> e <b>Excluir</b> nos checklists encontrados.</div><div id="consultaLista" class="consulta-list"></div>
+  </section>
+
+  <section class="card hidden" id="screenCheck">
+    <div class="title"><h2>2) Escolha uma seção</h2><span class="pill"><span id="selCount">0</span> críticos</span></div>
+    <div class="notice">Toque em uma seção. Ela abre sozinha, grande e fácil. Ao concluir, minimiza automaticamente.</div>
+    <div class="section-picker" id="symptoms" style="margin-top:10px"></div>
+    <div class="search-stick" style="margin-top:10px"><input id="buscaItem" class="inp" placeholder="🔍 Pesquisar item: lâmpada, borracha, pastilha..."></div>
+    <div id="groups"></div>
+  </section>
+
+  <section class="card hidden" id="screenMidia">
+    <div class="title"><h2>3) Relato, áudio e fotos</h2></div>
+    <label>Relato do cliente / reclamação</label><textarea id="relato" placeholder="Ex: cliente relata barulho ao passar em lombada..."></textarea>
+    <label style="margin-top:8px">Diagnóstico técnico interno</label><textarea id="diagnostico" placeholder="Conclusão do mecânico, testes realizados, recomendações..."></textarea>
+    <div class="grid-actions" style="margin-top:8px">
+      <button class="btn secondary" id="btnDitar" type="button">🗣️ Ditar texto</button>
+      <button class="btn secondary" id="btnAudio" type="button">🎤 Gravar áudio</button>
+      <label class="filebtn">📷 Fotos gerais <input id="fotoGeral" type="file" accept="image/*" capture="environment" multiple hidden></label>
+    </div>
+    <div id="audioBox" style="margin-top:8px"></div>
+    <div class="photo-grid" id="photoGrid" style="margin-top:10px"></div>
+  </section>
+
+  <section class="card hidden" id="screenResumo">
+    <div class="title"><h2>4) Relatório final</h2></div>
+    <div class="kpis">
+      <div class="kpi"><b id="kTrocar">0</b><span>Trocar</span></div>
+      <div class="kpi"><b id="kAtencao">0</b><span>Atenção</span></div>
+      <div class="kpi"><b id="kOk">0</b><span>OK</span></div>
+      <div class="kpi"><b id="kFotos">0</b><span>Fotos</span></div>
+    </div>
+    <div id="resumoLista" style="margin-top:10px"></div>
+    <div class="grid-actions" style="margin-top:12px">
+      <button class="btn ok" id="btnSalvar" type="button">✅ Salvar checklist</button>
+      <button class="btn" id="btnPDF" type="button">📄 PDF bonito</button>
+      <button class="btn secondary" id="btnXLSX" type="button">📊 Planilha inteligente</button>
+      <button class="btn secondary" id="btnPrintManual" type="button">🖨️ Manual 1 página</button>
+      <button class="btn secondary" id="btnJSON" type="button">⬇️ Arquivo para O.S.</button>
+      <button class="btn warn" id="btnImportOS" type="button">📎 Enviar/anexar na O.S.</button>
+      <button class="btn ok" id="btnAbrirEntrega" type="button">🚗 Checklist de entrega/conferência</button>
+    </div>
+    <div class="after-final" id="acoesPosFinalizacao">
+      <b>Depois de finalizar</b>
+      <div class="notice">Fluxo rápido para mecânico: salve/anexe na O.S. e já comece outro veículo sem fechar a tela.</div>
+      <div class="grid-actions">
+        <button class="btn ok" id="btnNovoFinal" type="button">🆕 Salvei, iniciar novo</button>
+        <button class="btn secondary" id="btnInicioFinal" type="button">🏠 Voltar ao começo</button>
+        <button class="btn secondary" id="btnVerHistoricoFinal" type="button">📜 Ver histórico da placa</button>
+        <button class="btn secondary" id="btnConsultaFinal" type="button">📚 Consultar checklists</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card hidden" id="screenEntrega">
+    <div class="title"><h2>🚗 Checklist de entrega / conferência</h2><span class="pill" id="entregaPercent">0%</span></div>
+    <div class="notice">Este modo usa os itens marcados no checklist técnico como <b>Trocar</b> ou <b>Atenção</b>. O gestor, gerente ou responsável confere item por item e o sistema registra quem conferiu, data e hora.</div>
+    <div class="delivery-head" style="margin-top:10px">
+      <div class="delivery-progress"><span id="entregaBar"></span></div>
+      <div class="row2">
+        <div><label>Conferente logado</label><input id="entregaConferente" class="inp" readonly></div>
+        <div><label>Status da entrega</label><select id="entregaStatus" class="inp"><option value="em_conferencia">Em conferência</option><option value="pendente">Pendente</option><option value="liberado">Liberado para entrega</option></select></div>
+      </div>
+    </div>
+    <div id="entregaLista" style="margin-top:10px"></div>
+    <label style="margin-top:10px">Observação final da entrega</label>
+    <textarea id="entregaObsFinal" placeholder="Ex: veículo testado, itens executados, pendência explicada ao gestor/cliente..."></textarea>
+    <div class="grid-actions" style="margin-top:12px">
+      <button class="btn ok" id="btnSalvarEntrega" type="button">✅ Salvar conferência</button>
+      <button class="btn warn" id="btnAnexarEntregaOS" type="button">📎 Anexar conferência na O.S.</button>
+      <button class="btn secondary" id="btnPdfEntrega" type="button">📄 PDF entrega</button>
+      <button class="btn secondary" id="btnVoltarResumoEntrega" type="button">↩️ Voltar ao relatório</button>
+    </div>
+  </section>
+
+</div>
+
+<div class="bottom"><div class="bottom-inner">
+  <button class="btn secondary" id="btnVoltar" type="button">⬅️ Voltar</button>
+  <button class="btn" id="btnAvancar" type="button">Avançar ➜</button>
+</div></div>
+<div class="toast" id="toast"></div>
+<script src="./js/checklist.js?v=20260623v11"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "versao": 1,
+  "escopo": "tenant",
+  "comportamento": {
+    "tom": "direto",
+    "permitirPiadas": false
+  },
+  "conhecimento": [
+    {
+      "tema": "balcao autopecas",
+      "conteudo": "Para venda de peca, pedir aplicacao, modelo, ano, motor, chassi quando necessario, codigo da peca antiga e marca desejada. Usar estoque real antes de sugerir disponibilidade."
+    },
+    {
+      "tema": "equivalencia de codigos",
+      "conteudo": "Codigo fornecedor, codigo comercial, OEM e EAN podem apontar para a mesma peca. Resposta deve mostrar a origem do codigo quando existir no estoque ou em NF."
+    }
+  ],
+  "regras": [
+    {
+      "nome": "nao prometer estoque",
+      "quando": "estoque nao tiver item ou quantidade carregada",
+      "acao": "dizer que nao encontrou saldo carregado e pedir para conferir fornecedor/cotacao"
+    },
+    {
+      "nome": "compatibilidade",
+      "quando": "cliente pedir peca por modelo sem ano/motor",
+      "acao": "pedir ano, motor e, se possivel, codigo da peca antiga"
+    }
+  ],
+  "procedimentos": [
+    {
+      "nome": "consulta por codigo",
+      "passos": [
+        "buscar codigo em estoque, NF, vinculos de NF e pecas reais de O.S.",
+        "se encontrar, retornar descricao, marca, saldo, fornecedor e ultima NF quando permitido",
+        "se nao encontrar, pedir foto/codigo alternativo"
+      ]
+    }
+  ],
+  "diagnosticos": [],
+  "atualizadoEm": "2026-05-18T00:00:00-03:00"
+}

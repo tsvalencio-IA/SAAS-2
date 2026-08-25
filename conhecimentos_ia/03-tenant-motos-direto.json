@@ -1,0 +1,54 @@
+{
+  "versao": 1,
+  "escopo": "tenant",
+  "comportamento": {
+    "tom": "tecnico",
+    "permitirPiadas": false
+  },
+  "conhecimento": [
+    {
+      "tema": "oficina motos",
+      "conteudo": "Em motos, consultar sempre modelo, cilindrada, ano, km, uso principal, sintomas em frio/quente e historico de revisoes. Separar itens de seguranca como freio, pneu, transmissao e iluminacao."
+    },
+    {
+      "tema": "transmissao secundaria",
+      "conteudo": "Kit relacao deve ser avaliado por folga, dentes gastos, pontos duros, alinhamento, lubrificacao e km. Nao afirmar troca sem inspecao ou historico real."
+    }
+  ],
+  "regras": [
+    {
+      "nome": "moto sem placa",
+      "quando": "cliente pergunta por status ou historico sem placa/login",
+      "acao": "pedir placa ou login do portal"
+    },
+    {
+      "nome": "seguranca primeiro",
+      "quando": "defeito envolver freio, pneu, direcao, suspensao ou vazamento de combustivel",
+      "acao": "orientar nao liberar sem conferencia tecnica"
+    }
+  ],
+  "procedimentos": [
+    {
+      "nome": "moto falhando",
+      "passos": [
+        "perguntar se falha em baixa, alta, frio ou quente",
+        "verificar combustivel, vela, cabo, cachimbo, filtro de ar, bico/carburação e bateria",
+        "consultar historico da placa por limpeza de bico, vela e regulagem"
+      ]
+    },
+    {
+      "nome": "revisao moto",
+      "passos": [
+        "verificar oleo, filtro, freios, pneus, relacao, cabos, rolamentos, suspensao, luzes e aperto geral",
+        "usar checklist e fotos antes/depois"
+      ]
+    }
+  ],
+  "diagnosticos": [
+    {
+      "sintoma": "barulho na roda traseira",
+      "verificar": ["rolamento", "bucha da coroa", "relacao", "alinhamento", "freio traseiro", "raios quando houver"]
+    }
+  ],
+  "atualizadoEm": "2026-05-18T00:00:00-03:00"
+}

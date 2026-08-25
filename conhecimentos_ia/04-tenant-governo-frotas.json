@@ -1,0 +1,48 @@
+{
+  "versao": 1,
+  "escopo": "tenant",
+  "comportamento": {
+    "tom": "tecnico",
+    "permitirPiadas": false
+  },
+  "conhecimento": [
+    {
+      "tema": "frotas e orgaos publicos",
+      "conteudo": "Em frota, a resposta deve usar prefixo, placa, unidade, fiscal, O.S., empenho/autorizacao quando existir e separacao entre mao de obra e pecas. Nao misturar valores sem modulo financeiro liberado."
+    },
+    {
+      "tema": "padrao de evidencias",
+      "conteudo": "Para laudo e conferencia, priorizar fotos antes/depois, checklist, km, diagnostico, itens aprovados, itens recusados e assinatura quando o modulo estiver liberado."
+    }
+  ],
+  "regras": [
+    {
+      "nome": "controle por prefixo",
+      "quando": "pergunta mencionar viatura, prefeitura, unidade ou frota",
+      "acao": "pedir prefixo ou placa se nao vierem na pergunta"
+    },
+    {
+      "nome": "sem modulo tabela temparia",
+      "quando": "tenant nao tiver tabelaTempa liberada",
+      "acao": "nao pesquisar, nao sugerir e nao mencionar tempos da Tabela Temparia"
+    }
+  ],
+  "procedimentos": [
+    {
+      "nome": "resumo para fiscal",
+      "passos": [
+        "identificar placa/prefixo",
+        "listar defeito reclamado, diagnostico, servicos aprovados e fotos",
+        "informar pendencias tecnicas e status",
+        "se permitido, separar mao de obra e pecas"
+      ]
+    }
+  ],
+  "diagnosticos": [
+    {
+      "sintoma": "veiculo de frota retorna com mesmo defeito",
+      "orientacao": "comparar O.S. anteriores da mesma placa/prefixo, km, itens aprovados, itens recusados e observacoes do fiscal antes de concluir reincidencia"
+    }
+  ],
+  "atualizadoEm": "2026-05-18T00:00:00-03:00"
+}

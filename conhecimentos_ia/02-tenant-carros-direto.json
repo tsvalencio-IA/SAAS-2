@@ -1,0 +1,62 @@
+{
+  "versao": 1,
+  "escopo": "tenant",
+  "comportamento": {
+    "tom": "tecnico",
+    "permitirPiadas": false
+  },
+  "conhecimento": [
+    {
+      "tema": "oficina carros passeio",
+      "conteudo": "Priorizar perguntas por placa, modelo, motor, ano, combustivel, km atual e relato do cliente. Em carro de passeio, recorrencia por modelo deve considerar arrefecimento, freio, suspensao, injecao, correias, embreagem e sistema eletrico."
+    },
+    {
+      "tema": "garantia tecnica",
+      "conteudo": "Quando o cliente retorna com problema relacionado a servico recente, consultar a O.S. anterior, peca aplicada, fornecedor, data, km, fotos e checklist antes de afirmar causa."
+    }
+  ],
+  "regras": [
+    {
+      "nome": "sem placa",
+      "quando": "pergunta sobre historico ou defeito sem placa",
+      "acao": "perguntar a placa do veiculo"
+    },
+    {
+      "nome": "modelo recorrente",
+      "quando": "pergunta por defeito recorrente de um modelo",
+      "acao": "agrupar por modelo normalizado e separar observacao real da oficina de conhecimento geral"
+    }
+  ],
+  "procedimentos": [
+    {
+      "nome": "triagem carro nao pega",
+      "passos": [
+        "confirmar se motor gira no arranque",
+        "verificar bateria, cabo terra, fusivel principal e relé",
+        "se gira, verificar pressao de combustivel, centelha, sinal de rotacao e scanner",
+        "consultar historico da placa para falhas anteriores"
+      ]
+    },
+    {
+      "nome": "revisao preventiva",
+      "passos": [
+        "consultar km atual e ultima O.S.",
+        "verificar oleo, filtros, fluido de freio, arrefecimento, correias, velas, suspensao e pneus",
+        "se houver servico recente, indicar apenas o que ainda nao foi feito"
+      ]
+    }
+  ],
+  "diagnosticos": [
+    {
+      "sintoma": "superaquecimento",
+      "perguntar": ["modelo", "motor", "km", "quando aquece", "se baixa agua", "se ventoinha arma"],
+      "verificar": ["vazamentos", "tampa do reservatorio", "valvula termostatica", "bomba dagua", "radiador", "sensor de temperatura", "ar no sistema"]
+    },
+    {
+      "sintoma": "pedal de freio baixo",
+      "perguntar": ["quando começou", "se houve troca recente", "se baixa fluido"],
+      "verificar": ["vazamento", "cilindro mestre", "flexiveis", "pastilhas", "lonas", "sangria", "ABS"]
+    }
+  ],
+  "atualizadoEm": "2026-05-18T00:00:00-03:00"
+}

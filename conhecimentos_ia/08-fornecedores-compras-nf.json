@@ -1,0 +1,62 @@
+{
+  "versao": 1,
+  "escopo": "global",
+  "comportamento": {
+    "tom": "direto",
+    "permitirPiadas": false
+  },
+  "conhecimento": [
+    {
+      "tema": "entrada de NF",
+      "conteudo": "Entrada de NF deve preservar numero, chave, fornecedor, itens, impostos relevantes, destino da peca, vinculo com O.S./placa quando existir, estoque, movimento e financeiro conforme permissao."
+    },
+    {
+      "tema": "edicao auditada",
+      "conteudo": "Editar ou excluir item de NF existente exige justificativa, usuario, data, antes/depois e registro em auditoria. Nao pode gerar duplicidade fiscal, estoque ou financeiro."
+    },
+    {
+      "tema": "cadastro fornecedor",
+      "conteudo": "Fornecedor deve ter razao social, fantasia quando houver, CPF/CNPJ valido, segmento, contato, telefone/WhatsApp, email, CEP, endereco e observacoes comerciais."
+    }
+  ],
+  "regras": [
+    {
+      "nome": "documento invalido",
+      "quando": "CPF ou CNPJ nao passa no digito verificador",
+      "acao": "bloquear cadastro e pedir correcao"
+    },
+    {
+      "nome": "documento duplicado",
+      "quando": "CPF/CNPJ ja existe no mesmo tenant",
+      "acao": "bloquear novo cadastro e orientar editar o existente"
+    },
+    {
+      "nome": "cep",
+      "quando": "CEP tiver 8 digitos",
+      "acao": "buscar endereco automaticamente e manter numero/complemento para digitacao manual"
+    }
+  ],
+  "procedimentos": [
+    {
+      "nome": "conferencia NF x estoque",
+      "passos": [
+        "validar se NF ja foi importada por chave ou numero/serie/fornecedor",
+        "conferir itens, quantidade, custo, destino e placa/O.S.",
+        "registrar movimento de estoque e vinculo fiscal",
+        "gerar financeiro sem parcelar PIX, dinheiro ou debito"
+      ]
+    },
+    {
+      "nome": "editar item NF",
+      "passos": [
+        "abrir NF existente",
+        "alterar ou excluir item",
+        "informar justificativa",
+        "salvar auditoria com antes/depois",
+        "marcar reconciliacao de estoque/financeiro quando o item ja gerou movimento"
+      ]
+    }
+  ],
+  "diagnosticos": [],
+  "atualizadoEm": "2026-05-18T00:00:00-03:00"
+}
