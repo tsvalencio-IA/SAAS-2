@@ -5819,6 +5819,8 @@ window.gerarPDFOS = async function(opcoes = {}) {
   const v = J.veiculos.find(x => x.id === $v('osVeiculo')) || {};
   const c = J.clientes.find(x => x.id === $v('osCliente')) || {};
   const osAtual = (J.os || []).find(x => x.id === $v('osId')) || {};
+  const pdfClienteOficialProtegido = osClienteOficialSeguroOS(osContextoClienteAtualOS(osAtual));
+  const gapTabelaPDF = pdfClienteOficialProtegido ? 6 : 3.5;
   const osId = ($v('osId') || '').slice(-6).toUpperCase() || 'NOVA';
   const pickPdf = (...values) => {
     for (const value of values) {
@@ -6079,7 +6081,7 @@ window.gerarPDFOS = async function(opcoes = {}) {
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(10, 25, 48);
-  doc.text('ORÇAMENTO / ORDEM DE SERVIÇO', pw - margem, 10, { align: 'right' });
+  doc.text(pdfClienteOficialProtegido ? 'ORÇAMENTO / ORDEM DE SERVIÇO' : 'ORÇAMENTO', pw - margem, 10, { align: 'right' });
   y = headerLineY + 6;
 
   doc.autoTable({
@@ -6088,7 +6090,7 @@ window.gerarPDFOS = async function(opcoes = {}) {
     margin: { left: margem, right: margem },
     styles: { fontSize: 8, cellPadding: 2, textColor: [20, 30, 45], lineColor: [185, 195, 210], lineWidth: 0.15 },
     headStyles: headStylesInfoPDF,
-    body: [
+    body: pdfClienteOficialProtegido ? [
       ['OS', osId, 'Emissão', hoje],
       ['Cliente', texto(clientePdf.nome), 'CPF/CNPJ', texto(clientePdf.doc)],
       ['Telefone', texto(clientePdf.telefone), 'Status', texto($v('osStatus') || osAtual.status)],
@@ -6096,6 +6098,11 @@ window.gerarPDFOS = async function(opcoes = {}) {
       ['Ano', texto(veiculoPdf.ano), 'KM', texto(veiculoPdf.km)],
       ['Chassi', texto(veiculoPdf.chassis), 'Prefixo/Patrimônio', texto([veiculoPdf.prefixo, veiculoPdf.patrimonio].filter(Boolean).join(' / '))],
       ['Fiscal Contrato', texto(clientePdf.fiscal), '', '']
+    ] : [
+      ['Cliente', texto(clientePdf.nome), 'CPF/CNPJ', texto(clientePdf.doc)],
+      ['Telefone', texto(clientePdf.telefone), 'Emissão', hoje],
+      ['Veículo', texto([veiculoPdf.marca, veiculoPdf.modelo].filter(Boolean).join(' ')), 'Placa', texto(veiculoPdf.placa)],
+      ['Ano', texto(veiculoPdf.ano), 'KM', texto(veiculoPdf.km)]
     ]
   });
   y = doc.lastAutoTable.finalY + 7;
@@ -6113,7 +6120,7 @@ window.gerarPDFOS = async function(opcoes = {}) {
       item.horas.toFixed(2).replace('.', ','),
       moedaPdf(item.total)
     ]);
-  if (resumoSecoesRows.length) {
+  if (pdfClienteOficialProtegido && resumoSecoesRows.length) {
     linhaTitulo('RESUMO POR SEÇÃO DE MÃO DE OBRA');
     doc.autoTable({
       startY: y,
@@ -6126,7 +6133,7 @@ window.gerarPDFOS = async function(opcoes = {}) {
       headStyles: headStylesPadraoPDF,
       columnStyles: { 0: { cellWidth: 42 }, 1: { cellWidth: 34 }, 2: { cellWidth: 66 }, 3: { halign: 'center', cellWidth: 16 }, 4: { halign: 'right', cellWidth: 28 } }
     });
-    y = doc.lastAutoTable.finalY + 6;
+    y = doc.lastAutoTable.finalY + gapTabelaPDF;
   }
 
   if (servicos.length) {
@@ -6151,14 +6158,14 @@ window.gerarPDFOS = async function(opcoes = {}) {
       headStyles: headStylesPadraoPDF,
       columnStyles: { 0: { cellWidth: 13 }, 1: { cellWidth: 29 }, 2: { cellWidth: 47 }, 3: { halign: 'center', cellWidth: 11 }, 4: { halign: 'right', cellWidth: 17 }, 5: { halign: 'right', cellWidth: 22 }, 6: { halign: 'right', cellWidth: 21 }, 7: { halign: 'right', cellWidth: 26 } }
     });
-    y = doc.lastAutoTable.finalY + 6;
+    y = doc.lastAutoTable.finalY + gapTabelaPDF;
   }
 
   const guinchoPdf = window.calcularDeslocamentoGuinchoOS?.() || osAtual.deslocamentoGuincho || { ativo: false, total: 0 };
 
   if (pecas.length) {
     linhaTitulo('PEÇAS / MATERIAIS');
-    doc.autoTable({
+    doc.autoTable(pdfClienteOficialProtegido ? {
       startY: y,
       head: [['Código da peça', 'Descrição', 'Qtd', 'Valor unit.', 'Valor original', 'Desconto', 'Valor cobrado']],
       body: pecas,
@@ -6168,8 +6175,18 @@ window.gerarPDFOS = async function(opcoes = {}) {
       styles: { fontSize: 7.2, cellPadding: 1.55, lineColor: [190, 198, 210], lineWidth: 0.12, overflow: 'linebreak' },
       headStyles: headStylesPadraoPDF,
       columnStyles: { 0: { cellWidth: 26 }, 1: { cellWidth: 58 }, 2: { halign: 'center', cellWidth: 10 }, 3: { halign: 'right', cellWidth: 21 }, 4: { halign: 'right', cellWidth: 24 }, 5: { halign: 'right', cellWidth: 21 }, 6: { halign: 'right', cellWidth: 26 } }
+    } : {
+      startY: y,
+      head: [['Descrição', 'Qtd', 'Valor unit.', 'Valor original', 'Desconto', 'Valor cobrado']],
+      body: pecas.map(item => [item[1], item[2], item[3], item[4], item[5], item[6]]),
+      theme: 'grid',
+      margin: { left: margem, right: margem },
+      tableWidth: larguraUtilPdf,
+      styles: { fontSize: 7.4, cellPadding: 1.35, lineColor: [190, 198, 210], lineWidth: 0.12, overflow: 'linebreak' },
+      headStyles: headStylesPadraoPDF,
+      columnStyles: { 0: { cellWidth: 74 }, 1: { halign: 'center', cellWidth: 12 }, 2: { halign: 'right', cellWidth: 24 }, 3: { halign: 'right', cellWidth: 26 }, 4: { halign: 'right', cellWidth: 22 }, 5: { halign: 'right', cellWidth: 28 } }
     });
-    y = doc.lastAutoTable.finalY + 6;
+    y = doc.lastAutoTable.finalY + gapTabelaPDF;
   }
 
   const totalGuinchoPdf = guinchoPdf?.ativo ? _numGuinchoOS(guinchoPdf.total || 0) : 0;
@@ -6195,7 +6212,7 @@ window.gerarPDFOS = async function(opcoes = {}) {
       headStyles: headStylesPadraoPDF,
       columnStyles: { 0: { cellWidth: 34 }, 1: { halign:'center', cellWidth: 22 }, 2: { halign:'center', cellWidth: 22 }, 3: { halign:'center', cellWidth: 22 }, 4: { halign:'right', cellWidth: 23 }, 5: { halign:'right', cellWidth: 25 }, 6: { halign:'center', cellWidth: 18 }, 7: { halign:'right', cellWidth: 20 } }
     });
-    y = doc.lastAutoTable.finalY + 6;
+    y = doc.lastAutoTable.finalY + gapTabelaPDF;
     if (guinchoPdf.obs) blocoTexto('OBSERVAÇÃO DO DESLOCAMENTO', guinchoPdf.obs);
   }
 
@@ -6219,10 +6236,10 @@ window.gerarPDFOS = async function(opcoes = {}) {
       headStyles: headStylesGarantiaPDF,
       columnStyles: { 0: { cellWidth: 18 }, 1: { cellWidth: 27 }, 2: { cellWidth: 75 }, 3: { cellWidth: 25, halign: 'right' }, 4: { cellWidth: 22, halign: 'right' }, 5: { cellWidth: 25, halign: 'right' } }
     });
-    y = doc.lastAutoTable.finalY + 6;
+    y = doc.lastAutoTable.finalY + gapTabelaPDF;
   }
 
-  if (y > ph - 34) { doc.addPage(); y = 12; }
+  if (y > ph - (pdfClienteOficialProtegido ? 34 : 25)) { doc.addPage(); y = 12; }
   const totalGeral = +(totalServicos + totalPecas + totalGuinchoPdf).toFixed(2);
   const totalOriginalServicosPDF = +servicos.reduce((sum, item) => sum + numBR(item.bruto || item.total || 0), 0).toFixed(2);
   const totalOriginalPecasPDF = +pecas.reduce((sum, item) => sum + numBR(String(item[4] || '').replace(/R\$|\s|\./g, '').replace(',', '.')), 0).toFixed(2);
@@ -6251,7 +6268,7 @@ window.gerarPDFOS = async function(opcoes = {}) {
       }
     }
   });
-  y = doc.lastAutoTable.finalY + 10;
+  y = doc.lastAutoTable.finalY + (pdfClienteOficialProtegido ? 10 : 6);
 
   let media = [];
   try { media = JSON.parse(document.getElementById('osMediaArray')?.value || '[]'); } catch(e) { media = []; }
@@ -6286,9 +6303,9 @@ window.gerarPDFOS = async function(opcoes = {}) {
   const assinaturaPDF = (typeof window._osSignGetPayload === 'function' ? window._osSignGetPayload() : null) || osAtual.assinaturaResponsavel || osAtual.assinaturaOS || osAtual.assinaturaUsada || J.oficina?.assinatura || {};
   const urlAssPDF = assinaturaPDF.url || assinaturaPDF.cloudUrl || assinaturaPDF.assinaturaUrl || assinaturaPDF.urlAssinatura || '';
   const imgAssPDF = incluirImagensPDF ? await carregarImagem(urlAssPDF) : null;
-  const alturaFechamentoPDF = 55;
-  if (y + alturaFechamentoPDF > ph - 10) { doc.addPage(); y = 18; }
-  const assinaturaLinhaY = y + 24;
+  const alturaFechamentoPDF = pdfClienteOficialProtegido ? 55 : 45;
+  if (y + alturaFechamentoPDF > ph - (pdfClienteOficialProtegido ? 10 : 6)) { doc.addPage(); y = pdfClienteOficialProtegido ? 18 : 12; }
+  const assinaturaLinhaY = y + (pdfClienteOficialProtegido ? 24 : 18);
   doc.setDrawColor(70, 80, 95);
   if (imgAssPDF) {
     const maxW = 70, maxH = 22;
@@ -6309,15 +6326,15 @@ window.gerarPDFOS = async function(opcoes = {}) {
   doc.text('ASSINATURA DO CLIENTE', pw - margem - 35, assinaturaLinhaY + 9, { align: 'center' });
 
   const emitidoEmPDF = new Date();
-  const rodapeFechamentoY = assinaturaLinhaY + 20;
+  const rodapeFechamentoY = assinaturaLinhaY + (pdfClienteOficialProtegido ? 20 : 14);
   doc.setDrawColor(210, 216, 226);
   doc.line(margem, rodapeFechamentoY, pw - margem, rodapeFechamentoY);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.8);
   doc.setTextColor(90, 100, 115);
   const dataHoraEmissaoPDF = `${emitidoEmPDF.toLocaleDateString('pt-BR')} ${emitidoEmPDF.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-  doc.text(`Emitido em ${dataHoraEmissaoPDF} | O.S. ${osId}`, margem, rodapeFechamentoY + 5);
-  doc.text('Orçamento/laudo gerado pelo sistema Oficin_IA', margem, rodapeFechamentoY + 9);
+  doc.text(pdfClienteOficialProtegido ? `Emitido em ${dataHoraEmissaoPDF} | O.S. ${osId}` : `Emitido em ${dataHoraEmissaoPDF}`, margem, rodapeFechamentoY + 5);
+  doc.text(pdfClienteOficialProtegido ? 'Orçamento/laudo gerado pelo sistema Oficin_IA' : 'Orçamento gerado pelo sistema Oficin_IA', margem, rodapeFechamentoY + 9);
   doc.setFont('helvetica', 'bold');
   doc.text('Powered by thIAguinho Solu\u00e7\u00f5es Digitais', pw - margem, rodapeFechamentoY + 9, { align: 'right' });
 
@@ -9325,3 +9342,385 @@ async function _ciliaProcessarPDF(file) {
     console.error('[Cília PDF]', err);
   }
 }
+
+// ============================================================
+// UX O.S. CLIENTE COMUM / FROTISTA — LANÇAMENTO RÁPIDO DE PEÇAS
+// Camada aditiva: não remove nem substitui o lançamento detalhado existente.
+// Cliente oficial/governo é explicitamente excluído desta camada.
+// ============================================================
+(function instalarUsabilidadePecasClienteComumOS(){
+  'use strict';
+
+  function uxClienteAtualOS(){
+    const id = document.getElementById('osCliente')?.value || '';
+    return (window.J?.clientes || []).find(c => String(c.id) === String(id)) || null;
+  }
+  function uxVeiculoAtualOS(){
+    const id = document.getElementById('osVeiculo')?.value || '';
+    return (window.J?.veiculos || []).find(v => String(v.id) === String(id)) || null;
+  }
+  function uxClienteProtegidoOS(){
+    const cli = uxClienteAtualOS();
+    if (!cli) return false;
+    return osClienteOficialSeguroOS({
+      clienteId: cli.id,
+      cliente: cli.nome,
+      clienteNome: cli.nome,
+      tipoCliente: cli.tipoCliente,
+      clienteTipo: cli.clienteTipo,
+      clienteOficial: cli.clienteOficial,
+      orgaoPublico: cli.orgaoPublico,
+      gov: cli.gov
+    });
+  }
+  function uxFrotistaOS(cli){
+    const c = cli || uxClienteAtualOS();
+    return !!c && !uxClienteProtegidoOS() && (c.frotista === true || String(c.categoriaComercial || '').toLowerCase() === 'frotista');
+  }
+  function uxModeloKeyOS(v){
+    const vei = v || uxVeiculoAtualOS() || {};
+    return normalizarBuscaPecaOS([vei.marca, vei.modelo].filter(Boolean).join(' '));
+  }
+  function uxModeloLabelOS(v){
+    const vei = v || uxVeiculoAtualOS() || {};
+    return [vei.marca, vei.modelo].filter(Boolean).join(' ').trim() || vei.placa || 'veículo';
+  }
+  function uxTabelaPrecosOS(cli){
+    const c = cli || uxClienteAtualOS();
+    return Array.isArray(c?.tabelaPrecosOS) ? c.tabelaPrecosOS.slice() : [];
+  }
+  function uxPresetDoVeiculoOS(preset, veiculo){
+    if (!preset) return false;
+    const v = veiculo || uxVeiculoAtualOS();
+    if (!v) return false;
+    const key = uxModeloKeyOS(v);
+    const pk = normalizarBuscaPecaOS(preset.veiculoModeloKey || preset.modeloKey || '');
+    if (pk) return pk === key;
+    if (preset.veiculoId) return String(preset.veiculoId) === String(v.id);
+    return false;
+  }
+  function uxToastOS(msg, tipo){
+    if (typeof window.toast === 'function') window.toast(msg, tipo || 'ok');
+    else if (tipo === 'err') alert(msg);
+  }
+  function uxEscOS(v){
+    return typeof escOS === 'function' ? escOS(v) : String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function uxDinheiroOS(v){
+    return typeof moedaOS === 'function' ? moedaOS(v) : ('R$ ' + numBR(v || 0).toFixed(2).replace('.', ','));
+  }
+  function uxRemoverLinhaVaziaOS(){
+    if (document.querySelector('#containerPecasOS .cilia-peca-wrap')) return;
+    const rows = osRowsDiretas('containerPecasOS');
+    const ultima = rows[rows.length - 1];
+    if (ultima && !osPecaLinhaPreenchida(ultima) && !ultima.dataset.origemNFItemKey && !ultima.dataset.origemNFVinculada) ultima.remove();
+  }
+  function uxAcharEstoqueParaPresetOS(preset){
+    const estoque = window.J?.estoque || [];
+    const id = String(preset?.estoqueId || '');
+    if (id) {
+      const exato = estoque.find(p => String(p.id) === id && numBR(p.qtd || 0) > 0);
+      if (exato) return exato;
+    }
+    const cod = normalizarBuscaPecaOS(preset?.codigo || '');
+    const desc = normalizarBuscaPecaOS(preset?.descricao || preset?.desc || '');
+    return estoque.find(p => {
+      if (numBR(p?.qtd || 0) <= 0) return false;
+      const pcod = normalizarBuscaPecaOS(codigoPecaEstoqueOS(p));
+      const pdesc = normalizarBuscaPecaOS(p?.desc || p?.descricao || '');
+      return (cod && pcod === cod) || (desc && pdesc && (pdesc === desc || pdesc.includes(desc) || desc.includes(pdesc)));
+    }) || null;
+  }
+
+  function uxInstalarAcaoPrecoLinhaOS(row){
+    if (!row || row.classList?.contains('cilia-peca-wrap')) return;
+    const antiga = row.querySelector('.os-preco-frotista-acoes');
+    const cli = uxClienteAtualOS();
+    if (!uxFrotistaOS(cli) || uxClienteProtegidoOS()) {
+      antiga?.remove();
+      return;
+    }
+    if (antiga) return;
+    const box = document.createElement('div');
+    box.className = 'os-preco-frotista-acoes';
+    box.style.cssText = 'grid-column:1/-1;display:flex;justify-content:flex-end;gap:7px;align-items:center;margin-top:2px;';
+    box.innerHTML = `<span style="font-family:var(--fm);font-size:.59rem;color:var(--muted);">Preço do modelo ${uxEscOS(uxModeloLabelOS())}</span><button type="button" class="btn-outline os-salvar-preco-frota" style="padding:6px 9px;font-size:.6rem;">SALVAR PREÇO DO FROTISTA</button>`;
+    box.querySelector('button')?.addEventListener('click', () => window.salvarPrecoFrotistaLinhaOS?.(row));
+    row.appendChild(box);
+  }
+
+  function uxInstalarAcoesPrecosOS(){
+    const cont = document.getElementById('containerPecasOS');
+    if (!cont) return;
+    Array.from(cont.children || []).forEach(uxInstalarAcaoPrecoLinhaOS);
+  }
+
+  async function uxPersistirTabelaOS(cli, tabela, mensagem){
+    if (!cli || uxClienteProtegidoOS()) return false;
+    try {
+      await window.J.db.collection('clientes').doc(cli.id).update({
+        tabelaPrecosOS: tabela,
+        updatedAt: new Date().toISOString()
+      });
+      cli.tabelaPrecosOS = tabela;
+      try { window.audit?.('CLIENTES', mensagem || `Atualizou tabela de preços do frotista ${cli.nome || cli.id}`); } catch (_) {}
+      return true;
+    } catch (e) {
+      console.error('[OS UX Frotista] Falha ao salvar tabela', e);
+      uxToastOS('Não foi possível salvar a tabela de preços do cliente.', 'err');
+      return false;
+    }
+  }
+
+  window.salvarPrecoFrotistaLinhaOS = async function(row){
+    const cli = uxClienteAtualOS();
+    const vei = uxVeiculoAtualOS();
+    if (!cli || uxClienteProtegidoOS()) return;
+    if (!uxFrotistaOS(cli)) {
+      uxToastOS('Este recurso é exclusivo para cliente cadastrado como Frotista.', 'warn');
+      return;
+    }
+    if (!vei) {
+      uxToastOS('Selecione o veículo antes de salvar um preço do frotista.', 'warn');
+      return;
+    }
+    if (!row) return;
+    const sel = row.querySelector('.peca-sel');
+    const opt = sel?.options?.[sel.selectedIndex];
+    const estoqueId = sel?.value && sel.value !== '__avulsa__' ? sel.value : '';
+    const descricao = descricaoPecaLinhaOS(row, opt, estoqueId) || row.querySelector('.peca-desc-livre')?.value?.trim() || '';
+    const codigo = row.querySelector('.peca-codigo')?.value?.trim() || row.dataset.pecaCodigo || opt?.dataset?.codigo || '';
+    const venda = numBR(row.querySelector('.peca-venda')?.value || 0);
+    const custo = numBR(row.querySelector('.peca-custo')?.value || 0);
+    const qtdPadrao = numBR(row.querySelector('.peca-qtd')?.value || 1) || 1;
+    if ((!descricao && !codigo) || venda <= 0) {
+      uxToastOS('Informe a peça e o valor de venda antes de salvar o preço do frotista.', 'warn');
+      return;
+    }
+    const modeloKey = uxModeloKeyOS(vei);
+    const codigoKey = normalizarBuscaPecaOS(codigo);
+    const descricaoKey = normalizarBuscaPecaOS(descricao);
+    const tabela = uxTabelaPrecosOS(cli);
+    let idx = tabela.findIndex(p => {
+      if (normalizarBuscaPecaOS(p.veiculoModeloKey || '') !== modeloKey) return false;
+      const pc = normalizarBuscaPecaOS(p.codigo || '');
+      const pd = normalizarBuscaPecaOS(p.descricao || p.desc || '');
+      return (codigoKey && pc === codigoKey) || (!codigoKey && descricaoKey && pd === descricaoKey);
+    });
+    const anterior = idx >= 0 ? tabela[idx] : null;
+    const registro = Object.assign({}, anterior || {}, {
+      id: anterior?.id || ('tp_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,7)),
+      veiculoModeloKey: modeloKey,
+      veiculoModelo: uxModeloLabelOS(vei),
+      veiculoIdReferencia: vei.id || '',
+      codigo,
+      descricao,
+      venda,
+      custo,
+      qtdPadrao,
+      estoqueId,
+      updatedAt: new Date().toISOString(),
+      createdAt: anterior?.createdAt || new Date().toISOString()
+    });
+    if (idx >= 0) tabela[idx] = registro;
+    else tabela.push(registro);
+    if (await uxPersistirTabelaOS(cli, tabela, `${idx >= 0 ? 'Atualizou' : 'Criou'} preço frotista ${descricao || codigo} / ${registro.veiculoModelo}`)) {
+      uxToastOS(`${idx >= 0 ? 'Preço atualizado' : 'Preço salvo'} para ${registro.veiculoModelo}: ${descricao || codigo} — ${uxDinheiroOS(venda)}.`, 'ok');
+      window.atualizarUsabilidadePecasOS?.();
+    }
+  };
+
+  window.excluirPrecoFrotistaOS = async function(id){
+    const cli = uxClienteAtualOS();
+    if (!cli || !uxFrotistaOS(cli) || uxClienteProtegidoOS()) return;
+    const tabela = uxTabelaPrecosOS(cli);
+    const item = tabela.find(p => String(p.id) === String(id));
+    if (!item) return;
+    if (!window.confirm(`Excluir o preço pré-definido de "${item.descricao || item.codigo || 'peça'}"?`)) return;
+    const nova = tabela.filter(p => String(p.id) !== String(id));
+    if (await uxPersistirTabelaOS(cli, nova, `Excluiu preço frotista ${item.descricao || item.codigo || id}`)) {
+      uxToastOS('Preço pré-definido removido.', 'ok');
+      window.atualizarUsabilidadePecasOS?.();
+    }
+  };
+
+  function uxAdicionarLinhaRapidaOS(item){
+    if (!item || uxClienteProtegidoOS()) return;
+    uxRemoverLinhaVaziaOS();
+    let payload = null;
+    if (item.tipo === 'estoque') {
+      const p = item.item;
+      payload = {
+        estoqueId: p.id || '',
+        codigo: codigoPecaEstoqueOS(p),
+        codigoExibicao: codigoPecaEstoqueOS(p),
+        desc: p.desc || p.descricao || '',
+        descricaoExibicao: p.desc || p.descricao || '',
+        qtd: 1,
+        custo: valorCompraPecaEstoqueOS(p),
+        venda: numBR(p.venda || p.precoVenda || 0),
+        fornecedor: fornecedorPecaEstoqueOS(p),
+        nf: nfPecaEstoqueOS(p),
+        dataCompra: dataCompraPecaEstoqueOS(p),
+        baixarEstoqueReal: true
+      };
+    } else if (item.tipo === 'preset') {
+      const preset = item.item;
+      const estoque = uxAcharEstoqueParaPresetOS(preset);
+      if (estoque) {
+        payload = {
+          estoqueId: estoque.id || '',
+          codigo: preset.codigo || codigoPecaEstoqueOS(estoque),
+          codigoExibicao: preset.codigo || codigoPecaEstoqueOS(estoque),
+          desc: preset.descricao || estoque.desc || estoque.descricao || '',
+          descricaoExibicao: preset.descricao || estoque.desc || estoque.descricao || '',
+          qtd: numBR(preset.qtdPadrao || 1) || 1,
+          custo: numBR(preset.custo || valorCompraPecaEstoqueOS(estoque)),
+          venda: numBR(preset.venda || 0),
+          fornecedor: fornecedorPecaEstoqueOS(estoque),
+          nf: nfPecaEstoqueOS(estoque),
+          dataCompra: dataCompraPecaEstoqueOS(estoque),
+          baixarEstoqueReal: true
+        };
+      } else {
+        payload = {
+          avulsa: true,
+          codigo: preset.codigo || '',
+          codigoExibicao: preset.codigo || '',
+          desc: preset.descricao || '',
+          descricaoExibicao: preset.descricao || '',
+          qtd: numBR(preset.qtdPadrao || 1) || 1,
+          custo: numBR(preset.custo || 0),
+          venda: numBR(preset.venda || 0)
+        };
+      }
+    } else if (item.tipo === 'avulsa') {
+      payload = { avulsa: true, codigo: '', desc: item.descricao || '', qtd: 1, custo: 0, venda: 0 };
+    }
+    if (!payload) return;
+    window.renderPecaOSRow?.(payload);
+    window.calcOSTotal?.();
+    setTimeout(() => {
+      osGarantirProximaLinha('peca');
+      uxInstalarAcoesPrecosOS();
+      const busca = document.getElementById('osBuscaPecaRapidaUX');
+      if (busca) busca.value = '';
+      window.atualizarUsabilidadePecasOS?.();
+    }, 20);
+  }
+
+  window.lancarPecaRapidaOS = function(chave){
+    const item = window.__THIA_OS_UX_PECAS__?.get?.(String(chave));
+    if (item) uxAdicionarLinhaRapidaOS(item);
+  };
+
+  function uxRenderResultadosOS(){
+    const box = document.getElementById('osPecasRapidasResultadosUX');
+    const input = document.getElementById('osBuscaPecaRapidaUX');
+    if (!box || !input) return;
+    if (uxClienteProtegidoOS()) { box.innerHTML = ''; return; }
+    const termoRaw = String(input.value || '').trim();
+    const termo = normalizarBuscaPecaOS(termoRaw);
+    const cli = uxClienteAtualOS();
+    const vei = uxVeiculoAtualOS();
+    const presets = (uxFrotistaOS(cli) && vei ? uxTabelaPrecosOS(cli).filter(p => uxPresetDoVeiculoOS(p, vei)) : [])
+      .filter(p => !termo || normalizarBuscaPecaOS([p.codigo, p.descricao, p.veiculoModelo].filter(Boolean).join(' ')).includes(termo))
+      .slice(0, 12);
+    const estoque = termo ? pecasEstoqueFiltradasOS(termoRaw, '', false).slice(0, 8) : [];
+    const mapa = new Map();
+    const partes = [];
+    if (presets.length) {
+      partes.push(`<div style="grid-column:1/-1;font-family:var(--fm);font-size:.59rem;letter-spacing:.08em;color:var(--ok);margin-top:2px;">PREÇOS PRÉ-DEFINIDOS — ${uxEscOS(uxModeloLabelOS(vei))}</div>`);
+      presets.forEach((p, idx) => {
+        const key = 'preset_' + idx;
+        mapa.set(key, { tipo:'preset', item:p });
+        const estoqueLigado = !!uxAcharEstoqueParaPresetOS(p);
+        partes.push(`<div style="display:grid;grid-template-columns:1fr auto;gap:5px;min-width:0;"><button type="button" class="btn-outline" onclick="window.lancarPecaRapidaOS('${key}')" style="text-align:left;padding:8px 9px;min-width:0;border-color:rgba(34,197,94,.32);"><b>${uxEscOS(p.descricao || p.codigo || 'Peça')}</b><br><small style="color:var(--muted);">${uxEscOS(p.codigo || 'sem código')} • ${uxDinheiroOS(p.venda || 0)} • ${estoqueLigado ? 'estoque localizado' : 'avulsa automática'}</small></button><button type="button" class="btn-danger" onclick="window.excluirPrecoFrotistaOS('${uxEscOS(p.id)}')" title="Excluir preço pré-definido" style="padding:6px 8px;">×</button></div>`);
+      });
+    }
+    if (estoque.length) {
+      partes.push(`<div style="grid-column:1/-1;font-family:var(--fm);font-size:.59rem;letter-spacing:.08em;color:var(--cyan);margin-top:3px;">ESTOQUE ENCONTRADO</div>`);
+      estoque.forEach((p, idx) => {
+        const key = 'estoque_' + idx;
+        mapa.set(key, { tipo:'estoque', item:p });
+        partes.push(`<button type="button" class="btn-outline" onclick="window.lancarPecaRapidaOS('${key}')" style="text-align:left;padding:8px 9px;min-width:0;"><b>${uxEscOS(p.desc || p.descricao || codigoPecaEstoqueOS(p) || 'Peça')}</b><br><small style="color:var(--muted);">${uxEscOS(codigoPecaEstoqueOS(p) || 'sem código')} • saldo ${numBR(p.qtd || 0)} • ${uxDinheiroOS(p.venda || p.precoVenda || 0)}</small></button>`);
+      });
+    }
+    if (termoRaw) {
+      const key = 'avulsa';
+      mapa.set(key, { tipo:'avulsa', descricao:termoRaw });
+      partes.push(`<button type="button" class="btn-outline" onclick="window.lancarPecaRapidaOS('${key}')" style="text-align:left;padding:8px 9px;border-style:dashed;"><b>+ Lançar avulsa: ${uxEscOS(termoRaw)}</b><br><small style="color:var(--muted);">Cria a linha pronta para informar apenas o valor, sem procurar no estoque.</small></button>`);
+    }
+    window.__THIA_OS_UX_PECAS__ = mapa;
+    box.innerHTML = partes.join('') || `<div style="grid-column:1/-1;color:var(--muted);font-size:.7rem;padding:5px 0;">${vei && uxFrotistaOS(cli) ? 'Nenhum preço pré-definido ainda para este modelo. Lance a peça uma vez e use “Salvar preço do frotista”.' : 'Digite uma peça, código, fornecedor ou NF para lançar sem navegar pelo estoque.'}</div>`;
+  }
+
+  function uxAtualizarContextoOS(){
+    const contexto = document.getElementById('osPecasRapidasContextoUX');
+    if (!contexto) return;
+    const cli = uxClienteAtualOS();
+    const vei = uxVeiculoAtualOS();
+    const frotista = uxFrotistaOS(cli);
+    contexto.innerHTML = [
+      cli ? `<b>${uxEscOS(cli.nome || 'Cliente')}</b>` : 'Selecione o cliente',
+      frotista ? '<span style="color:var(--ok);font-weight:700;">FROTISTA</span>' : 'cliente comum',
+      vei ? uxEscOS([vei.modelo, vei.placa].filter(Boolean).join(' • ')) : 'selecione o veículo'
+    ].join(' &nbsp;•&nbsp; ');
+    uxRenderResultadosOS();
+    uxInstalarAcoesPrecosOS();
+  }
+
+  window.atualizarUsabilidadePecasOS = function(){
+    const cont = document.getElementById('containerPecasOS');
+    if (!cont) return;
+    let painel = document.getElementById('osPecasRapidasUX');
+    const protegido = uxClienteProtegidoOS();
+    const agrupadoCilia = !!cont.querySelector('.cilia-peca-wrap');
+    if (protegido || agrupadoCilia) {
+      painel?.remove();
+      cont.querySelectorAll('.os-preco-frotista-acoes').forEach(el => el.remove());
+      return;
+    }
+    if (!painel) {
+      painel = document.createElement('div');
+      painel.id = 'osPecasRapidasUX';
+      painel.style.cssText = 'margin:0 0 12px;padding:12px;border:1px solid rgba(34,211,238,.22);background:linear-gradient(135deg,rgba(34,211,238,.045),rgba(34,197,94,.035));border-radius:8px;';
+      painel.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:8px;">
+          <div><div style="font-family:var(--fm);font-size:.7rem;font-weight:800;letter-spacing:.08em;">LANÇAMENTO RÁPIDO DE PEÇAS</div><div id="osPecasRapidasContextoUX" style="margin-top:3px;color:var(--muted);font-size:.67rem;"></div></div>
+          <small style="color:var(--muted);max-width:390px;line-height:1.35;">Busca estoque e preços do frotista em um único campo. O lançamento detalhado atual continua disponível logo abaixo.</small>
+        </div>
+        <input id="osBuscaPecaRapidaUX" class="j-input" type="search" autocomplete="off" placeholder="Digite: filtro de óleo, pastilha, código, fornecedor ou NF..." style="width:100%;font-size:.84rem;min-height:44px;">
+        <div id="osPecasRapidasResultadosUX" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:7px;margin-top:8px;"></div>`;
+      cont.insertAdjacentElement('beforebegin', painel);
+      painel.querySelector('#osBuscaPecaRapidaUX')?.addEventListener('input', uxRenderResultadosOS);
+    }
+    if (!cont.__thiaUxObserver) {
+      cont.__thiaUxObserver = new MutationObserver(() => setTimeout(uxInstalarAcoesPrecosOS, 0));
+      cont.__thiaUxObserver.observe(cont, { childList:true, subtree:false });
+    }
+    uxAtualizarContextoOS();
+  };
+
+  document.addEventListener('change', ev => {
+    if (ev.target?.id === 'osCliente' || ev.target?.id === 'osVeiculo' || ev.target?.id === 'osTipoVeiculo') {
+      setTimeout(() => window.atualizarUsabilidadePecasOS?.(), 0);
+    }
+  });
+
+  if (typeof window.prepOS === 'function' && !window.prepOS.__thiaUxPecasClienteComum) {
+    const originalPrepOSUX = window.prepOS;
+    const wrappedPrepOSUX = function(){
+      const retorno = originalPrepOSUX.apply(this, arguments);
+      setTimeout(() => window.atualizarUsabilidadePecasOS?.(), 40);
+      return retorno;
+    };
+    wrappedPrepOSUX.__thiaUxPecasClienteComum = true;
+    wrappedPrepOSUX.__original = originalPrepOSUX;
+    window.prepOS = wrappedPrepOSUX;
+  }
+
+  const iniciar = () => setTimeout(() => window.atualizarUsabilidadePecasOS?.(), 80);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar);
+  else iniciar();
+})();

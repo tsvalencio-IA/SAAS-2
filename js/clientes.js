@@ -44,6 +44,59 @@ async function exclusaoAuditadaClientes(collection, id, label, modulo) {
 }
 
 // ============================================================
+// CLIENTES — CATEGORIA COMERCIAL (somente clientes NÃO oficiais)
+// ============================================================
+function clienteOficialProtegidoCadastro(c) {
+  if (!c) return false;
+  const tipo = String(c.tipoCliente || c.clienteTipo || c.tipo || '').toLowerCase();
+  if (tipo === 'governo' || tipo === 'oficial' || c.clienteOficial === true || c.orgaoPublico === true || c.gov === true) return true;
+  const texto = [c.nome, c.razaoSocial, c.nomeFantasia, c.govUnidade, c.categoria, c.segmento]
+    .filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  return /OFICIAL|GOVERNO|PMSP|POLICIA|MILITAR|BPM|PREFEITURA|ESTADO|MUNICIP|SECRETARIA|ORGAO PUBLICO/.test(texto);
+}
+
+function garantirCategoriaComercialCliente() {
+  const body = document.querySelector('#modalCliente .modal-body');
+  if (!body) return null;
+  let wrap = document.getElementById('cliCategoriaComercialWrap');
+  if (wrap) return wrap;
+  wrap = document.createElement('div');
+  wrap.id = 'cliCategoriaComercialWrap';
+  wrap.className = 'form-group';
+  wrap.style.cssText = 'margin-top:10px;padding:10px;border:1px solid rgba(34,197,94,.22);background:rgba(34,197,94,.045);border-radius:6px;';
+  wrap.innerHTML = `
+    <label class="j-label" for="cliCategoriaComercial">Categoria comercial</label>
+    <select class="j-select" id="cliCategoriaComercial">
+      <option value="comum">Cliente comum</option>
+      <option value="frotista">Frotista</option>
+    </select>
+    <small style="display:block;margin-top:6px;color:var(--muted);font-size:.67rem;line-height:1.4;">Frotista habilita tabela de preços por modelo de veículo dentro da O.S. normal. Esta opção não existe e não é aplicada a cliente oficial.</small>`;
+  const nome = document.getElementById('cliNome');
+  const anchor = nome?.closest('.form-group') || nome?.parentElement;
+  if (anchor?.parentElement === body) anchor.insertAdjacentElement('afterend', wrap);
+  else body.prepend(wrap);
+  return wrap;
+}
+
+function atualizarCategoriaComercialCliente(c) {
+  const wrap = garantirCategoriaComercialCliente();
+  if (!wrap) return;
+  const protegido = clienteOficialProtegidoCadastro(c);
+  wrap.style.display = protegido ? 'none' : '';
+  const sel = document.getElementById('cliCategoriaComercial');
+  if (!sel) return;
+  if (protegido) {
+    sel.value = 'comum';
+    sel.disabled = true;
+    return;
+  }
+  sel.disabled = false;
+  const categoria = String(c?.categoriaComercial || (c?.frotista === true ? 'frotista' : 'comum')).toLowerCase();
+  sel.value = categoria === 'frotista' ? 'frotista' : 'comum';
+}
+window.atualizarCategoriaComercialCliente = atualizarCategoriaComercialCliente;
+
+// ============================================================
 // CLIENTES
 // ============================================================
 window.renderClientes = function() {
@@ -53,7 +106,7 @@ window.renderClientes = function() {
       .reduce((a, o) => a + (o.total || 0), 0);
     return `<tr>
       <td>
-        <div style="font-weight:600">${c.nome}</div>
+        <div style="font-weight:600">${c.nome}${String(c.categoriaComercial || (c.frotista === true ? 'frotista' : '')).toLowerCase() === 'frotista' ? ' <span class="badge badge-brand" style="font-size:.52rem;vertical-align:middle;">FROTISTA</span>' : ''}</div>
         <div style="font-family:var(--ff-mono);font-size:0.65rem;color:var(--text-muted)">${c.doc || ''}</div>
       </td>
       <td style="font-family:var(--ff-mono);font-size:0.78rem">${c.wpp || '—'}</td>
@@ -71,10 +124,13 @@ window.renderClientes = function() {
 window.prepCliente = function(mode, id = null) {
   ['cliId','cliNome','cliWpp','cliDoc','cliEmail','cliLogin','cliPin','cliCep','cliRua','cliNum','cliBairro','cliCidade'].forEach(f => _sv(f, ''));
   _sv('cliPin', randId(6));
+  garantirCategoriaComercialCliente();
+  atualizarCategoriaComercialCliente(null);
 
   if (mode === 'edit' && id) {
     const c = J.clientes.find(x => x.id === id);
     if (!c) return;
+    atualizarCategoriaComercialCliente(c);
     _sv('cliId',     c.id);
     _sv('cliNome',  c.nome  || '');
     _sv('cliWpp',   c.wpp   || '');
@@ -141,6 +197,12 @@ window.salvarCliente = async function() {
     updatedAt: new Date().toISOString()
   };
   const id = _v('cliId');
+  const clienteExistente = id ? J.clientes.find(x => String(x.id) === String(id)) : null;
+  if (!clienteOficialProtegidoCadastro(clienteExistente)) {
+    const categoriaComercial = String(_v('cliCategoriaComercial') || 'comum').toLowerCase() === 'frotista' ? 'frotista' : 'comum';
+    p.categoriaComercial = categoriaComercial;
+    p.frotista = categoriaComercial === 'frotista';
+  }
   if (id) await J.db.collection('clientes').doc(id).update(p);
   else { p.createdAt = new Date().toISOString(); await J.db.collection('clientes').add(p); }
 
@@ -474,3 +536,6 @@ window.deletarFunc = async function(id) {
   toastOk('Colaborador removido');
   audit('EQUIPE', `Removeu colaborador ${id}`);
 };
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => setTimeout(garantirCategoriaComercialCliente, 0));
+else setTimeout(garantirCategoriaComercialCliente, 0);

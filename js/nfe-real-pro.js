@@ -34,8 +34,19 @@
     const unidade = String(item?.unidade || item?.unidadeFiscal || item?.und || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
     const desc = String(item?.descricao || item?.desc || item?.descricaoOriginal || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
     const qtdFiscal = Number(item?.quantidadeFiscal ?? item?.qtdFiscal ?? item?.quantidade ?? item?.qtd ?? 1) || 1;
-    if (/\b(PAR|PARES|JG|JOGO)\b/.test(unidade) || /\b(PAR|PARES|JOGO)\b/.test(desc)) return 2;
-    if (qtdFiscal <= 1 && /\bDISCOS?\b/.test(desc) && /\bFREIO\b/.test(desc)) return 2;
+
+    // Quantidade operacional = quantidade física que realmente entra no estoque/O.S.
+    // Regra automotiva: um JOGO/KIT de pastilhas é 1 conjunto operacional, não 2 peças.
+    if (/\b(PASTILHA|PASTILHAS)\b/.test(desc) && (/\b(JG|JOGO|KIT)\b/.test(unidade) || /\b(JOGO|KIT)\b/.test(desc))) return 1;
+
+    // Unidades fiscais JG/JOGO/KIT representam um conjunto fechado e permanecem 1:1.
+    if (/\b(JG|JOGO|KIT)\b/.test(unidade)) return 1;
+
+    // PAR/PARES representa duas unidades físicas, salvo quando o XML já informa quantidade > 1.
+    if (qtdFiscal <= 1 && (/\b(PAR|PARES)\b/.test(unidade) || /\b(PAR|PARES)\b/.test(desc))) return 2;
+
+    // Disco de freio normalmente é aplicado em par por eixo. Só converte quando o XML trouxe 1 unidade fiscal.
+    if (qtdFiscal <= 1 && /\bDISCOS?\b/.test(desc) && /\bFREIO\b/.test(desc) && !/\b(UNITARIO|UNITARIA|1\s*UN|UMA\s+UNIDADE)\b/.test(desc)) return 2;
     return 1;
   }
   function quantidadeFiscalNF(item){
@@ -522,7 +533,7 @@
           <div><label class="j-label">Unid. fiscal</label><input class="j-input nf-unidade" value="${esc(unidade)}"></div>
           <div><label class="j-label">Fator real</label><input class="j-input nf-fator-operacional" inputmode="decimal" value="${esc(fmtQtd(fator))}" oninput="window._nfeProAtualizarQuantidadeOperacional(this)"></div>
           <div><label class="j-label">Qtd operacional</label><input class="j-input nf-qtd-operacional" inputmode="decimal" value="${esc(fmtQtd(qtdOperacional))}" oninput="window._nfeProAtualizarSaldoDestino(this)"></div>
-          <div style="font-family:var(--fm);font-size:.64rem;color:var(--muted);line-height:1.45;">Use <b>Qtd operacional</b> para pares/kits que entram como 1 item fiscal, mas viram 2 ou mais peças reais no estoque/O.S.</div>
+          <div style="font-family:var(--fm);font-size:.64rem;color:var(--muted);line-height:1.45;">Use <b>Qtd operacional</b> para representar a quantidade física real. Ex.: jogo/kit de pastilhas = 1 conjunto; disco de freio com 1 unidade fiscal = sugestão de 2 unidades, podendo ser corrigido manualmente.</div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-items:end;" class="nf-real-grid-fiscal">
           <div><label class="j-label">NCM</label><input class="j-input nf-ncm-input" value="${esc(i.ncm||'')}"></div>

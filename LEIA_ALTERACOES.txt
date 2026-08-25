@@ -1,0 +1,67 @@
+thIAguinho Soluções Digitais — Alterações O.S. cliente comum / Frotista / PDF / XML
+Data: 25/08/2026
+
+ARQUIVOS ALTERADOS
+- js/os.js
+- js/clientes.js
+- js/nfe-real-pro.js
+
+1) O.S. — CLIENTE NÃO OFICIAL
+- Adicionada camada de LANÇAMENTO RÁPIDO DE PEÇAS antes do lançamento detalhado existente.
+- A busca rápida procura em estoque por descrição, código, fornecedor ou NF.
+- Se não localizar estoque, permite criar peça avulsa diretamente com a descrição digitada.
+- O lançamento detalhado anterior foi preservado integralmente.
+- A camada nova é removida/bloqueada para cliente oficial/governo.
+
+2) CLIENTE FROTISTA
+- Nova categoria comercial: Cliente comum / Frotista.
+- Para Frotista, uma peça lançada pode ter seu preço salvo por MODELO do veículo.
+- Exemplo: BRITO + Chevrolet Montana + Filtro de óleo + valor definido.
+- Nas próximas O.S. do mesmo cliente/modelo, o preço aparece antes do estoque.
+- Ao usar preço pré-definido, o sistema tenta localizar estoque automaticamente.
+- Se houver estoque, mantém vínculo/baixa pela rotina existente.
+- Se não houver, cria lançamento avulso automaticamente, sem obrigar o usuário a escolher “sem estoque”.
+- É possível atualizar o preço salvando novamente ou excluir o preço na busca rápida.
+- Os preços ficam no campo tabelaPrecosOS do próprio documento do cliente, sem nova collection.
+
+3) CLIENTE OFICIAL / GOVERNO
+- Nenhuma nova categoria, tabela rápida ou preço frotista é aplicado.
+- Fluxo de peças oficial permanece no caminho anterior.
+- PDF oficial permanece com a estrutura anterior.
+- Proteções de peças reais/NF e demais regras existentes não foram removidas.
+
+4) PDF — CLIENTE NÃO OFICIAL
+- Cabeçalho simplificado e título “ORÇAMENTO”.
+- Removidos do cabeçalho público: número da O.S., status, chassi, prefixo/patrimônio e fiscal do contrato.
+- Removido o quadro “RESUMO POR SEÇÃO DE MÃO DE OBRA”.
+- Códigos das peças não são exibidos na tabela PEÇAS / MATERIAIS.
+- Rodapé não exibe número da O.S.
+- Espaçamentos finais e entre tabelas foram reduzidos somente no PDF de cliente não oficial para aproveitar melhor a página e reduzir quebras desnecessárias.
+
+5) XML / NF-e — QUANTIDADE REAL
+- JOGO/KIT de pastilha: fator operacional 1.
+- Unidade JG/JOGO/KIT: permanece como 1 conjunto operacional.
+- PAR/PARES com quantidade fiscal 1: fator operacional 2.
+- Disco de freio com quantidade fiscal 1: sugestão operacional 2.
+- Disco de freio quando XML já informa quantidade 2: não duplica novamente.
+- Quantidade operacional continua editável manualmente na tela antes de salvar.
+
+TESTES EXECUTADOS
+- node --check js/os.js: OK
+- node --check js/clientes.js: OK
+- node --check js/nfe-real-pro.js: OK
+- Integridade dos 3 arquivos de origem dentro do ZIP enviado: OK
+- Casos XML testados:
+  * Jogo de pastilha = 1: OK
+  * Kit de pastilha = 1: OK
+  * Disco de freio qFiscal 1 => fator 2: OK
+  * Disco de freio qFiscal 2 => fator 1 (total continua 2): OK
+  * Par qFiscal 1 => fator 2: OK
+  * Jogo de junta => fator 1: OK
+
+OBSERVAÇÃO SOBRE O ZIP ORIGINAL
+O ZIP enviado possui corrupção estrutural em outras entradas (inclusive HTMLs grandes/catálogos), mas os 3 arquivos alterados acima foram testados individualmente no ZIP original e estão íntegros. Por segurança, este pacote contém SOMENTE os arquivos alterados, e não uma reconstrução parcial do projeto.
+
+FIREBASE
+A implementação não cria collection nova: a tabela do frotista é gravada no documento já existente em clientes/{clienteId}.
+O arquivo firebase/firestore.rules do ZIP não pôde ser auditado porque está entre as entradas afetadas pela corrupção estrutural do pacote. Portanto, não foi feita nenhuma alteração de regras por conta própria.
