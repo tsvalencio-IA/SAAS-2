@@ -1,0 +1,71 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════════════
+// thIAguinho ERP — STORAGE SECURITY RULES
+//
+// Estratégia:
+//   - tenants/{tid}/orders/{orderId}/public — cliente vê
+//   - tenants/{tid}/orders/{orderId}/internal — equipe técnica
+//   - tenants/{tid}/orders/{orderId}/financial — só admin/financeiro
+//   - Custom claims (role/tenantId) precisam vir no token via
+//     Firebase Admin SDK (Cloud Function) ao criar usuário.
+//
+// Powered by thIAguinho Soluções Digitais
+// ═══════════════════════════════════════════════════════════════════════
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+    function role() { return request.auth.token.role; }
+    function userTenant() { return request.auth.token.tenantId; }
+
+    function isSuper()  { return signedIn() && role() == 'superadmin'; }
+    function isAdmin()  { return signedIn() && role() == 'oficina_admin'; }
+    function isFinanc() { return signedIn() && role() == 'financeiro'; }
+    function isMec()    { return signedIn() && role() == 'mecanico'; }
+    function isCli()    { return signedIn() && role() == 'cliente'; }
+    function isStaff()  { return isSuper() || isAdmin() || isFinanc() || isMec(); }
+
+    function sameTenant(tid) {
+      return isSuper() || (signedIn() && userTenant() == tid);
+    }
+
+    // ─── PUBLIC: cliente, equipe e admin podem ler ────────────────
+    // Equipe e admin podem escrever (subir provas/laudos).
+    match /tenants/{tid}/orders/{orderId}/public/{fileName} {
+      allow read:  if sameTenant(tid);
+      allow write: if sameTenant(tid) && (isStaff() || isSuper());
+    }
+
+    // ─── INTERNAL: SEM cliente ────────────────────────────────────
+    match /tenants/{tid}/orders/{orderId}/internal/{fileName} {
+      allow read:  if sameTenant(tid) && (isStaff() || isSuper());
+      allow write: if sameTenant(tid) && (isStaff() || isSuper());
+    }
+
+    // ─── FINANCIAL: SEM mecânico, SEM cliente ─────────────────────
+    match /tenants/{tid}/orders/{orderId}/financial/{fileName} {
+      allow read:  if sameTenant(tid) && (isAdmin() || isFinanc() || isSuper());
+      allow write: if sameTenant(tid) && (isAdmin() || isFinanc() || isSuper());
+    }
+
+    // ─── Avatares e arquivos pessoais ─────────────────────────────
+    match /tenants/{tid}/users/{userId}/{fileName} {
+      allow read:  if sameTenant(tid);
+      allow write: if sameTenant(tid)
+                   && (isSuper() || isAdmin() || request.auth.uid == userId);
+    }
+
+    // ─── Branding da oficina ──────────────────────────────────────
+    match /tenants/{tid}/brand/{fileName} {
+      allow read:  if sameTenant(tid);
+      allow write: if sameTenant(tid) && (isAdmin() || isSuper());
+    }
+
+    // ─── DEFAULT DENY ─────────────────────────────────────────────
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
