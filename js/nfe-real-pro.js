@@ -1295,15 +1295,55 @@
     if (/\bdisco/.test(n) && /\bfreio/.test(n)) return 'disco freio';
     return '';
   }
-  function clienteFrotistaDaOSNF(os){
-    if (!os || osClienteOficialNF(os)) return null;
-    const veiculo = (W.J?.veiculos || []).find(v => String(v.id) === String(os.veiculoId || os.veiculo || '')) || {};
-    const clienteId = os.clienteId || veiculo.clienteId || '';
-    const cliente = (W.J?.clientes || []).find(c => String(c.id) === String(clienteId)) || null;
+  const _nfFrotistaDocCache = new Map();
+  const _nfFrotistaDocPending = new Map();
+  function veiculoLocalFrotistaNF(os){
+    const id = os?.veiculoId || (typeof os?.veiculo === 'string' ? os.veiculo : '') || '';
+    return (W.J?.veiculos || []).find(v => String(v.id) === String(id)) || null;
+  }
+  function clienteLocalFrotistaNF(os, veiculo){
+    const clienteId = os?.clienteId || veiculo?.clienteId || (typeof os?.cliente === 'string' ? os.cliente : '') || '';
+    return (W.J?.clientes || []).find(c => String(c.id) === String(clienteId)) || null;
+  }
+  function clienteFrotistaDaOSNF(os, contexto){
+    if (!os) return null;
+    const veiculo = contexto?.veiculo || veiculoLocalFrotistaNF(os) || {};
+    const cliente = contexto?.cliente || clienteLocalFrotistaNF(os, veiculo) || null;
     if (!cliente) return null;
     const tipo = String(cliente.tipoCliente || cliente.clienteTipo || '').toLowerCase();
-    if (tipo === 'governo' || tipo === 'oficial') return null;
+    if (tipo === 'governo' || tipo === 'oficial' || osClienteOficialNF(os)) return null;
     return (cliente.frotista === true || String(cliente.categoriaComercial || '').toLowerCase() === 'frotista') ? cliente : null;
+  }
+  async function carregarDocContextoFrotistaNF(collection, id){
+    id = String(id || '').trim();
+    if (!id || !W.db) return null;
+    const key = collection + ':' + id;
+    if (_nfFrotistaDocCache.has(key)) return _nfFrotistaDocCache.get(key);
+    if (_nfFrotistaDocPending.has(key)) return _nfFrotistaDocPending.get(key);
+    const promise = (async () => {
+      try {
+        const snap = await W.db.collection(collection).doc(id).get();
+        const value = snap?.exists ? Object.assign({ id:snap.id }, snap.data() || {}) : null;
+        if (value) _nfFrotistaDocCache.set(key, value);
+        return value;
+      } catch (e) {
+        console.warn('[NF/Frotista] contexto', collection, id, e?.message || e);
+        return null;
+      } finally {
+        _nfFrotistaDocPending.delete(key);
+      }
+    })();
+    _nfFrotistaDocPending.set(key, promise);
+    return promise;
+  }
+  async function contextoFrotistaDaOSNF(os){
+    let veiculo = veiculoLocalFrotistaNF(os);
+    const veiculoId = os?.veiculoId || (typeof os?.veiculo === 'string' ? os.veiculo : '') || '';
+    if (!veiculo && veiculoId) veiculo = await carregarDocContextoFrotistaNF('veiculos', veiculoId);
+    let cliente = clienteLocalFrotistaNF(os, veiculo);
+    const clienteId = os?.clienteId || veiculo?.clienteId || (typeof os?.cliente === 'string' ? os.cliente : '') || '';
+    if (!cliente && clienteId) cliente = await carregarDocContextoFrotistaNF('clientes', clienteId);
+    return { cliente, veiculo };
   }
   function catalogoFrotistaNF(cliente){
     if (Array.isArray(cliente?.catalogoPecasFrotista) && cliente.catalogoPecasFrotista.length) return cliente.catalogoPecasFrotista.slice();
@@ -1343,10 +1383,10 @@
     if (tokens.length >= 2 && tokens.every(t => desc.includes(t))) return 640;
     return 0;
   }
-  function resolverPrecoFrotistaNF(item, os){
-    const cliente = clienteFrotistaDaOSNF(os);
+  function resolverPrecoFrotistaNF(item, os, contexto){
+    const cliente = clienteFrotistaDaOSNF(os, contexto);
     if (!cliente) return null;
-    const veiculo = (W.J?.veiculos || []).find(v => String(v.id) === String(os?.veiculoId || os?.veiculo || '')) || null;
+    const veiculo = contexto?.veiculo || veiculoLocalFrotistaNF(os) || null;
     const codigosItem = [item?.codigoFornecedor, item?.codigoComercial, item?.oem, item?.codigo].map(codigoNormalizadoFrotistaNF).filter(Boolean);
     const descricao = item?.descricao || item?.desc || '';
     const candidatos = [];
@@ -1368,6 +1408,12 @@
     if (precos.length > 1) return { ambiguo:true, cliente, candidatos:empatados };
     return { ambiguo:false, cliente, veiculo, item:top.regra, venda:top.venda, motivo:top.motivo };
   }
+  async function resolverPrecoFrotistaNFAsync(item, os){
+    const local = resolverPrecoFrotistaNF(item, os);
+    if (local) return local;
+    const contexto = await contextoFrotistaDaOSNF(os);
+    return resolverPrecoFrotistaNF(item, os, contexto);
+  }
   function restaurarPrecoAutomaticoFrotistaNF(row){
     const venda = row?.querySelector?.('.nf-venda');
     if (!venda || venda.dataset.manual === '1' || venda.dataset.precoFrotista !== '1') return;
@@ -1378,14 +1424,17 @@
     delete venda.dataset.vendaAntesFrotista;
     venda.title = '';
   }
-  function aplicarPrecoFrotistaNaLinhaNF(row, os){
+  async function aplicarPrecoFrotistaNaLinhaNF(row, os){
     const venda = row?.querySelector?.('.nf-venda');
     if (!row || !venda || venda.dataset.manual === '1') return null;
+    const req = String((Number(row.dataset.precoFrotistaReq || 0) || 0) + 1);
+    row.dataset.precoFrotistaReq = req;
     const item = {
       codigoFornecedor: row.querySelector('.nf-codforn')?.value || '', codigoComercial: row.querySelector('.nf-codigo')?.value || '',
       codigo: row.querySelector('.nf-codforn')?.value || '', oem: row.querySelector('.nf-codigo')?.value || '', descricao: row.querySelector('.nf-desc')?.value || ''
     };
-    const res = resolverPrecoFrotistaNF(item, os);
+    const res = await resolverPrecoFrotistaNFAsync(item, os);
+    if (!row.isConnected || row.dataset.precoFrotistaReq !== req || venda.dataset.manual === '1') return res;
     if (!res) { restaurarPrecoAutomaticoFrotistaNF(row); return null; }
     if (res.ambiguo) {
       restaurarPrecoAutomaticoFrotistaNF(row);
@@ -1411,6 +1460,7 @@
     input.title = 'Preço alterado manualmente para este lançamento.';
   };
   W.thiaNFResolverPrecoFrotista = resolverPrecoFrotistaNF;
+  W.thiaNFResolverPrecoFrotistaAsync = resolverPrecoFrotistaNFAsync;
 
   function destinoVinculadoNF(item){
     const destino = String(item?.destino || item?.finalidade || '').toLowerCase();
@@ -1571,13 +1621,13 @@
     const desc = item?.descricao || item?.desc || '';
     return [nfId || item?.nfId || '', numeroItem, item?.itemFiscalIndex ?? '', item?.destinoIndice ?? '', item?.osId || os?.id || '', item?.placa || placaDaOSNF(os), codigoFornecedor, codigoComercial, desc].join('|');
   }
-  function pecaRealFromNF(item, os, nfRef, nfPayload, fornecedorId, fornecedorNome){
+  function pecaRealFromNF(item, os, nfRef, nfPayload, fornecedorId, fornecedorNome, precoFrotistaResolvido){
     const numeroItem = item.numeroItem || item.nItem || item.item || '';
     const codigoFornecedor = item.codigoFornecedor || item.codigo || '';
     const codigoComercial = item.codigoComercial || item.oem || '';
     const desc = item.descricao || item.desc || '';
     const key = origemNFItemKeyNF(item, nfRef.id, os);
-    const precoFrotista = item.vendaManual ? null : resolverPrecoFrotistaNF(item, os);
+    const precoFrotista = item.vendaManual ? null : (precoFrotistaResolvido !== undefined ? precoFrotistaResolvido : resolverPrecoFrotistaNF(item, os));
     const vendaAplicada = (!precoFrotista?.ambiguo && Number(precoFrotista?.venda || 0) > 0) ? Number(precoFrotista.venda) : (Number(item.venda || 0) || 0);
     return cleanFirestoreNF({
       origem: 'nf_entrada',
@@ -1768,7 +1818,8 @@
       item.osId = os.id;
       item.placa = item.placa || placaDaOSNF(os);
       const entry = porOS.get(os.id) || { os, pecas: [] };
-      entry.pecas.push(pecaRealFromNF(item, os, nfRef, nfPayload, fornecedorId, fornecedorNome));
+      const precoFrotista = item.vendaManual ? null : await resolverPrecoFrotistaNFAsync(item, os);
+      entry.pecas.push(pecaRealFromNF(item, os, nfRef, nfPayload, fornecedorId, fornecedorNome, precoFrotista));
       porOS.set(os.id, entry);
     }
     if (semDestino.length) {

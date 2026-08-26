@@ -1,0 +1,12 @@
+CORREÇÃO V7 — baseada exatamente no ZIP "SAAS-2-main - QUEBRADO PELO CHATGPT.zip"
+
+Objetivos preservados:
+1) thIAguinho IA comparativos — js/ia.js PRESERVADO, sem alteração nesta correção.
+2) Frotista/NF — corrigido para resolver preço mesmo quando Clientes/Veículos não estão previamente carregados no módulo Estoque.
+3) Responsividade Estoque — corrigida na camada CSS final que estava sobrescrevendo os breakpoints anteriores.
+
+Arquivos alterados nesta correção:
+- js/nfe-real-pro.js
+- js/jarvis-firestore-profissional-v2612.js
+
+Não foram removidos arquivos nem funções existentes.

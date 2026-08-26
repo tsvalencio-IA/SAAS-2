@@ -229,6 +229,7 @@
     style.id = 'jarvisInventoryFinalV2612CSS';
     style.textContent = `
       #s-estoque, #s-estoque *{box-sizing:border-box;}
+      #s-estoque{container-type:inline-size;}
       #s-estoque .j-auto-card-grid-stock{grid-template-columns:minmax(0,2fr) minmax(300px,1fr)!important;align-items:start!important;min-width:0!important;}
       #s-estoque .thia-inventory-v2612{min-width:0!important;width:100%!important;max-width:100%!important;overflow:hidden!important;}
       #s-estoque .thia-inventory-v2612 .j-card-body{min-width:0!important;max-width:100%!important;overflow:hidden!important;}
@@ -247,7 +248,10 @@
       #s-estoque .thia-inventory-v2612 .acoes-estoque-v2610{display:flex!important;flex-wrap:wrap!important;gap:5px!important;min-width:0!important;}
       #s-estoque .thia-inventory-v2612 .acoes-estoque-v2610 button{flex:1 1 72px!important;max-width:100%!important;min-width:0!important;padding:7px 5px!important;}
       #estoqueMobileCardsFix,#estoqueMobileV269{display:none!important;}
-      @media(max-width:1050px){#s-estoque .j-auto-card-grid-stock{grid-template-columns:minmax(0,1fr)!important;}}
+      /* A largura útil do estoque é menor que a viewport por causa da sidebar.
+         Usa a largura REAL da seção para não esmagar Inventário + Fornecedores em notebooks/zoom. */
+      @container (max-width:1320px){#s-estoque .j-auto-card-grid-stock{grid-template-columns:minmax(0,1fr)!important;}}
+      @media(max-width:1480px){#s-estoque .j-auto-card-grid-stock{grid-template-columns:minmax(0,1fr)!important;}}
       @media(max-width:760px){
         #s-estoque .j-auto-card-grid-stock{display:block!important;width:100%!important;max-width:100%!important;}
         #s-estoque .thia-inventory-v2612:not(.j-minimized) .j-card-body{display:block!important;width:100%!important;max-width:100%!important;overflow:visible!important;}
