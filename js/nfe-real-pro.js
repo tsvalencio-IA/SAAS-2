@@ -458,6 +458,8 @@
       if(vinc) vinc.value = '';
     }
     W._nfeProAtualizarSaldoDestino?.(row);
+    if (destino === 'os' && os?.id) aplicarPrecoFrotistaNaLinhaNF(row, os);
+    else restaurarPrecoAutomaticoFrotistaNF(row);
     atualizarStatusLinhaLoteNF(row);
   }
   W.nfProLoteAplicarOS = function(){
@@ -544,7 +546,7 @@
           <div><label class="j-label">Qtd fiscal</label><input class="j-input nf-qtd" inputmode="decimal" value="${esc(fmtQtd(qtdFiscal))}" oninput="window._nfeProAtualizarQuantidadeOperacional(this);window.calcNFTotal()"></div>
           <div><label class="j-label">Custo un.</label><input class="j-input nf-custo" inputmode="decimal" value="${esc(fmtBR(i.valorUnitario||0))}" oninput="window.calcNFTotal()"></div>
           <div><label class="j-label">Desc.</label><input class="j-input nf-descvalor" inputmode="decimal" value="${esc(fmtBR(i.desconto||0))}" oninput="window.calcNFTotal()"></div>
-          <div><label class="j-label">Venda</label><input class="j-input nf-venda" inputmode="decimal" value="${esc(fmtBR(i.venda || ((Number(i.valorUnitario)||0)*1.5)))}"></div>
+          <div><label class="j-label">Venda</label><input class="j-input nf-venda" inputmode="decimal" value="${esc(fmtBR(i.venda || ((Number(i.valorUnitario)||0)*1.5)))}" oninput="window.nfProMarcarVendaManual(this)"></div>
           <div><label class="j-label">EAN</label><input class="j-input nf-ean" value="${esc(i.ean||'')}"></div>
           <button type="button" title="Remover item" onclick="this.closest('.nf-real-row').remove();window.calcNFTotal()" style="background:rgba(255,59,59,0.1);border:1px solid rgba(255,59,59,0.3);border-radius:2px;color:var(--danger);cursor:pointer;height:32px;">✕</button>
         </div>
@@ -592,6 +594,7 @@
       const osBusca = row?.querySelector('.nf-os-busca');
       if(osSel) osSel.value = '';
       if(osBusca) osBusca.value = '';
+      restaurarPrecoAutomaticoFrotistaNF(row);
     }
     W._nfeProAtualizarSaldoDestino(sel);
     atualizarStatusLinhaLoteNF(row);
@@ -690,6 +693,7 @@
     if(busca) busca.value = placa || busca.value || '';
     const vinc = row.querySelector('.nf-vinculo');
     if(vinc) vinc.value = [placa, 'OS ' + String(os.id || '').slice(-6).toUpperCase()].filter(Boolean).join(' / ');
+    aplicarPrecoFrotistaNaLinhaNF(row, os);
     atualizarStatusLinhaLoteNF(row);
   };
   W.nfProFiltrarOSSplit = function(input){
@@ -1227,6 +1231,10 @@
         valorUnitario: parseNum(row.querySelector('.nf-custo')?.value), custo: parseNum(row.querySelector('.nf-custo')?.value),
         desconto: parseNum(row.querySelector('.nf-descvalor')?.value),
         venda: parseNum(row.querySelector('.nf-venda')?.value),
+        vendaManual: row.querySelector('.nf-venda')?.dataset?.manual === '1',
+        vendaFrotistaAutomatica: row.querySelector('.nf-venda')?.dataset?.precoFrotista === '1',
+        vendaEstoque: parseNum(row.querySelector('.nf-venda')?.dataset?.precoFrotista === '1' ? (row.querySelector('.nf-venda')?.dataset?.vendaAntesFrotista || '') : row.querySelector('.nf-venda')?.value),
+        catalogoFrotistaId: row.querySelector('.nf-venda')?.dataset?.catalogoFrotistaId || '',
         codigo: row.querySelector('.nf-codforn')?.value || base.codigo || '',
         oem: row.querySelector('.nf-codigo')?.value || base.oem || '',
         ean: row.querySelector('.nf-ean')?.value || base.ean || '',
@@ -1273,6 +1281,137 @@
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   }
+  function codigoNormalizadoFrotistaNF(v){
+    return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+  function classePecaFrotistaNF(v){
+    const n = normalizeTextNF(v);
+    if (!n) return '';
+    if (/\bfiltro\b/.test(n) && (/\boleo\b/.test(n) || /\blubrificant/.test(n))) return 'filtro oleo';
+    if (/\bfiltro\b/.test(n) && (/\bcombust/.test(n) || /\bdiesel\b/.test(n))) return 'filtro combustivel';
+    if (/\bfiltro\b/.test(n) && (/\bcabine\b/.test(n) || /\bpolen\b/.test(n) || /\bar condicionado\b/.test(n))) return 'filtro cabine';
+    if (/\bfiltro\b/.test(n) && /\bar\b/.test(n)) return 'filtro ar';
+    if (/\bpastilh/.test(n) && /\bfreio/.test(n)) return 'pastilha freio';
+    if (/\bdisco/.test(n) && /\bfreio/.test(n)) return 'disco freio';
+    return '';
+  }
+  function clienteFrotistaDaOSNF(os){
+    if (!os || osClienteOficialNF(os)) return null;
+    const veiculo = (W.J?.veiculos || []).find(v => String(v.id) === String(os.veiculoId || os.veiculo || '')) || {};
+    const clienteId = os.clienteId || veiculo.clienteId || '';
+    const cliente = (W.J?.clientes || []).find(c => String(c.id) === String(clienteId)) || null;
+    if (!cliente) return null;
+    const tipo = String(cliente.tipoCliente || cliente.clienteTipo || '').toLowerCase();
+    if (tipo === 'governo' || tipo === 'oficial') return null;
+    return (cliente.frotista === true || String(cliente.categoriaComercial || '').toLowerCase() === 'frotista') ? cliente : null;
+  }
+  function catalogoFrotistaNF(cliente){
+    if (Array.isArray(cliente?.catalogoPecasFrotista) && cliente.catalogoPecasFrotista.length) return cliente.catalogoPecasFrotista.slice();
+    const legado = Array.isArray(cliente?.tabelaPrecosOS) ? cliente.tabelaPrecosOS : [];
+    return legado.map(p => ({
+      id:p.id || '', grupo:p.grupo || 'Pecas cadastradas', categoria:p.categoria || p.descricao || p.desc || '', descricao:p.descricao || p.desc || '',
+      codigos:[p.codigo].filter(Boolean), qtdPadrao:p.qtdPadrao || 1, venda:Number(p.venda || 0) || 0,
+      aplicacaoTipo:p.veiculoIdReferencia ? 'veiculo' : (p.veiculoModeloKey ? 'modelo' : 'todos'),
+      aplicacaoValor:p.veiculoIdReferencia || p.veiculoModeloKey || '*', veiculoId:p.veiculoIdReferencia || '', veiculoModeloKey:p.veiculoModeloKey || '', veiculoModelo:p.veiculoModelo || ''
+    }));
+  }
+  function modeloKeyVeiculoFrotistaNF(veiculo){
+    return normalizeTextNF([veiculo?.marca, veiculo?.modelo].filter(Boolean).join(' ').trim() || veiculo?.modelo || '');
+  }
+  function rankAplicacaoFrotistaNF(item, veiculo){
+    const tipo = String(item?.aplicacaoTipo || 'todos').toLowerCase();
+    const valor = String(item?.aplicacaoValor || '');
+    if (tipo === 'veiculo') return veiculo && String(item.veiculoId || valor) === String(veiculo.id || '') ? 3 : 0;
+    if (tipo === 'modelo') {
+      const alvo = normalizeTextNF(item.veiculoModeloKey || valor || item.veiculoModelo || '');
+      return veiculo && alvo && alvo === modeloKeyVeiculoFrotistaNF(veiculo) ? 2 : 0;
+    }
+    return (tipo === 'todos' || !tipo) ? 1 : 0;
+  }
+  function scoreCategoriaFrotistaNF(item, descricao){
+    const cat = normalizeTextNF(item?.categoria || item?.descricao || '');
+    const desc = normalizeTextNF(descricao || '');
+    if (!cat || !desc) return 0;
+    const classeCat = classePecaFrotistaNF(cat);
+    const classeDesc = classePecaFrotistaNF(desc);
+    if (classeCat && classeDesc) return classeCat === classeDesc ? 800 : 0;
+    if (cat === desc) return 760;
+    if (desc.includes(cat) && cat.length >= 5) return 720;
+    if (cat.includes(desc) && desc.length >= 7) return 680;
+    const stop = new Set(['de','da','do','das','dos','para','com','sem','e','a','o']);
+    const tokens = cat.split(' ').filter(t => t.length >= 3 && !stop.has(t));
+    if (tokens.length >= 2 && tokens.every(t => desc.includes(t))) return 640;
+    return 0;
+  }
+  function resolverPrecoFrotistaNF(item, os){
+    const cliente = clienteFrotistaDaOSNF(os);
+    if (!cliente) return null;
+    const veiculo = (W.J?.veiculos || []).find(v => String(v.id) === String(os?.veiculoId || os?.veiculo || '')) || null;
+    const codigosItem = [item?.codigoFornecedor, item?.codigoComercial, item?.oem, item?.codigo].map(codigoNormalizadoFrotistaNF).filter(Boolean);
+    const descricao = item?.descricao || item?.desc || '';
+    const candidatos = [];
+    catalogoFrotistaNF(cliente).forEach(regra => {
+      const rankApp = rankAplicacaoFrotistaNF(regra, veiculo);
+      const venda = Number(regra?.venda || 0) || 0;
+      if (!rankApp || venda <= 0) return;
+      const codigosRegra = (Array.isArray(regra?.codigos) ? regra.codigos : [regra?.codigo]).map(codigoNormalizadoFrotistaNF).filter(Boolean);
+      const codigoExato = codigosItem.length && codigosRegra.some(c => codigosItem.includes(c));
+      const scoreCat = scoreCategoriaFrotistaNF(regra, descricao);
+      if (!codigoExato && !scoreCat) return;
+      candidatos.push({ regra, venda, rankApp, match: codigoExato ? 1000 : scoreCat, motivo: codigoExato ? 'codigo equivalente' : 'categoria/descricao' });
+    });
+    if (!candidatos.length) return null;
+    candidatos.sort((a,b) => (b.rankApp-a.rankApp) || (b.match-a.match));
+    const top = candidatos[0];
+    const empatados = candidatos.filter(c => c.rankApp === top.rankApp && c.match === top.match);
+    const precos = Array.from(new Set(empatados.map(c => Number(c.venda).toFixed(4))));
+    if (precos.length > 1) return { ambiguo:true, cliente, candidatos:empatados };
+    return { ambiguo:false, cliente, veiculo, item:top.regra, venda:top.venda, motivo:top.motivo };
+  }
+  function restaurarPrecoAutomaticoFrotistaNF(row){
+    const venda = row?.querySelector?.('.nf-venda');
+    if (!venda || venda.dataset.manual === '1' || venda.dataset.precoFrotista !== '1') return;
+    if (venda.dataset.vendaAntesFrotista !== undefined && venda.dataset.vendaAntesFrotista !== '') venda.value = venda.dataset.vendaAntesFrotista;
+    delete venda.dataset.precoFrotista;
+    delete venda.dataset.catalogoFrotistaId;
+    delete venda.dataset.precoFrotistaMotivo;
+    delete venda.dataset.vendaAntesFrotista;
+    venda.title = '';
+  }
+  function aplicarPrecoFrotistaNaLinhaNF(row, os){
+    const venda = row?.querySelector?.('.nf-venda');
+    if (!row || !venda || venda.dataset.manual === '1') return null;
+    const item = {
+      codigoFornecedor: row.querySelector('.nf-codforn')?.value || '', codigoComercial: row.querySelector('.nf-codigo')?.value || '',
+      codigo: row.querySelector('.nf-codforn')?.value || '', oem: row.querySelector('.nf-codigo')?.value || '', descricao: row.querySelector('.nf-desc')?.value || ''
+    };
+    const res = resolverPrecoFrotistaNF(item, os);
+    if (!res) { restaurarPrecoAutomaticoFrotistaNF(row); return null; }
+    if (res.ambiguo) {
+      restaurarPrecoAutomaticoFrotistaNF(row);
+      const nome = res.cliente?.nome || 'frotista';
+      W.toast?.(`Tabela do ${nome}: há mais de um preço aplicável para “${item.descricao || item.codigoFornecedor || 'peça'}”. Revise a categoria/aplicação antes de concluir.`, 'warn');
+      return res;
+    }
+    if (venda.dataset.precoFrotista !== '1') venda.dataset.vendaAntesFrotista = venda.value || '';
+    venda.value = fmtBR(res.venda);
+    venda.dataset.precoFrotista = '1';
+    venda.dataset.catalogoFrotistaId = String(res.item?.id || '');
+    venda.dataset.precoFrotistaMotivo = res.motivo || '';
+    venda.title = `Preço sugerido do frotista (${res.motivo}). Editável para este lançamento.`;
+    return res;
+  }
+  W.nfProMarcarVendaManual = function(input){
+    if (!input) return;
+    input.dataset.manual = '1';
+    delete input.dataset.precoFrotista;
+    delete input.dataset.catalogoFrotistaId;
+    delete input.dataset.precoFrotistaMotivo;
+    delete input.dataset.vendaAntesFrotista;
+    input.title = 'Preço alterado manualmente para este lançamento.';
+  };
+  W.thiaNFResolverPrecoFrotista = resolverPrecoFrotistaNF;
+
   function destinoVinculadoNF(item){
     const destino = String(item?.destino || item?.finalidade || '').toLowerCase();
     if(destino === 'os' || destino === 'placa') return true;
@@ -1438,6 +1577,8 @@
     const codigoComercial = item.codigoComercial || item.oem || '';
     const desc = item.descricao || item.desc || '';
     const key = origemNFItemKeyNF(item, nfRef.id, os);
+    const precoFrotista = item.vendaManual ? null : resolverPrecoFrotistaNF(item, os);
+    const vendaAplicada = (!precoFrotista?.ambiguo && Number(precoFrotista?.venda || 0) > 0) ? Number(precoFrotista.venda) : (Number(item.venda || 0) || 0);
     return cleanFirestoreNF({
       origem: 'nf_entrada',
       origemNFItemKey: key,
@@ -1465,6 +1606,10 @@
       dataCompra: nfPayload.dataNF || isoToday(),
       dataNF: nfPayload.dataNF || isoToday(),
       valorCompra: Number(item.valorUnitario || item.custo || 0) || 0,
+      valorVenda: vendaAplicada,
+      precoFrotistaAplicado: !!(!precoFrotista?.ambiguo && Number(precoFrotista?.venda || 0) > 0 && !item.vendaManual),
+      catalogoFrotistaId: !precoFrotista?.ambiguo ? (precoFrotista?.item?.id || item.catalogoFrotistaId || '') : '',
+      precoFrotistaMotivo: !precoFrotista?.ambiguo ? (precoFrotista?.motivo || '') : '',
       valorUnitarioFiscal: Number(item.valorUnitarioFiscal || 0) || 0,
       totalCompra: Number(item.valorLiquido || item.totalOperacional || 0) || 0,
       descontoCompra: Number(item.desconto || 0) || 0,
@@ -1946,7 +2091,7 @@
       const custoOp = custoOperacionalNF(item);
       const estoqueRef = existente ? W.db.collection('estoqueItems').doc(existente.id) : W.db.collection('estoqueItems').doc();
       const estoqueId = estoqueRef.id;
-      const estoquePayload = { tenantId:W.J.tid, desc:item.descricao, descricao:item.descricao, codigo:item.codigoFornecedor||item.codigo||'', codigoFornecedor:item.codigoFornecedor||item.codigo||'', codigoComercial:item.codigoComercial||item.oem||'', oem:item.oem||item.codigoComercial||item.codigo||'', marca:item.marca||'', ean:item.ean||'', ncm:item.ncm||'', cest:item.cest||'', cfop:item.cfop||'', und:item.unidadeFiscal||item.unidade||'UN', unidadeFiscal:item.unidadeFiscal||item.unidade||'UN', quantidadeFiscal:item.quantidadeFiscal||item.quantidade||0, quantidadeOperacional:entradaQtd, fatorOperacional:item.fatorOperacional||1, custo:custoOp, valorUnitarioFiscal:item.valorUnitarioFiscal||item.valorUnitario||0, venda:item.venda || custoOp, fornecedorId, fornecedorNome, ultimaFornecedor:fornecedorNome, ultimaNF:nfPayload.numero, ultimaNFId:nfRef.id, updatedAt:new Date().toISOString() };
+      const estoquePayload = { tenantId:W.J.tid, desc:item.descricao, descricao:item.descricao, codigo:item.codigoFornecedor||item.codigo||'', codigoFornecedor:item.codigoFornecedor||item.codigo||'', codigoComercial:item.codigoComercial||item.oem||'', oem:item.oem||item.codigoComercial||item.codigo||'', marca:item.marca||'', ean:item.ean||'', ncm:item.ncm||'', cest:item.cest||'', cfop:item.cfop||'', und:item.unidadeFiscal||item.unidade||'UN', unidadeFiscal:item.unidadeFiscal||item.unidade||'UN', quantidadeFiscal:item.quantidadeFiscal||item.quantidade||0, quantidadeOperacional:entradaQtd, fatorOperacional:item.fatorOperacional||1, custo:custoOp, valorUnitarioFiscal:item.valorUnitarioFiscal||item.valorUnitario||0, venda:(item.vendaFrotistaAutomatica ? (item.vendaEstoque || custoOp) : (item.venda || custoOp)), fornecedorId, fornecedorNome, ultimaFornecedor:fornecedorNome, ultimaNF:nfPayload.numero, ultimaNFId:nfRef.id, updatedAt:new Date().toISOString() };
       if(existente) batch.update(estoqueRef, Object.assign({}, estoquePayload, { qtd:(Number(existente.qtd)||0)+qtdDisponivel }));
       else batch.set(estoqueRef, Object.assign({}, estoquePayload, { qtd:qtdDisponivel, min:1, createdAt:new Date().toISOString() }));
       batch.set(W.db.collection('estoque_movimentos').doc(), cleanFirestoreNF({ tenantId:W.J.tid, estoqueId, tipo:'entrada_nf', nfId:nfRef.id, nfNumero:nfPayload.numero, chave:nfPayload.chave, fornecedorId, fornecedorNome, itemFiscalIndex, numeroItem:item.numeroItem||item.nItem||item.item||'', codigo:item.codigo||item.codigoFornecedor||'', desc:item.descricao, qtd:entradaQtd, quantidadeFiscal:item.quantidadeFiscal||item.quantidade||0, fatorOperacional:item.fatorOperacional||1, custo:custoOp, valorUnitarioFiscal:item.valorUnitario||0, total:item.valorLiquido, osId:'', placa:'', destino:'entrada_operacional', createdAt:new Date().toISOString(), usuario:W.J?.nome||'Sistema' }));
