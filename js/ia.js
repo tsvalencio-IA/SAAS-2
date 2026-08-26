@@ -568,6 +568,286 @@
     return `<strong>Financeiro localizado (${lista.length}):</strong><br>${lista.slice(0, 30).map(formatarLinhaFinanceiro).join('<br>')}<br><br><strong>Total:</strong> ${moeda(total)}`;
   }
 
+
+  // ===== V26.18.1 — inteligência histórica de compras e veículos por modelo =====
+  // Trabalha somente sobre dados reais já carregados. Histórico fiscal é carregado
+  // sob demanda no fluxo assíncrono, nunca durante a digitação.
+  function codigoCompactoIA(v) {
+    return norm(v).replace(/[^a-z0-9]/g, '');
+  }
+
+  function itemNFTextoIA(item) {
+    return norm(textoLivre(item || {}, [
+      'codigo','codigoFornecedor','codigoComercial','oem','ean','eanTrib',
+      'descricao','descricaoOriginal','desc','nome','marca','ncm','unidade','unidadeFiscal'
+    ]));
+  }
+
+  function codigoItemNFIA(item) {
+    return String(item?.codigoFornecedor || item?.codigo || item?.codigoComercial || item?.oem || item?.ean || '').trim();
+  }
+
+  function custoUnitarioFiscalIA(item) {
+    let v = num(item?.valorUnitarioFiscal ?? item?.valorUnitario ?? item?.precoUnitario ?? item?.custo ?? item?.valorCompra ?? 0);
+    const qtd = num(item?.quantidadeFiscal ?? item?.qtdFiscal ?? item?.quantidade ?? item?.qtd ?? 0);
+    const total = num(item?.valorLiquido ?? item?.valorProduto ?? item?.totalFiscal ?? item?.total ?? 0);
+    if (v <= 0 && qtd > 0 && total > 0) v = total / qtd;
+    return v;
+  }
+
+  function quantidadeFiscalItemIA(item) {
+    return Math.max(0, num(item?.quantidadeFiscal ?? item?.qtdFiscal ?? item?.quantidade ?? item?.qtd ?? 0));
+  }
+
+  function extrairCodigoConsultaCompraIA(texto) {
+    const bruto = String(texto || '').toUpperCase();
+    const explicito = bruto.match(/\b(?:PE[CÇ]A|CODIGO|CÓDIGO|REF(?:ERENCIA)?|ITEM)\s*(?:N[º°.]?\s*)?[:#-]?\s*([A-Z0-9][A-Z0-9./_-]{2,24})\b/);
+    if (explicito && /[0-9]/.test(explicito[1])) return explicito[1];
+    const tokens = bruto.match(/\b[A-Z0-9][A-Z0-9./_-]{2,24}\b/g) || [];
+    const stop = new Set(['QUAL','QUAIS','FORNECEDOR','FORNECEDORES','PAGUEI','PAGO','PAGAMOS','MAIS','MENOS','BARATO','BARATA','CARO','CARA','PRECO','PREÇO','VALOR','COMPRA','COMPREI','COMPRAMOS','PECA','PEÇA','ITEM','CODIGO','CÓDIGO','NOTA','FISCAL','HISTORICO','HISTÓRICO','MEDIA','MÉDIA','ULTIMO','ÚLTIMO','MENOR','MAIOR']);
+    return tokens.find(t => !stop.has(t) && /[A-Z]/.test(t) && /[0-9]/.test(t)) || '';
+  }
+
+  function termosDescricaoCompraIA(texto) {
+    const q = norm(texto)
+      .replace(/\b(?:qual|quais|fornecedor|fornecedores|paguei|pagamos|pago|pagou|mais|menos|barato|barata|caro|cara|menor|maior|preco|precos|valor|valores|compra|compras|comprei|compramos|historico|media|medio|media|ultimo|ultima|nota|fiscal|nf|xml|peca|pecas|item|itens|codigo|codigos|referencia|referencias|foi|era|a|o|as|os|de|do|da|dos|das|em|no|na|nos|nas|para|por|com)\b/g, ' ')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return q.split(/\s+/).filter(t => t.length >= 3 && !/^\d+$/.test(t));
+  }
+
+  function registrosCompraPecaIA(texto, ctx) {
+    const codigo = extrairCodigoConsultaCompraIA(texto);
+    const cod = codigoCompactoIA(codigo);
+    const termos = codigo ? [] : termosDescricaoCompraIA(texto);
+    const out = [];
+    (ctx.notas || []).forEach(nf => {
+      if (isCanceladoStatus(nf?.status || nf?.situacao || '')) return;
+      const fornecedor = String(nf?.fornecedorSnapshot?.nome || nf?.fornecedorNome || nf?.fornecedor || 'Fornecedor não informado').trim();
+      const cnpj = String(nf?.fornecedorSnapshot?.cnpj || nf?.fornecedorCNPJ || nf?.cnpj || '').trim();
+      const numero = String(nf?.numero || nf?.numeroNF || nf?.nf || '').trim();
+      const data = nf?.dataNF || nf?.emissao || nf?.createdAt || '';
+      (Array.isArray(nf?.itens) ? nf.itens : []).forEach((item, index) => {
+        const txt = itemNFTextoIA(item);
+        const compact = codigoCompactoIA(txt);
+        let bate = false;
+        let fonte = '';
+        if (cod) {
+          const codigos = [item?.codigoFornecedor,item?.codigo,item?.codigoComercial,item?.oem,item?.ean,item?.eanTrib]
+            .map(codigoCompactoIA).filter(Boolean);
+          bate = codigos.some(c => c === cod || c.includes(cod) || cod.includes(c));
+          if (!bate && compact.includes(cod)) bate = true;
+          if (bate) fonte = 'código';
+        } else if (termos.length) {
+          bate = termos.every(t => txt.includes(t));
+          if (bate) fonte = 'descrição';
+        }
+        if (!bate) return;
+        const unit = custoUnitarioFiscalIA(item);
+        if (!(unit > 0)) return;
+        const qtd = quantidadeFiscalItemIA(item);
+        out.push({
+          nf, item, index, fornecedor, cnpj, numero, data, unit, qtd,
+          total: num(item?.valorLiquido ?? item?.valorProduto ?? item?.total ?? (unit * qtd)),
+          codigo: codigoItemNFIA(item),
+          descricao: String(item?.descricao || item?.descricaoOriginal || item?.desc || item?.nome || 'Peça').trim(),
+          unidade: String(item?.unidadeFiscal || item?.unidade || 'UN').trim(),
+          fonte
+        });
+      });
+    });
+    return { codigo, termos, registros: out };
+  }
+
+  function pareceComparacaoCompraFornecedorIA(texto) {
+    const q = norm(texto);
+    const falaCompra = /fornecedor|fornec|compra|comprei|compramos|paguei|pagamos|preco pago|precos pagos|historico de preco|historico de compra/.test(q);
+    const falaComparacao = /mais barato|mais barata|menor preco|melhor preco|mais caro|maior preco|quanto paguei|quanto pagamos|media|preco medio|ultimo preco|ultima compra|compare|comparar|comparacao/.test(q);
+    return falaCompra && (falaComparacao || !!extrairCodigoConsultaCompraIA(texto));
+  }
+
+  function responderComparacaoCompraFornecedorIA(texto, q, ctx, opts) {
+    if (!pareceComparacaoCompraFornecedorIA(texto)) return null;
+    if (!podeFinanceiro(opts)) return 'Seu perfil não tem permissão para consultar custos históricos de compra e comparação de fornecedores.';
+    if (!ctx.notas.length) return 'O histórico fiscal de compras não está carregado nesta sessão. Tente novamente após a sincronização fiscal.';
+    const busca = registrosCompraPecaIA(texto, ctx);
+    const regs = busca.registros;
+    const alvo = busca.codigo || busca.termos.join(' ');
+    if (!alvo) return 'Informe o código ou a descrição da peça que deseja comparar entre fornecedores.';
+    if (!regs.length) return `Não encontrei compra comprovada de ${esc(alvo)} nas notas fiscais carregadas.`;
+
+    const porFornecedor = new Map();
+    regs.forEach(r => {
+      const key = codigoCompactoIA(r.cnpj) || norm(r.fornecedor);
+      const atual = porFornecedor.get(key) || { nome:r.fornecedor, cnpj:r.cnpj, regs:[], totalQtd:0, totalPonderado:0, min:Infinity, max:0 };
+      atual.regs.push(r);
+      const peso = r.qtd > 0 ? r.qtd : 1;
+      atual.totalQtd += peso;
+      atual.totalPonderado += r.unit * peso;
+      atual.min = Math.min(atual.min, r.unit);
+      atual.max = Math.max(atual.max, r.unit);
+      porFornecedor.set(key, atual);
+    });
+    const fornecedores = Array.from(porFornecedor.values()).map(g => {
+      g.media = g.totalQtd > 0 ? g.totalPonderado / g.totalQtd : 0;
+      g.ultimo = g.regs.slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')))[0];
+      g.melhor = g.regs.slice().sort((a,b)=>a.unit-b.unit)[0];
+      return g;
+    }).sort((a,b)=>a.min-b.min || a.media-b.media);
+
+    const melhorRegistro = regs.slice().sort((a,b)=>a.unit-b.unit || String(b.data||'').localeCompare(String(a.data||'')))[0];
+    const maiorRegistro = regs.slice().sort((a,b)=>b.unit-a.unit || String(b.data||'').localeCompare(String(a.data||'')))[0];
+    const ultimoRegistro = regs.slice().sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')))[0];
+    const mediaGeral = regs.reduce((s,r)=>s+r.unit*(r.qtd>0?r.qtd:1),0) / regs.reduce((s,r)=>s+(r.qtd>0?r.qtd:1),0);
+    const titulo = busca.codigo ? `Histórico de compra da peça ${esc(busca.codigo)}` : `Histórico de compra — ${esc(alvo)}`;
+    const linhasF = fornecedores.slice(0,12).map((g,i)=>{
+      const m=g.melhor;
+      return `${i===0?'🏆 ':''}<strong>${esc(g.nome)}</strong> | menor ${moeda(g.min)} | média ${moeda(g.media)} | ${g.regs.length} compra(s)${m ? ` | melhor: NF ${esc(m.numero||'-')} em ${esc(dataBR(m.data))}` : ''}`;
+    });
+    const detalhes = regs.slice().sort((a,b)=>a.unit-b.unit).slice(0,15).map(r=>
+      `- ${moeda(r.unit)}/${esc(r.unidade||'UN')} | ${esc(r.fornecedor)} | NF ${esc(r.numero||'-')} | ${esc(dataBR(r.data))} | qtd fiscal ${esc(r.qtd||0)} | ${esc(r.codigo ? '['+r.codigo+'] ' : '')}${esc(r.descricao)}`
+    );
+    return [
+      `<strong>${titulo}:</strong> ${regs.length} registro(s) fiscal(is) em ${fornecedores.length} fornecedor(es).`,
+      `<strong>Mais barato comprovado:</strong> ${esc(melhorRegistro.fornecedor)} — ${moeda(melhorRegistro.unit)}/${esc(melhorRegistro.unidade||'UN')} | NF ${esc(melhorRegistro.numero||'-')} | ${esc(dataBR(melhorRegistro.data))}.`,
+      `<strong>Maior preço encontrado:</strong> ${moeda(maiorRegistro.unit)}/${esc(maiorRegistro.unidade||'UN')} — ${esc(maiorRegistro.fornecedor)}.`,
+      `<strong>Média histórica ponderada:</strong> ${moeda(mediaGeral)}. <strong>Último preço:</strong> ${moeda(ultimoRegistro.unit)} — ${esc(ultimoRegistro.fornecedor)} em ${esc(dataBR(ultimoRegistro.data))}.`,
+      `<br><strong>Comparação por fornecedor:</strong><br>${linhasF.join('<br>')}`,
+      `<br><strong>Registros usados na comparação:</strong><br>${detalhes.join('<br>')}`,
+      `<br><small>Comparação feita somente com itens reais das NFs carregadas. O valor exibido é o custo unitário fiscal registrado na nota; não uso preço atual do estoque para reescrever o histórico.</small>`
+    ].join('<br>');
+  }
+
+  function distanciaLevenshteinIA(a, b) {
+    a = norm(a); b = norm(b);
+    if (a === b) return 0;
+    if (!a.length) return b.length;
+    if (!b.length) return a.length;
+    const prev = Array.from({length:b.length+1},(_,i)=>i);
+    for (let i=1;i<=a.length;i++) {
+      let diag=prev[0]; prev[0]=i;
+      for (let j=1;j<=b.length;j++) {
+        const old=prev[j];
+        prev[j]=Math.min(prev[j]+1, prev[j-1]+1, diag+(a[i-1]===b[j-1]?0:1));
+        diag=old;
+      }
+    }
+    return prev[b.length];
+  }
+
+  function resolverModeloVeiculoPerguntaIA(texto, ctx) {
+    const q = norm(texto);
+    const stop = new Set(['relatorio','pecas','peca','mais','usadas','usada','usados','usado','veiculos','veiculo','modelo','carros','carro','atendidos','atendido','trocadas','trocada','codigos','codigo','referencia','referencias','quais','qual','dos','das','de','do','no','na','nos','nas','ja','historico']);
+    const qTokens = q.replace(/[^a-z0-9]+/g,' ').split(/\s+/).filter(t=>t.length>=4&&!stop.has(t));
+    const full = new Map();
+    const modelTokens = new Map();
+    const addModelo = labelRaw => {
+      const label=String(labelRaw||'').trim();
+      if(!label) return;
+      const key=norm(label).replace(/\s+/g,' ').trim();
+      if(!full.has(key)) full.set(key,{label,norm:key});
+      key.replace(/[^a-z0-9]+/g,' ').split(/\s+/).filter(t=>t.length>=4&&!/^\d+$/.test(t)).forEach(t=>{
+        const rec=modelTokens.get(t)||{token:t,labels:new Set(),count:0};
+        rec.labels.add(label); rec.count++; modelTokens.set(t,rec);
+      });
+    };
+    (ctx.veiculos||[]).forEach(v=>addModelo(v?.modelo||v?.veiculo));
+    (ctx.os||[]).forEach(o=>{ const v=veiculoDeOS(ctx,o); addModelo(v?.modelo||o?.modelo||o?.veiculo); });
+
+    // Se o usuário escreveu o modelo completo exatamente como cadastrado, esta é a melhor evidência.
+    let fullBest=null;
+    for(const c of full.values()){
+      if(c.norm.length>=4 && q.includes(c.norm) && (!fullBest || c.norm.length>fullBest.norm.length)) fullBest=c;
+    }
+    if(fullBest) return {...fullBest,matchToken:fullBest.norm,origem:'exato'};
+
+    // Quando a pergunta fala "modelo X", X ganha prioridade e pode ser corrigido por distância curta.
+    const explicito=(q.match(/\bmodelo\s+([a-z0-9._/-]{3,24})\b/)||[])[1]||'';
+    const buscas=explicito?[explicito]:qTokens;
+    let best=null,bestScore=0;
+    for(const rec of modelTokens.values()){
+      for(const qt of buscas){
+        let score=0,fonte='';
+        if(qt===rec.token){score=4000+rec.token.length;fonte='token_exato';}
+        else {
+          const limite=Math.max(rec.token.length,qt.length)<=6?1:2;
+          const d=distanciaLevenshteinIA(rec.token,qt);
+          if(d<=limite){score=3000-d*100+Math.min(rec.token.length,qt.length);fonte='aproximado';}
+        }
+        if(score>bestScore){best={rec,fonte,qt};bestScore=score;}
+      }
+    }
+    if(!best || bestScore<2800) return null;
+    // O token representa uma família/modelo (ex.: DUSTER), mesmo que existam DUSTER 1.6 e DUSTER 2.0.
+    const label=best.rec.token.toUpperCase();
+    return {label,norm:best.rec.token,matchToken:best.rec.token,origem:best.fonte,termoDigitado:best.qt,score:bestScore};
+  }
+
+  function pareceRelatorioPecasModeloIA(texto) {
+    const q=norm(texto);
+    return /peca|pecas|codigo|codigos|referencia|referencias/.test(q)
+      && /modelo|veiculo|veiculos|carro|carros|atendid|historico|usad|trocad|aplicad|relatorio/.test(q)
+      && /mais usad|mais utiliz|trocad|aplicad|codigo|referencia|relatorio|historico/.test(q);
+  }
+
+  function chaveAgrupamentoPecaModeloIA(item){
+    const desc=norm(item?.desc || item?.descricao || 'peca')
+      .replace(/^\s*[a-z0-9./_-]{3,24}\s+/, '')
+      .replace(/[^a-z0-9]+/g,' ')
+      .replace(/\s+/g,' ').trim();
+    return desc || codigoCompactoIA(item?.codigo || item?.codigoInterno || item?.codigoTabela || '') || 'peca';
+  }
+
+  function responderRelatorioPecasModeloIA(texto, q, ctx) {
+    if(!pareceRelatorioPecasModeloIA(texto)) return null;
+    const modelo=resolverModeloVeiculoPerguntaIA(texto,ctx);
+    if(!modelo) return null;
+    const alvoToken=modelo.matchToken || norm(modelo.label).replace(/[^a-z0-9]+/g,' ').split(/\s+/).filter(t=>t.length>=4)[0] || norm(modelo.label);
+    const oss=(ctx.os||[]).filter(o=>{
+      const v=veiculoDeOS(ctx,o);
+      const hay=norm([v?.modelo,o?.modelo,o?.veiculo,v?.marca].join(' '));
+      return hay.includes(alvoToken) || hay.includes(norm(modelo.label));
+    });
+    if(!oss.length) return `Não encontrei O.S. carregada para veículos do modelo ${esc(modelo.label)}.`;
+    const grupos=new Map();
+    const placas=new Set();
+    let osComPeca=0;
+    oss.forEach(o=>{
+      const placa=placaOS(ctx,o)||''; if(placa) placas.add(placa);
+      let teve=false;
+      itensOrcamentoOS(ctx,o).filter(i=>i.tipo==='peca').forEach(item=>{
+        if(!(item.executado||item.legadoFinalizado||item.aprovado)) return;
+        teve=true;
+        const key=chaveAgrupamentoPecaModeloIA(item);
+        const g=grupos.get(key)||{desc:item.desc||item.descricao||'Peça',codigos:new Set(),placas:new Set(),os:new Set(),qtdConfirmada:0,ocConfirmada:0,qtdLegado:0,ocLegado:0,qtdAprovada:0,ocAprovada:0};
+        const codigo=String(item.codigo||item.codigoInterno||item.codigoTabela||item.oem||'').trim(); if(codigo)g.codigos.add(codigo);
+        if(placa)g.placas.add(placa); g.os.add(String(o.id||o.numero||''));
+        const qtd=Math.max(1,num(item.qtd??item.quantidade??item.qtde??1));
+        if(item.executado){g.qtdConfirmada+=qtd;g.ocConfirmada++;}
+        else if(item.legadoFinalizado){g.qtdLegado+=qtd;g.ocLegado++;}
+        else if(item.aprovado){g.qtdAprovada+=qtd;g.ocAprovada++;}
+        grupos.set(key,g);
+      });
+      if(teve)osComPeca++;
+    });
+    const lista=Array.from(grupos.values()).sort((a,b)=>
+      (b.qtdConfirmada-a.qtdConfirmada)||(b.ocConfirmada-a.ocConfirmada)||(b.qtdLegado-a.qtdLegado)||(b.os.size-a.os.size)
+    );
+    if(!lista.length) return `Encontrei ${oss.length} O.S. de ${esc(modelo.label)}, mas nenhuma peça aprovada/executada foi identificada nos dados carregados.`;
+    const linhas=lista.slice(0,40).map((g,i)=>{
+      const cod=Array.from(g.codigos).slice(0,12);
+      const verdade=g.ocConfirmada
+        ? `confirmado: qtd ${g.qtdConfirmada} em ${g.ocConfirmada} ocorrência(s)`
+        : `sem execução individual confirmada`;
+      const legado=g.ocLegado?` | legado em O.S. finalizada: qtd ${g.qtdLegado} (${g.ocLegado})`:'';
+      const aprovado=g.ocAprovada?` | apenas aprovado: qtd ${g.qtdAprovada} (${g.ocAprovada})`:'';
+      return `${i+1}. <strong>${esc(g.desc)}</strong> | ${verdade}${legado}${aprovado} | ${g.os.size} O.S.${cod.length?` | códigos/ref.: ${esc(cod.join(', '))}`:' | sem código registrado'}`;
+    });
+    const aviso=modelo.origem==='aproximado'?`<br><small>Interpretei o termo digitado como <strong>${esc(modelo.label)}</strong> com base nos modelos cadastrados.</small>`:'';
+    return `<strong>Relatório de peças — modelo ${esc(modelo.label)}:</strong><br>${oss.length} O.S. localizada(s), ${placas.size} veículo(s)/placa(s), ${osComPeca} O.S. com peça registrada.<br><br>${linhas.join('<br>')}${aviso}<br><br><small>Para não inventar troca: “confirmado” exige execução individual registrada. O.S. antigas finalizadas sem execução individual aparecem separadamente como legado.</small>`;
+  }
+
   function responderJarvisDadosPrecisos(texto, q, ctx, opts) {
     // Uma placa válida sempre tem prioridade. Sem esta trava, palavras genéricas
     // como "serviço" podiam ser confundidas com o cadastro "SERVIÇO TERCEIRIZADO".
@@ -577,6 +857,10 @@
     if (/\b(o\.?s\.?|os|ordem|ordens|veiculo|veiculos|patio|pátio)\b/.test(q) && /(patio|pátio|entreg|fechad|finaliz|concluid|receb|pagamento|sem receb|sem pagar|abert|abertas|andamento|orcamento|orçamento|triagem|pronto)/.test(q)) {
       return null;
     }
+    const comparacaoCompra = responderComparacaoCompraFornecedorIA(texto, q, ctx, opts);
+    if (comparacaoCompra) return comparacaoCompra;
+    const relatorioModelo = responderRelatorioPecasModeloIA(texto, q, ctx);
+    if (relatorioModelo) return relatorioModelo;
     const servicosLancados = responderServicosLancadosFuncionarioPeriodo(texto, q, ctx, opts);
     if (servicosLancados) return servicosLancados;
     const eventosFuncionario = responderEventosFuncionarioPeriodoIA(texto, q, ctx);
@@ -2175,7 +2459,7 @@
     }
 
     if (/ajuda|o que voce|o que consegue|comando/.test(q)) {
-      return 'Posso responder internamente sobre O.S. por placa, historico de defeitos, problemas resolvidos, estoque, equipe, notas fiscais, pecas vinculadas, boletos e gastos por fornecedor e servicos atribuidos a mecanicos por periodo. Para valores financeiros, respeito as permissoes do perfil. Se a pergunta ficar aberta, vou pedir placa, fornecedor, mecanico, periodo ou entidade em vez de adivinhar.';
+      return 'Posso responder internamente sobre O.S. por placa, historico de defeitos, problemas resolvidos, estoque, equipe, notas fiscais, pecas vinculadas, comparacao historica de preco pago por fornecedor, menor/maior/ultimo preco de compra, relatorios de pecas e codigos por modelo de veiculo, boletos, gastos por fornecedor e servicos atribuidos a mecanicos por periodo. Para valores financeiros, respeito as permissoes do perfil. Se a pergunta ficar aberta, vou pedir placa, fornecedor, mecanico, periodo ou entidade em vez de adivinhar.';
     }
 
     return 'Preciso de mais contexto para responder com dado verdadeiro. Informe placa, modelo, cliente, periodo ou modulo. Exemplo: "historico da placa ETR7E65", "estoque critico" ou "defeitos recorrentes do Siena".';
@@ -2237,6 +2521,15 @@
     const msg = String(pergunta || '').trim();
     if (!msg) return '';
     try { await carregarCerebroGlobal(); } catch (_) {}
+
+    // Dados fiscais são caros e, por projeto, não ficam ativos na tela da IA.
+    // Só carregamos quando a pergunta realmente exige histórico de compra/preço.
+    if (pareceComparacaoCompraFornecedorIA(msg) && typeof W.thiaLoadFiscalV2612 === 'function') {
+      try { await W.thiaLoadFiscalV2612(false); } catch (e) {
+        console.warn('[thIAguinho IA] histórico fiscal sob demanda:', e?.message || e);
+      }
+    }
+
     if (pareceConsultaCatalogo(msg) && typeof W.thiaCatalogosPrepararPergunta === 'function') {
       try { await W.thiaCatalogosPrepararPergunta(msg); } catch (e) {
         console.warn('[thIAguinho IA] falha ao preparar catálogos:', e?.message || e);
