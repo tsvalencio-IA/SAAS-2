@@ -232,6 +232,27 @@
       const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       return { inicio: iso, fim: iso, origem: 'ontem' };
     }
+    const isoLocal = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if (/\b(?:esta|essa|nesta|nessa)\s+semana\b|\bsemana\s+atual\b/.test(q)) {
+      const dia = agora.getDay();
+      const recuo = dia === 0 ? 6 : dia - 1;
+      const ini = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - recuo, 12, 0, 0);
+      return { inicio: isoLocal(ini), fim: hoje, origem: 'semana_atual' };
+    }
+    if (/\bsemana\s+passada\b|\bultima\s+semana\b/.test(q)) {
+      const dia = agora.getDay();
+      const recuo = dia === 0 ? 6 : dia - 1;
+      const iniAtual = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - recuo, 12, 0, 0);
+      const ini = new Date(iniAtual.getFullYear(), iniAtual.getMonth(), iniAtual.getDate() - 7, 12, 0, 0);
+      const fim = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate() + 6, 12, 0, 0);
+      return { inicio: isoLocal(ini), fim: isoLocal(fim), origem: 'semana_passada' };
+    }
+    const ultimosDias = q.match(/\b(?:ultimos?|ultimas?)\s+(\d{1,3})\s+dias?\b/);
+    if (ultimosDias) {
+      const n = Math.max(1, Math.min(366, Number(ultimosDias[1]) || 1));
+      const ini = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate() - (n - 1), 12, 0, 0);
+      return { inicio: isoLocal(ini), fim: hoje, origem: `ultimos_${n}_dias` };
+    }
     // Linguagem natural operacional: "no dia 10" significa o dia 10 do mês/ano atuais.
     // Se o mês for informado por nome, respeita-o. Não adivinha ano diferente do atual sem indicação.
     const mesesDia = { janeiro:1, fevereiro:2, marco:3, abril:4, maio:5, junho:6, julho:7, agosto:8, setembro:9, outubro:10, novembro:11, dezembro:12 };
@@ -848,6 +869,263 @@
     return `<strong>Relatório de peças — modelo ${esc(modelo.label)}:</strong><br>${oss.length} O.S. localizada(s), ${placas.size} veículo(s)/placa(s), ${osComPeca} O.S. com peça registrada.<br><br>${linhas.join('<br>')}${aviso}<br><br><small>Para não inventar troca: “confirmado” exige execução individual registrada. O.S. antigas finalizadas sem execução individual aparecem separadamente como legado.</small>`;
   }
 
+
+  // ===== V26.20 — leitura operacional abrangente do Jarvis =====
+  // Estes roteadores apenas LEEM os mesmos dados expostos no Jarvis. Não alteram
+  // O.S., estoque, cliente, financeiro ou auditoria e não promovem inferência a fato.
+  function clientePorPerguntaDiretaIA(ctx, texto) {
+    const lista = Array.isArray(ctx?.clientes) ? ctx.clientes : [];
+    const q = norm(texto).replace(/[^a-z0-9\s]/g,' ').replace(/\s+/g,' ').trim();
+    if (!q || !lista.length) return null;
+    let melhor=null, scoreMelhor=0, segundo=0;
+    lista.forEach(c => {
+      const aliases = uniq([c?.nome,c?.razaoSocial,c?.fantasia,c?.nomeFantasia,c?.apelido])
+        .map(v=>norm(v).trim()).filter(v=>v.length>=3);
+      let score=0;
+      aliases.forEach(a=>{
+        if (q.includes(a)) score=Math.max(score,5000+a.length);
+        const toks=a.split(/\s+/).filter(t=>t.length>=3);
+        const comuns=toks.filter(t=>new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`).test(q)).length;
+        if(comuns) score=Math.max(score,comuns*250+a.length);
+      });
+      const doc=String(c?.cpf||c?.cnpj||c?.documento||'').replace(/\D/g,'');
+      if(doc && String(texto||'').replace(/\D/g,'').includes(doc)) score=Math.max(score,6000+doc.length);
+      if(score>scoreMelhor){segundo=scoreMelhor;scoreMelhor=score;melhor=c;} else if(score>segundo) segundo=score;
+    });
+    if(scoreMelhor<250 || scoreMelhor===segundo) return null;
+    return melhor;
+  }
+
+  function clienteEhGovernoIA(c) {
+    return norm(c?.tipoCliente||c?.tipo||'') === 'governo' || c?.oficial === true || c?.clienteOficial === true;
+  }
+
+  function clienteEhFrotistaIA(c) {
+    return !!c && !clienteEhGovernoIA(c) && (c.frotista===true || norm(c.categoriaComercial||'')==='frotista');
+  }
+
+  function responderDonoPlacaIA(texto, q, ctx, placa) {
+    if (!/(?:dono|proprietari|cliente).*(?:placa|veiculo|carro)|(?:placa|veiculo|carro).*(?:dono|proprietari|cliente)|de quem.*(?:placa|veiculo|carro)/.test(q)) return null;
+    const p=placaLimpa(placa);
+    const v=(ctx.veiculos||[]).find(x=>placaLimpa(x?.placa||'')===p) || null;
+    const os=(ctx.os||[]).find(o=>placaOS(ctx,o)===p) || null;
+    const cid=String(v?.clienteId||os?.clienteId||'').trim();
+    const c=(ctx.clientes||[]).find(x=>String(x.id||'')===cid) || null;
+    if(!v && !os) return `Não encontrei cadastro de veículo nem O.S. da placa ${esc(placa)} nos dados carregados.`;
+    if(!c) return `A placa ${esc(placa)} foi localizada, mas não há cliente/proprietário vinculado de forma comprovada no cadastro atual.`;
+    const tipo=clienteEhGovernoIA(c)?'Oficial/Governo':(clienteEhFrotistaIA(c)?'Frotista':'Cliente comum');
+    return `<strong>Proprietário da placa ${esc(placa)}:</strong> ${esc(c.nome||c.razaoSocial||c.fantasia||c.id)}<br>Veículo: ${esc([v?.marca,v?.modelo].filter(Boolean).join(' ')||os?.veiculo||'-')}<br>Classificação: ${esc(tipo)}.`;
+  }
+
+  function catalogoFrotistaIA(c) {
+    if(Array.isArray(c?.catalogoPecasFrotista)) return c.catalogoPecasFrotista;
+    if(Array.isArray(c?.tabelaPrecosOS)) return c.tabelaPrecosOS;
+    return [];
+  }
+
+  function responderClienteFrotaIA(texto, q, ctx) {
+    const gatilho=/\bcliente|clientes|frota|frotista|proprietari|veiculos?\s+(?:do|da|de)|carros?\s+(?:do|da|de)|catalogo.*frotista|tabela.*preco/.test(q);
+    if(!gatilho || extrairPlaca(texto)) return null;
+    const c=clientePorPerguntaDiretaIA(ctx,texto) || clienteFiltroDaPergunta(texto,q,ctx)?.cliente || null;
+    if(!c){
+      if(/quantos?\s+clientes?|clientes?\s+cadastrad/.test(q)){
+        const frot=(ctx.clientes||[]).filter(clienteEhFrotistaIA).length;
+        const gov=(ctx.clientes||[]).filter(clienteEhGovernoIA).length;
+        return `<strong>Clientes cadastrados:</strong> ${ctx.clientes.length}.<br>Frotistas: ${frot}. Oficial/Governo: ${gov}. Demais clientes: ${Math.max(0,ctx.clientes.length-frot-gov)}.`;
+      }
+      return null;
+    }
+    const vs=(ctx.veiculos||[]).filter(v=>String(v?.clienteId||'')===String(c.id||''));
+    const nome=c.nome||c.razaoSocial||c.fantasia||c.id||'Cliente';
+    const tipo=clienteEhGovernoIA(c)?'Oficial/Governo':(clienteEhFrotistaIA(c)?'Frotista':'Cliente comum');
+
+    if(/catalog|tabela.*preco|preco.*(?:frot|cliente)|pecas?.*cadastrad/.test(q) && clienteEhFrotistaIA(c)){
+      const cat=catalogoFrotistaIA(c);
+      if(!cat.length) return `<strong>${esc(nome)} é Frotista</strong>, mas não há peça/preço cadastrado no catálogo comercial atual.`;
+      const termos=norm(texto).replace(norm(nome),' ').replace(/\b(?:catalogo|tabela|preco|precos|peca|pecas|frotista|cliente|do|da|de|para|qual|quais|mostrar|mostre)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/).filter(t=>t.length>=3);
+      let itens=cat;
+      if(termos.length){
+        const filtrados=cat.filter(i=>{
+          const hay=norm([i.grupo,i.categoria,i.descricao,(i.codigos||[]).join(' '),i.veiculoModelo,i.veiculoPlaca,i.aplicacaoLabel].join(' '));
+          return termos.every(t=>hay.includes(t));
+        });
+        if(filtrados.length) itens=filtrados;
+      }
+      const linhas=itens.slice(0,30).map(i=>{
+        const cod=Array.isArray(i.codigos)&&i.codigos.length?` | códigos: ${esc(i.codigos.join(', '))}`:'';
+        const aplic=i.aplicacaoLabel || (i.aplicacaoTipo==='modelo'?`Modelo ${i.veiculoModelo||i.aplicacaoValor||''}`:i.aplicacaoTipo==='veiculo'?`${i.veiculoPlaca||''} ${i.veiculoModelo||''}`.trim():'Toda a frota');
+        return `- <strong>${esc(i.categoria||i.descricao||'Peça')}</strong> | ${esc(i.grupo||'Sem grupo')} | ${esc(aplic)} | qtd padrão ${esc(i.qtdPadrao||1)} | venda ${moeda(i.venda||i.valorVenda||0)}${cod}`;
+      });
+      return `<strong>Catálogo comercial do frotista ${esc(nome)} (${cat.length} item(ns)):</strong><br>${linhas.join('<br>')}`;
+    }
+
+    if(/veiculos?|carros?|frota|quantos/.test(q)){
+      if(!vs.length) return `<strong>${esc(nome)}</strong> (${esc(tipo)}) não possui veículo vinculado no cadastro carregado.`;
+      const linhas=vs.slice(0,50).map(v=>`- ${esc(placaLimpa(v.placa)||'S/PLACA')} | ${esc([v.marca,v.modelo].filter(Boolean).join(' ')||v.modelo||'-')}${v.ano?` | ${esc(v.ano)}`:''}`);
+      return `<strong>Frota/veículos de ${esc(nome)}:</strong> ${vs.length} veículo(s).<br>${linhas.join('<br>')}`;
+    }
+
+    if(/cadastro|dados|contato|quem e|quem é|resumo.*cliente/.test(q)){
+      const contatos=uniq([c.wpp,c.whatsapp,c.telefone,c.celular,c.email]).filter(Boolean);
+      return `<strong>Cliente:</strong> ${esc(nome)}<br>Classificação: ${esc(tipo)}<br>Documento: ${esc(c.cnpj||c.cpf||c.documento||'-')}<br>Veículos vinculados: ${vs.length}${contatos.length?`<br>Contato(s): ${esc(contatos.join(' | '))}`:''}`;
+    }
+    return null;
+  }
+
+  function periodoAgendaIA(texto) {
+    const q=norm(texto), agora=new Date();
+    const isoLocal=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    if(/\bamanha\b/.test(q)){const d=new Date(agora);d.setDate(d.getDate()+1);const x=isoLocal(d);return{inicio:x,fim:x,origem:'amanha'};}
+    if(/\b(?:esta|essa|nesta|nessa)\s+semana\b|\bsemana\s+atual\b/.test(q)){
+      const dow=(agora.getDay()+6)%7; const ini=new Date(agora);ini.setDate(agora.getDate()-dow); const fim=new Date(ini);fim.setDate(ini.getDate()+6);
+      return {inicio:isoLocal(ini),fim:isoLocal(fim),origem:'semana_agenda'};
+    }
+    return extrairPeriodoNaturalIA(texto);
+  }
+
+  function responderAgendaIA(texto,q,ctx,placaFiltro) {
+    if(!/agenda|agendament|marcad|horario|retorno agendado/.test(q)) return null;
+    let lista=(ctx.agendamentos||[]).slice();
+    const periodo=periodoAgendaIA(texto);
+    if(periodo) lista=lista.filter(a=>{const d=dataISO(a.data||a.createdAt);return d&&d>=periodo.inicio&&d<=periodo.fim;});
+    const p=placaLimpa(placaFiltro||extrairPlaca(texto));
+    if(p) lista=lista.filter(a=>{
+      const v=(ctx.veiculos||[]).find(x=>String(x.id||'')===String(a.veiculoId||''));
+      return placaLimpa(v?.placa||a?.placa||'')===p;
+    });
+    const c=clientePorPerguntaDiretaIA(ctx,texto);
+    if(c) lista=lista.filter(a=>String(a.clienteId||'')===String(c.id||''));
+    const f=funcionarioPorPergunta(ctx,q);
+    if(f) lista=lista.filter(a=>String(a.mecId||a.funcionarioId||'')===String(f.id||f.uid||''));
+    if(!periodo && !p && !c && !f){
+      const hoje=hojeISO();
+      lista=lista.filter(a=>dataISO(a.data||a.createdAt)>=hoje).sort((a,b)=>String(a.data||'').localeCompare(String(b.data||''))).slice(0,30);
+    } else lista.sort((a,b)=>String(a.data||'').localeCompare(String(b.data||''))||String(a.hora||'').localeCompare(String(b.hora||'')));
+    if(!lista.length) return 'Não encontrei agendamento que corresponda aos filtros informados nos dados atuais.';
+    const linhas=lista.slice(0,40).map(a=>{
+      const cli=(ctx.clientes||[]).find(x=>String(x.id||'')===String(a.clienteId||''));
+      const v=(ctx.veiculos||[]).find(x=>String(x.id||'')===String(a.veiculoId||''));
+      const m=(ctx.equipe||[]).find(x=>String(x.id||'')===String(a.mecId||''));
+      return `- ${esc(dataBR(a.data)||'-')} ${esc(a.hora||'')} | ${esc(cli?.nome||cli?.razaoSocial||'-')} | ${esc(placaLimpa(v?.placa||a.placa)||'-')} ${esc(v?.modelo||'')} | ${esc(a.servico||a.descricao||'-')} | ${esc(m?.nome||'-')} | ${esc(a.status||'Agendado')}`;
+    });
+    return `<strong>Agenda localizada (${lista.length}):</strong><br>${linhas.join('<br>')}`;
+  }
+
+  function auditoriaPermitidaIA(a) {
+    try { if(typeof W.thiaEventoPecaRealProtegidoOS==='function' && W.thiaEventoPecaRealProtegidoOS(a)) return false; } catch(_){}
+    const txt=norm([a?.modulo,a?.acao,a?.motivo,a?.entidade].join(' '));
+    return !/peca real|pecas reais|vinculo nf peca real os|nf.*peca.*real/.test(txt);
+  }
+
+  function responderAuditoriaIA(texto,q,ctx) {
+    if(!/auditoria|audit|excluiu|exclusao|apagou|quem alterou|alteracao registrada|quem fez.*alteracao/.test(q)) return null;
+    let lista=(ctx.auditoria||[]).filter(auditoriaPermitidaIA);
+    const periodo=extrairPeriodoNaturalIA(texto);
+    if(periodo) lista=lista.filter(a=>{const d=dataISO(a.ts||a.createdAt||a.data);return d&&d>=periodo.inicio&&d<=periodo.fim;});
+    const termos=norm(texto).replace(/\b(?:auditoria|audit|quem|excluiu|exclusao|apagou|alterou|alteracao|registrada|registrado|hoje|ontem|essa|esta|semana|mes|mês|dia|de|do|da|dos|das|o|a|os|as)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/).filter(t=>t.length>=3);
+    if(termos.length){
+      const f=lista.filter(a=>{const hay=norm([a.modulo,a.acao,a.usuario,a.usuarioNome,a.motivo,a.entidade,a.placa,a.osId].join(' '));return termos.every(t=>hay.includes(t));});
+      if(f.length) lista=f;
+    }
+    lista.sort((a,b)=>String(b.ts||b.createdAt||'').localeCompare(String(a.ts||a.createdAt||'')));
+    if(!lista.length) return 'Não encontrei evento de auditoria correspondente nos registros visíveis.';
+    const linhas=lista.slice(0,50).map(a=>`- ${esc(dataHoraEventoIA(a.ts||a.createdAt||a.data))} | ${esc(a.modulo||'-')} | ${esc(a.usuario||a.usuarioNome||'-')} | ${esc(a.acao||a.motivo||'-')}`);
+    return `<strong>Auditoria localizada (${lista.length}):</strong><br>${linhas.join('<br>')}<br><small>Eventos protegidos da área restrita não são expostos pela IA comum.</small>`;
+  }
+
+  function responderMovimentosEstoqueIA(texto,q,ctx) {
+    if(!pareceConsultaMovimentoEstoqueIA(texto)) return null;
+    let lista=(ctx.movimentos||[]).slice();
+    const codigo=extrairCodigoConsultaCompraIA(texto) || extrairTermoPecaUso(texto);
+    const codc=codigoCompactoIA(codigo);
+    const p=placaLimpa(extrairPlaca(texto));
+    if(codc) lista=lista.filter(m=>codigoCompactoIA([m.codigo,m.codigoFornecedor,m.codigoComercial,m.desc,m.descricao].join(' ')).includes(codc));
+    if(p) lista=lista.filter(m=>placaLimpa(m.placa||'')===p);
+    if(!codc && !p){
+      const termos=norm(texto).replace(/\b(?:kardex|movimentacao|movimentacoes|movimento|movimentos|estoque|entrada|entradas|saida|saidas|baixa|baixas|rastreio|rastreabilidade|da|do|de|peca|pecas|item|itens)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/).filter(t=>t.length>=3);
+      if(termos.length){const f=lista.filter(m=>{const hay=norm([m.tipo,m.codigo,m.desc,m.descricao,m.nfNumero,m.placa,m.osId,m.fornecedorNome].join(' '));return termos.every(t=>hay.includes(t));});if(f.length)lista=f;}
+    }
+    if(!lista.length) return `Não encontrei movimento de estoque correspondente${codigo?` para ${esc(codigo)}`:''} nos registros fiscais carregados.`;
+    lista.sort((a,b)=>String(b.createdAt||b.data||'').localeCompare(String(a.createdAt||a.data||'')));
+    let entradas=0,saidas=0;
+    lista.forEach(m=>{const t=norm(m.tipo||m.operacao||'');const qn=Math.abs(num(m.qtd??m.quantidade??0));if(/entrada|compra/.test(t))entradas+=qn;else if(/saida|baixa|aplic|consumo/.test(t))saidas+=qn;});
+    const linhas=lista.slice(0,50).map(m=>`- ${esc(dataBR(m.createdAt||m.data)||'-')} | ${esc(m.tipo||m.operacao||'Movimento')} | ${esc(m.codigo||m.codigoFornecedor||'')} ${esc(m.desc||m.descricao||'')} | qtd ${esc(m.qtd??m.quantidade??0)}${m.nfNumero?` | NF ${esc(m.nfNumero)}`:''}${m.placa?` | placa ${esc(placaLimpa(m.placa))}`:''}${m.osId?` | O.S. ${esc(String(m.osId).slice(-8))}`:''}`);
+    return `<strong>Kardex/movimentações localizadas (${lista.length}):</strong>${entradas||saidas?` entradas ${esc(entradas)} | saídas ${esc(saidas)}.`:''}<br>${linhas.join('<br>')}`;
+  }
+
+  function responderVendasPecasIA(texto,q,ctx,opts) {
+    if(!/venda.*peca|peca.*vendid|balcao|vendas autopecas|vendas de pecas/.test(q)) return null;
+    if(!podeFinanceiro(opts)) return 'Seu perfil não tem permissão para consultar valores das vendas de autopeças.';
+    let lista=(ctx.vendas||[]).slice();
+    const periodo=extrairPeriodoNaturalIA(texto);
+    if(periodo) lista=lista.filter(v=>{const d=dataISO(v.data||v.createdAt);return d&&d>=periodo.inicio&&d<=periodo.fim;});
+    const termos=norm(texto).replace(/\b(?:venda|vendas|peca|pecas|autopecas|balcao|hoje|ontem|essa|esta|semana|mes|de|do|da|dos|das|qual|quais|quanto|total)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim().split(/\s+/).filter(t=>t.length>=3);
+    if(termos.length){const f=lista.filter(v=>{const hay=norm([v.clienteNome,v.canal,v.vendedorNome,v.status,(v.itens||[]).map(i=>[i.desc,i.codigo].join(' ')).join(' ')].join(' '));return termos.every(t=>hay.includes(t));});if(f.length)lista=f;}
+    if(!lista.length) return 'Não encontrei venda de autopeças correspondente nos dados carregados.';
+    const total=lista.reduce((s,v)=>s+num(v.total||0),0);
+    const linhas=lista.sort((a,b)=>String(b.data||b.createdAt||'').localeCompare(String(a.data||a.createdAt||''))).slice(0,40).map(v=>`- ${esc(dataBR(v.data||v.createdAt))} | ${esc(v.clienteNome||'Consumidor final')} | ${esc(v.canal||'-')} | ${moeda(v.total||0)} | ${esc(v.status||'-')} | ${(v.itens||[]).slice(0,5).map(i=>`${esc(i.qtd||1)}x ${esc(i.desc||i.descricao||'-')}`).join('; ')}`);
+    return `<strong>Vendas de autopeças (${lista.length}):</strong> total ${moeda(total)}.<br>${linhas.join('<br>')}`;
+  }
+
+  function responderMensagensIA(texto,q,ctx) {
+    const equipe=/chat.*equipe|mensagens?.*equipe|conversa.*(?:mecanic|funcionario|colaborador)|equipe.*mensagens?/.test(q);
+    const cliente=/crm chat|chat.*cliente|mensagens?.*cliente|conversa.*cliente|cliente.*mensagens?/.test(q);
+    if(!equipe && !cliente) return null;
+    let lista=(equipe?ctx.chatEquipe:ctx.mensagens)||[];
+    const periodo=extrairPeriodoNaturalIA(texto);
+    if(periodo) lista=lista.filter(m=>{const d=dataISO(m.ts||m.createdAt||m.data);return d&&d>=periodo.inicio&&d<=periodo.fim;});
+    if(equipe){
+      const f=funcionarioPorPergunta(ctx,q);
+      if(f){const ids=[f.id,f.uid,f.userId].map(String);lista=lista.filter(m=>ids.includes(String(m.de||m.para||m.funcionarioId||''))||norm([m.senderName,m.autorNome,m.nome].join(' ')).includes(norm(f.nome||'')));}
+    } else {
+      const c=clientePorPerguntaDiretaIA(ctx,texto);
+      if(c) lista=lista.filter(m=>String(m.clienteId||'')===String(c.id||'')||norm([m.clienteNome,m.nomeCliente].join(' ')).includes(norm(c.nome||c.razaoSocial||'')));
+    }
+    lista=lista.slice().sort((a,b)=>num(b.ts||0)-num(a.ts||0)||String(b.createdAt||'').localeCompare(String(a.createdAt||'')));
+    if(!lista.length) return 'Não encontrei mensagem correspondente no histórico carregado.';
+    const linhas=lista.slice(0,30).map(m=>{
+      const autor=m.senderName||m.autorNome||m.nome||m.sender||m.de||'-';
+      const corpo=String(m.msg||m.texto||m.mensagem||'').trim();
+      return `- ${esc(dataHoraEventoIA(m.ts||m.createdAt||m.data))} | ${esc(autor)}: ${esc(corpo||`[${m.tipo||'arquivo/mensagem'}]`)}`;
+    });
+    return `<strong>${equipe?'Chat da equipe':'CRM/Chat de clientes'} (${lista.length} mensagem(ns) localizada(s)):</strong><br>${linhas.join('<br>')}`;
+  }
+
+
+  function responderCapacidadesJarvisIA(texto,q) {
+    if(!/(?:o que|que).*voce.*(?:sabe|faz|consegue)|(?:quais|que).*perguntas.*(?:posso|consigo)|ajuda.*ia|capacidades?.*ia|como usar.*ia/.test(q)) return null;
+    return [
+      '<strong>Posso cruzar os dados reais disponíveis no Jarvis nestas áreas:</strong>',
+      'O.S./pátio e histórico por placa; serviços e peças com distinção entre orçado, aprovado, legado e execução confirmada; clientes, veículos e frotistas; agenda; equipe, atividade e comissões; estoque, saldo e Kardex; NFs/XML, vínculos NF→O.S./placa e comparação de fornecedores; financeiro, boletos, recebimentos e faturamento; vendas de autopeças; auditoria visível; CRM/chat e chat da equipe quando solicitado; serviços terceirizados; catálogos técnicos internos e histórico de diagnósticos.',
+      '<br><strong>Exemplos:</strong> “o que o Murilo fez essa semana?”, “onde foram compradas as peças da ERJ2589?”, “quais serviços foram realizados na ERJ2589?”, “qual fornecedor vendeu mais barato a WO120?”, “quais veículos do Brito?”, “agenda de amanhã?”, “kardex da WO120?”, “auditoria hoje?”.',
+      '<br><small>Regra de verdade: quando o campo ou vínculo necessário não existe na base, eu digo que não há dado comprovado em vez de completar por suposição.</small>'
+    ].join('<br>');
+  }
+
+  function responderResumoCompletoJarvisIA(texto,q,ctx,opts) {
+    if(!/resumo completo|visao completa|painel completo|situacao completa|tudo da oficina|tudo sobre a oficina/.test(q)) return null;
+    const abertas=(ctx.os||[]).filter(o=>!isEntregueOS(o)&&!isCanceladoStatus(o.status));
+    const crit=(ctx.estoque||[]).filter(p=>num(p.qtd)<=num(p.min||p.minimo||0));
+    const frot=(ctx.clientes||[]).filter(clienteEhFrotistaIA);
+    const agHoje=(ctx.agendamentos||[]).filter(a=>dataISO(a.data)===hojeISO());
+    const linhas=[
+      `<strong>Visão completa da oficina:</strong>`,
+      `O.S.: ${ctx.os.length} total | ${abertas.length} abertas/em operação.`,
+      `Clientes: ${ctx.clientes.length} | frotistas ${frot.length} | veículos ${ctx.veiculos.length}.`,
+      `Estoque: ${ctx.estoque.length} item(ns) | ${crit.length} abaixo/no mínimo.`,
+      `Equipe: ${ctx.equipe.length} colaborador(es).`,
+      `Agenda: ${ctx.agendamentos.length} registro(s) carregado(s) | ${agHoje.length} para hoje.`,
+      `Fornecedores: ${ctx.fornecedores.length}.`
+    ];
+    if(podeFinanceiro(opts)){
+      const pend=(ctx.financeiro||[]).filter(f=>isPendenteStatus(f.status));
+      linhas.push(`Financeiro: ${ctx.financeiro.length} lançamento(s) | ${pend.length} pendente(s), ${moeda(pend.reduce((s,f)=>s+num(f.valor||f.total||0),0))}.`);
+      linhas.push(`Fiscal: ${ctx.notas.length} NF(s) de entrada | ${ctx.vinculos.length} vínculo(s) NF→O.S./placa.`);
+    }
+    linhas.push('<small>O resumo reflete apenas dados efetivamente carregados/sincronizados. Quando uma pergunta exige outro módulo, a IA faz a carga sob demanda antes de responder.</small>');
+    return linhas.join('<br>');
+  }
+
   function responderJarvisDadosPrecisos(texto, q, ctx, opts) {
     // Uma placa válida sempre tem prioridade. Sem esta trava, palavras genéricas
     // como "serviço" podiam ser confundidas com o cadastro "SERVIÇO TERCEIRIZADO".
@@ -857,8 +1135,24 @@
     if (/\b(o\.?s\.?|os|ordem|ordens|veiculo|veiculos|patio|pátio)\b/.test(q) && /(patio|pátio|entreg|fechad|finaliz|concluid|receb|pagamento|sem receb|sem pagar|abert|abertas|andamento|orcamento|orçamento|triagem|pronto)/.test(q)) {
       return null;
     }
+    const capacidades = responderCapacidadesJarvisIA(texto, q);
+    if (capacidades) return capacidades;
+    const resumoCompleto = responderResumoCompletoJarvisIA(texto, q, ctx, opts);
+    if (resumoCompleto) return resumoCompleto;
     const comparacaoCompra = responderComparacaoCompraFornecedorIA(texto, q, ctx, opts);
     if (comparacaoCompra) return comparacaoCompra;
+    const clienteFrota = responderClienteFrotaIA(texto, q, ctx);
+    if (clienteFrota) return clienteFrota;
+    const agenda = responderAgendaIA(texto, q, ctx);
+    if (agenda) return agenda;
+    const auditoria = responderAuditoriaIA(texto, q, ctx);
+    if (auditoria) return auditoria;
+    const movimentos = responderMovimentosEstoqueIA(texto, q, ctx);
+    if (movimentos) return movimentos;
+    const vendasPecas = responderVendasPecasIA(texto, q, ctx, opts);
+    if (vendasPecas) return vendasPecas;
+    const mensagens = responderMensagensIA(texto, q, ctx);
+    if (mensagens) return mensagens;
     const relatorioModelo = responderRelatorioPecasModeloIA(texto, q, ctx);
     if (relatorioModelo) return relatorioModelo;
     const servicosLancados = responderServicosLancadosFuncionarioPeriodo(texto, q, ctx, opts);
@@ -944,8 +1238,155 @@
       fornecedores: Array.isArray(J.fornecedores) ? J.fornecedores : [],
       notas: Array.isArray(J.notasFiscaisEntrada) ? J.notasFiscaisEntrada : [],
       vinculos: Array.isArray(J.nfItensVinculos) ? J.nfItensVinculos : [],
-      pacotes: Array.isArray(J.pacotesBoletos) ? J.pacotesBoletos : []
+      movimentos: Array.isArray(J.estoqueMovimentos) ? J.estoqueMovimentos : [],
+      pacotes: Array.isArray(J.pacotesBoletos) ? J.pacotesBoletos : [],
+      agendamentos: Array.isArray(J.agendamentos) ? J.agendamentos : [],
+      auditoria: Array.isArray(J.auditoria) ? J.auditoria : [],
+      vendas: Array.isArray(J.vendasAutopecas) ? J.vendasAutopecas : [],
+      mensagens: Array.isArray(J.mensagens) ? J.mensagens : [],
+      chatEquipe: Array.isArray(J.chatEquipeMsgs) ? J.chatEquipeMsgs : (Array.isArray(J.chatEquipe) ? J.chatEquipe : []),
+      oficina: J.oficina || {}
     };
+  }
+
+  // V26.19 — hidratação por intenção da IA.
+  // Executa somente ao PROCESSAR a pergunta. Reaproveita TTL/cache da camada econômica
+  // e não abre consultas por digitação.
+  function pareceConsultaOrigemCompraVeiculoIA(texto) {
+    const q = norm(texto);
+    return /(?:onde|de quem|qual fornecedor|fornecedor).*(?:compr|peca|pecas|item|itens)|(?:peca|pecas|item|itens).*(?:comprad|fornecedor|nota fiscal|\bnf\b)|(?:compras?|notas? fiscais?|\bnf\b).*(?:placa|veiculo|carro)/.test(q);
+  }
+
+  function pareceConsultaMovimentoEstoqueIA(texto) {
+    const q = norm(texto);
+    return /kardex|moviment|entrada.*estoque|saida.*estoque|baixa.*estoque|rastreio.*estoque/.test(q);
+  }
+
+  function chavesDadosPerguntaIA(texto) {
+    const q = norm(texto);
+    const keys = new Set();
+    const placa = extrairPlaca(texto);
+    const atividadePessoa = /\b(fez|realizou|executou|trabalhou|atendeu|atendimento|atividade|atividades|servicos?|tarefas?)\b/.test(q)
+      && !placa;
+
+    if (placa || /histor|diagnost|defeit|problema|garantia|ordem de servico|\bo\.?s\.?\b|patio|veiculo|carro|cliente|frota|frotista|servic|peca|troca|execucao/.test(q)) {
+      keys.add('os'); keys.add('clientes'); keys.add('veiculos');
+    }
+    if (atividadePessoa || /mecanic|funcionario|colaborador|equipe|responsavel|comiss/.test(q)) {
+      keys.add('equipe'); keys.add('os');
+    }
+    if (/finance|dre|caixa|receita|despesa|conta|boleto|duplicata|vencid|vencendo|pagamento|pagar|receber|recebimento|fatur|comiss/.test(q)) {
+      keys.add('financeiro');
+      if (/comiss|mecanic|funcionario|colaborador/.test(q)) keys.add('equipe');
+      if (/veiculo|placa|cliente|o\.?s/.test(q)) keys.add('os');
+    }
+    if (/estoque|saldo|reposi|quantidade|produto|kardex|moviment/.test(q)) keys.add('estoque');
+    if (/fornecedor|fornec|cnpj|compra|comprei|paguei|pagamos|preco pago|precos pagos/.test(q)) keys.add('fornecedores');
+
+    if (pareceComparacaoCompraFornecedorIA(texto) || pareceConsultaOrigemCompraVeiculoIA(texto) || pareceConsultaMovimentoEstoqueIA(texto) || /nota fiscal|\bnf\b|xml|fiscal.*compra/.test(q)) {
+      keys.add('fiscal'); keys.add('fornecedores');
+    }
+    if (/agenda|agendament|marcad|horario|retorno agendado/.test(q)) {
+      keys.add('agendamentos'); keys.add('clientes'); keys.add('veiculos'); keys.add('equipe');
+    }
+    if (/auditoria|audit|excluiu|exclusao|apagou|alteracao registrada|quem alterou/.test(q)) keys.add('auditoria');
+    if (/crm chat|chat.*cliente|mensagens?.*cliente|conversa.*cliente|cliente.*mensagens?/.test(q)) keys.add('mensagens');
+    if (/chat.*equipe|mensagens?.*equipe|conversa.*(?:mecanic|funcionario|colaborador)|equipe.*mensagens?/.test(q)) { keys.add('chatEquipe'); keys.add('equipe'); }
+    if (/venda.*peca|peca.*vendid|balcao|vendas autopecas|vendas de pecas/.test(q)) {
+      keys.add('vendas'); keys.add('estoque'); keys.add('financeiro');
+    }
+    if (/resumo completo|visao completa|painel completo|situacao completa|tudo da oficina|tudo sobre a oficina/.test(q)) {
+      ['os','clientes','veiculos','estoque','financeiro','equipe','fornecedores'].forEach(k => keys.add(k));
+    }
+    // Pergunta totalmente aberta continua econômica: O.S. é a base operacional mínima.
+    if (!keys.size) keys.add('os');
+    return Array.from(keys);
+  }
+
+  const iaDirectLoadState = W.__thiaIADirectLoadState || (W.__thiaIADirectLoadState = {});
+
+  async function carregarColecaoDiretaIA(key, collectionName, targetName, ttlMs) {
+    const J = getJ();
+    const database = W.db || J.db;
+    const tid = String(J.tid || '').trim();
+    if (!database || !tid || !collectionName || !targetName) return [];
+    const st = iaDirectLoadState[key] || (iaDirectLoadState[key] = { loadedAt:0, loading:null });
+    if (st.loading) return st.loading;
+    if (st.loadedAt && Date.now() - st.loadedAt < (ttlMs || 30*60*1000) && Array.isArray(J[targetName])) return J[targetName];
+    st.loading = (async () => {
+      const snap = await database.collection(collectionName).where('tenantId','==',tid).get();
+      const docs = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+      J[targetName] = docs;
+      st.loadedAt = Date.now();
+      return docs;
+    })().finally(() => { st.loading = null; });
+    return st.loading;
+  }
+
+  async function garantirDadosPerguntaIA(texto) {
+    const keys = chavesDadosPerguntaIA(texto);
+    const tarefas = keys.map(async key => {
+      try {
+        if (key === 'fiscal') {
+          if (typeof W.thiaLoadFiscalV2612 === 'function') return await W.thiaLoadFiscalV2612(false);
+          if (typeof W.thiaCarregarFiscalSobDemandaV2612 === 'function') return await W.thiaCarregarFiscalSobDemandaV2612('ia', false);
+          return [];
+        }
+        // Alguns conjuntos não fazem parte do CONFIG econômico global. A IA os busca
+        // somente quando a pergunta pede explicitamente esses dados, com cache próprio.
+        if (key === 'agendamentos') return await carregarColecaoDiretaIA(key, 'agendamentos', 'agendamentos', 30*60*1000);
+        if (key === 'mensagens') return await carregarColecaoDiretaIA(key, 'mensagens', 'mensagens', 15*60*1000);
+        if (key === 'chatEquipe') return await carregarColecaoDiretaIA(key, 'chat_equipe', 'chatEquipeMsgs', 15*60*1000);
+        if (typeof W.thiaEnsureKeyV2612 === 'function') return await W.thiaEnsureKeyV2612(key, { force:false });
+        if (typeof W.thiaEnsureDataFor === 'function') return await W.thiaEnsureDataFor(key, { force:false });
+      } catch (e) {
+        console.warn('[thIAguinho IA] dados sob demanda ' + key + ':', e?.message || e);
+      }
+      return [];
+    });
+    await Promise.all(tarefas);
+    return keys;
+  }
+
+  const contextoConversaIA = W.__thiaIAContextoConversacional || (W.__thiaIAContextoConversacional = {
+    placa:'', codigoPeca:'', fornecedorId:'', fornecedorNome:'', funcionarioId:'', funcionarioNome:'', atualizadoEm:0
+  });
+
+  function contextualizarPerguntaIA(texto) {
+    const raw = String(texto || '').trim();
+    if (!raw || !contextoConversaIA.atualizadoEm || Date.now() - contextoConversaIA.atualizadoEm > 30*60*1000) return raw;
+    const q = norm(raw);
+    const contin = /^(e\b|e o\b|e a\b|e qual\b|e quais\b|e quanto\b|e quando\b|e onde\b)|\b(?:esse veiculo|essa placa|esse carro|dele|dela|o mesmo|a mesma)\b/.test(q);
+    if (!contin) return raw;
+    let extra = '';
+    const seguePrecoCompra = /preco|compra|fornecedor|paguei|ultimo|maior|menor|media/.test(q) && !!contextoConversaIA.codigoPeca;
+    if (seguePrecoCompra && !extrairCodigoConsultaCompraIA(raw)) extra += ` historico de compra da peca ${contextoConversaIA.codigoPeca}`;
+    else if (!extrairPlaca(raw) && contextoConversaIA.placa) extra += ` placa ${contextoConversaIA.placa}`;
+    if (contextoConversaIA.funcionarioNome && /fez|realizou|executou|trabalhou|atendeu|comiss|atividade|servico/.test(q)) extra += ` mecanico ${contextoConversaIA.funcionarioNome}`;
+    if (contextoConversaIA.fornecedorNome && /boleto|nota|nf|paguei|pagamento|compra/.test(q) && !/fornecedor/.test(q)) extra += ` fornecedor ${contextoConversaIA.fornecedorNome}`;
+    return (raw + extra).trim();
+  }
+
+  function atualizarContextoConversacionalIA(texto, ctx) {
+    const placa = extrairPlaca(texto);
+    if (placa) contextoConversaIA.placa = placa;
+    const codigo = extrairCodigoConsultaCompraIA(texto);
+    if (codigo) contextoConversaIA.codigoPeca = codigo;
+    try {
+      const func = funcionarioPorPergunta(ctx, texto);
+      if (func) {
+        contextoConversaIA.funcionarioId = String(func.id || func.uid || '');
+        contextoConversaIA.funcionarioNome = String(func.nome || func.usuario || func.apelido || '');
+      }
+    } catch (_) {}
+    try {
+      const forn = fornecedorPorPerguntaIA(ctx, texto);
+      if (forn) {
+        contextoConversaIA.fornecedorId = String(forn.id || '');
+        contextoConversaIA.fornecedorNome = String(forn.nome || forn.razaoSocial || forn.fantasia || '');
+      }
+    } catch (_) {}
+    contextoConversaIA.atualizadoEm = Date.now();
   }
 
   function role(opts) {
@@ -1335,7 +1776,8 @@
     const citaCargo = /\b(mecanico|funcionario|colaborador|responsavel)\b/.test(q);
     const funcDireto = funcionarioPorPergunta(ctx, q);
     const perguntaAtendimentoComNome = /\batendimentos?\b/.test(q) && (!!funcDireto || /\b(fez|atendeu|realizou|executou|trabalhou)\b/.test(q));
-    if (!citaCargo && !perguntaAtendimentoComNome) return null;
+    const perguntaAtividadeComNome = !!funcDireto && /\b(fez|atendeu|realizou|executou|trabalhou|atividades?|servicos?|tarefas?)\b/.test(q);
+    if (!citaCargo && !perguntaAtendimentoComNome && !perguntaAtividadeComNome) return null;
     if (!/(atendeu|atendimento|realizou|executou|trabalhou|fez|servico|servicos|veiculo|veiculos|o\.?s\.?|ordem|ordens|comiss|relatorio|valor|valores|total)/.test(q)) return null;
     const func = funcionarioDaPerguntaOperacional(ctx, texto, q);
     if (!func) return 'Informe o nome do mec&acirc;nico para consultar os atendimentos por per&iacute;odo.';
@@ -1750,22 +2192,106 @@
   function itensOrcamentoOS(ctx, os) {
     const U = W.JOS || W.JarvisOSUtils || {};
     const cliente = clienteDeOS(ctx, os);
-    const itens = U.buildBudgetItems?.(os, cliente) || [];
-    const aprovados = U.getApprovedKeys?.(os) || new Set(os?.itensAprovados || []);
-    return itens.map(item => {
-      const status = itemExecucao(os, item);
-      const aprovado = aprovados.has(item.key);
-      const executado = /executad|concluid|finaliz|instalad|trocad|feito|ok/.test(norm(status));
-      const legadoFinalizado = aprovado && !status && isEntregueOS(os);
-      return Object.assign({}, item, { aprovado, status, executado, legadoFinalizado });
+    const aprovados = U.getApprovedKeys?.(os) || new Set((os?.itensAprovados || []).map(x => typeof x === 'string' ? x : x?.key).filter(Boolean));
+    const mapa = new Map();
+
+    const descricao = item => String(item?.desc || item?.descricao || item?.nome || item?.servico || item?.peca || item?.item || item?.titulo || item?.descLivre || item?.descricaoPeca || item?.nomePeca || '').trim();
+    const codigo = item => String(item?.codigo || item?.cod || item?.codigoOriginal || item?.codigoFornecedor || item?.codigoComercial || item?.oem || '').trim();
+    const statusExecutado = value => /executad|concluid|finaliz|instalad|trocad|substituid|feito|realizad|aplicad|ok/.test(norm(value));
+    const assinatura = (tipo, item) => {
+      const c = codigoCompactoIA(codigo(item));
+      const d = norm(descricao(item)).replace(/[^a-z0-9]+/g, ' ').trim();
+      return `${tipo}|${c}|${d}`;
+    };
+
+    function adicionar(item, tipo, fonte, indice, flags={}) {
+      if (!item) return;
+      if (typeof item === 'string') item = { desc:item };
+      const desc = descricao(item);
+      const cod = codigo(item);
+      if (!desc && !cod) return;
+      const key = String(item.key || item.itemKey || item.idItem || `${tipo}-legacy-${fonte}-${indice}`);
+      const execRegistro = os?.execucaoItens?.[key] || null;
+      const status = itemExecucao(os, Object.assign({}, item, { key })) || execRegistro?.status || item.statusExecucao || item.status || '';
+      const aprovado = flags.aprovado === true || item.aprovado === true || item.aprovada === true || aprovados.has(key);
+      const executado = flags.executado === true || statusExecutado(status) || item.executado === true || item.realizado === true || item.trocado === true || item.instalado === true;
+      const legadoFinalizado = !executado && aprovado && !status && isEntregueOS(os);
+      // O.S. antigas podem não ter mapa de aprovação/execução. O item é mostrado, mas nunca
+      // promovido a "executado" apenas porque a O.S. foi entregue.
+      const registradoFinalizado = !executado && !aprovado && isEntregueOS(os) && flags.registrado !== false;
+      const normalizado = Object.assign({}, item, {
+        key,
+        tipo,
+        labelTipo: tipo === 'servico' ? 'Serviço' : 'Peça',
+        index: item.index ?? indice,
+        codigo: cod,
+        desc,
+        qtd: num(item.qtd ?? item.quantidade ?? item.qtde ?? item.q ?? 1) || 1,
+        valorUnit: num(item.valorUnit ?? item.venda ?? item.valorVenda ?? item.valor ?? item.preco ?? 0),
+        valorFinal: num(item.valorFinal ?? item.total ?? item.valorTotal ?? item.valor ?? item.venda ?? 0),
+        fonteIA: fonte,
+        aprovado,
+        status,
+        executado,
+        legadoFinalizado,
+        registradoFinalizado
+      });
+      const sig = assinatura(tipo, normalizado);
+      const atual = mapa.get(sig);
+      if (!atual) { mapa.set(sig, normalizado); return; }
+      // Se o mesmo item aparecer em uma fonte antiga e numa fonte de execução, preserva a evidência mais forte.
+      mapa.set(sig, Object.assign({}, atual, normalizado, {
+        key: atual.key || normalizado.key,
+        aprovado: atual.aprovado || normalizado.aprovado,
+        executado: atual.executado || normalizado.executado,
+        legadoFinalizado: (atual.legadoFinalizado || normalizado.legadoFinalizado) && !(atual.executado || normalizado.executado),
+        registradoFinalizado: (atual.registradoFinalizado || normalizado.registradoFinalizado) && !(atual.executado || normalizado.executado),
+        status: normalizado.status || atual.status,
+        fonteIA: uniq([atual.fonteIA, normalizado.fonteIA]).join(' + ')
+      }));
+    }
+
+    const base = U.buildBudgetItems?.(os, cliente) || [];
+    base.forEach((item, i) => adicionar(item, norm(item?.tipo).includes('serv') ? 'servico' : 'peca', 'orcamento_atual', i));
+
+    const fontesServico = [
+      ['servicos', os?.servicos, false], ['servicosOS', os?.servicosOS, false], ['itensServicos', os?.itensServicos, false],
+      ['maoDeObra', os?.maoDeObra, false], ['maosObra', os?.maosObra, false], ['maoDeObraItens', os?.maoDeObraItens, false],
+      ['servicosExecutados', os?.servicosExecutados, true], ['maoDeObraExecutada', os?.maoDeObraExecutada, true]
+    ];
+    fontesServico.forEach(([fonte, arr, executado]) => (Array.isArray(arr) ? arr : []).forEach((item,i) => adicionar(item, 'servico', fonte, i, { executado })));
+
+    // Deliberadamente NÃO lê pecasReais/pecasRealmenteTrocadas/itensReais: área restrita *177.
+    const fontesPeca = [
+      ['pecas', os?.pecas, false], ['pecasOS', os?.pecasOS, false], ['itensPecas', os?.itensPecas, false], ['pecasOrcamento', os?.pecasOrcamento, false],
+      ['pecasTrocadas', os?.pecasTrocadas, true], ['pecasExecutadas', os?.pecasExecutadas, true], ['pecasAplicadas', os?.pecasAplicadas, true], ['aplicacoes', os?.aplicacoes, true]
+    ];
+    fontesPeca.forEach(([fonte, arr, executado]) => (Array.isArray(arr) ? arr : []).forEach((item,i) => adicionar(item, 'peca', fonte, i, { executado })));
+
+    const genericos = [
+      ['itens', os?.itens], ['items', os?.items]
+    ];
+    genericos.forEach(([fonte, arr]) => (Array.isArray(arr) ? arr : []).forEach((item,i) => {
+      const t = norm(item?.tipo || item?.natureza || item?.categoria || item?.grupo || '');
+      const tipo = /serv|mao de obra|mdo/.test(t) ? 'servico' : (/pec|produto|material/.test(t) ? 'peca' : (item?.tempo || item?.mecId || item?.mecanicoId ? 'servico' : 'peca'));
+      adicionar(item, tipo, fonte, i);
+    }));
+    (Array.isArray(os?.itensAprovados) ? os.itensAprovados : []).forEach((item,i) => {
+      if (typeof item === 'string') return;
+      const t = norm(item?.tipo || item?.natureza || '');
+      const tipo = /serv/.test(t) ? 'servico' : 'peca';
+      adicionar(item, tipo, 'itensAprovados', i, { aprovado:true });
     });
+
+    return Array.from(mapa.values());
   }
 
   function statusVerdadeiroItem(os, item) {
     if (item.executado) return `execução confirmada${item.status ? ` (${esc(item.status)})` : ''}`;
-    if (item.legadoFinalizado) return 'O.S. finalizada, sem confirmação individual deste item';
+    if (item.legadoFinalizado) return 'O.S. finalizada, item aprovado sem confirmação individual de execução';
+    if (item.registradoFinalizado) return 'registrado em O.S. entregue, mas sem confirmação individual de execução';
     if (item.aprovado) return 'aprovado, mas execução não confirmada';
-    return 'apenas orçado/não aprovado';
+    return 'apenas registrado/orçado, sem execução comprovada';
   }
 
   function termosItemPergunta(texto, placa) {
@@ -1785,10 +2311,61 @@
     return termos.every(t => hay.includes(t) || compacto.includes(t.replace(/[^a-z0-9]/g, '')));
   }
 
+  function vinculoFiscalAtivoIA(v) {
+    const st = norm([v?.status, v?.situacao, v?.statusVinculo].join(' '));
+    return !/cancelad|excluid|estornad|devolvid|inativ/.test(st);
+  }
+
+  function notaDoVinculoIA(ctx, v) {
+    const nfId = String(v?.nfId || '').trim();
+    const numero = String(v?.nfNumero || v?.numeroNF || '').trim();
+    return (ctx.notas || []).find(n => (nfId && String(n.id || '') === nfId) || (numero && String(n.numero || n.numeroNF || n.nf || '') === numero)) || null;
+  }
+
+  function fornecedorDoVinculoIA(ctx, v, nf) {
+    const fid = String(v?.fornecedorId || nf?.fornecedorId || '').trim();
+    const cadastrado = fid ? (ctx.fornecedores || []).find(f => String(f.id || '') === fid) : null;
+    return String(
+      v?.fornecedorNome || nf?.fornecedorSnapshot?.nome || nf?.fornecedorNome || nf?.fornecedor ||
+      cadastrado?.nome || cadastrado?.razaoSocial || cadastrado?.fantasia || 'Fornecedor não identificado'
+    ).trim();
+  }
+
+  function responderComprasDaPlacaIA(texto, q, ctx, opts, placa, listaOS) {
+    if (!pareceConsultaOrigemCompraVeiculoIA(texto)) return null;
+    if (!podeFinanceiro(opts)) return 'Seu perfil não tem permissão para consultar origem fiscal/custo de compras vinculadas ao veículo.';
+    const osIds = new Set((listaOS || []).flatMap(o => [o?.id, o?.numero, o?.codigo].map(v => String(v || '').trim()).filter(Boolean)));
+    const placaC = placaLimpa(placa);
+    const vinculos = (ctx.vinculos || []).filter(v => {
+      if (!vinculoFiscalAtivoIA(v)) return false;
+      const placaV = placaLimpa(v?.placa || '');
+      const osV = String(v?.osId || v?.osNumero || '').trim();
+      return (placaV && placaV === placaC) || (osV && osIds.has(osV));
+    });
+    if (!vinculos.length) {
+      return `Não encontrei vínculo fiscal comprovado entre notas de compra e a placa ${esc(placa)} nos dados fiscais atuais. Isso não significa que a peça não tenha sido comprada; significa apenas que não há vínculo NF → O.S./placa registrado para eu afirmar o fornecedor.`;
+    }
+    const linhas = vinculos.slice().sort((a,b)=>String(b.createdAt||b.updatedAt||'').localeCompare(String(a.createdAt||a.updatedAt||''))).slice(0,30).map(v => {
+      const nf = notaDoVinculoIA(ctx, v);
+      const fornecedor = fornecedorDoVinculoIA(ctx, v, nf);
+      const numero = v.nfNumero || nf?.numero || nf?.numeroNF || '-';
+      const data = nf?.dataNF || nf?.emissao || v?.createdAt || '';
+      const desc = v.desc || v.descricao || 'Peça';
+      const cod = v.codigoFornecedor || v.codigo || v.codigoComercial || '';
+      const qtd = num(v.qtd ?? v.quantidade ?? 0);
+      const custo = num(v.valorUnitarioFiscal ?? v.custo ?? 0);
+      return `- <strong>${esc(fornecedor)}</strong> | NF ${esc(numero)}${data ? ` | ${esc(dataBR(data))}` : ''} | ${esc(cod ? `[${cod}] ` : '')}${esc(desc)}${qtd ? ` | qtd ${esc(qtd)}` : ''}${custo > 0 ? ` | custo fiscal ${moeda(custo)}` : ''}`;
+    });
+    const fornecedores = uniq(vinculos.map(v => fornecedorDoVinculoIA(ctx, v, notaDoVinculoIA(ctx, v))));
+    return `<strong>Compras vinculadas à placa ${esc(placa)}:</strong> ${vinculos.length} item(ns) fiscal(is), ${fornecedores.length} fornecedor(es).<br>${linhas.join('<br>')}<br><br><small>Fonte: vínculos reais NF → O.S./placa. Não deduzo fornecedor pelo nome da peça nem pelo estoque atual.</small>`;
+  }
+
   function responderItemEspecificoDaPlaca(texto, q, ctx, opts, placa, listaOS) {
+    // Pergunta de origem de compra tem um roteador fiscal próprio; não pode virar busca por "item onde comprado".
+    if (pareceConsultaOrigemCompraVeiculoIA(texto)) return null;
     const querResumo = /resumo.*(?:servic|peca|item)|(?:servic|peca|item).*resumo/.test(q);
-    const querServicosRealizados = /(?:qual|quais|liste|mostrar|mostre).*(?:servic).*(?:realiz|execut|feito|fizeram|fizer)|(?:servic).*(?:realiz|execut|feito).*(?:veiculo|placa)/.test(q);
-    const querPecasAplicadas = /(?:qual|quais|liste|mostrar|mostre).*(?:peca|item).*(?:troc|substitu|instal|aplic|usad|coloc)|(?:peca|item).*(?:troc|substitu|instal|aplic|usad|coloc).*(?:veiculo|placa)/.test(q);
+    const querServicosRealizados = /servic/.test(q) && /realiz|execut|feit|fizer|conclu|prestado/.test(q);
+    const querPecasAplicadas = /(?:peca|item)/.test(q) && /troc|substitu|instal|aplic|usad|coloc|utiliz/.test(q);
     const querConfirmar = /foi|foram|troc|substitu|instal|execut|realiz|feito|feita|consta|tem/.test(q);
     if (!querResumo && !querServicosRealizados && !querPecasAplicadas && !querConfirmar) return null;
 
@@ -1797,17 +2374,17 @@
       const modo = querServicosRealizados ? 'servico' : (querPecasAplicadas ? 'peca' : 'todos');
       const blocos = osOrdenadas.slice(0, 8).map(o => {
         const itens = itensOrcamentoOS(ctx, o);
-        const relevantesBase = itens.filter(i => i.aprovado || i.executado || i.legadoFinalizado);
+        const relevantesBase = itens.filter(i => i.aprovado || i.executado || i.legadoFinalizado || i.registradoFinalizado);
         const relevantes = modo === 'todos' ? relevantesBase : relevantesBase.filter(i => i.tipo === modo);
         const servicos = relevantesBase.filter(i => i.tipo === 'servico');
         const pecas = relevantesBase.filter(i => i.tipo === 'peca');
-        const amostra = relevantes.slice(0, modo === 'todos' ? 8 : 15).map(i => `- ${esc(i.labelTipo || i.tipo)}: ${esc(i.codigo ? `[${i.codigo}] ` : '')}${esc(i.desc || '-') } | ${statusVerdadeiroItem(o, i)}`);
+        const amostra = relevantes.slice(0, modo === 'todos' ? 10 : 20).map(i => `- ${esc(i.labelTipo || i.tipo)}: ${esc(i.codigo ? `[${i.codigo}] ` : '')}${esc(i.desc || '-') } | ${statusVerdadeiroItem(o, i)}`);
         const extra = Math.max(0, relevantes.length - amostra.length);
-        const cabQtd = modo === 'servico' ? `Serviços localizados: ${servicos.length}` : modo === 'peca' ? `Peças localizadas: ${pecas.length}` : `Serviços: ${servicos.length} | Peças: ${pecas.length}`;
-        return `${resumoOS(ctx, o, Object.assign({}, opts, { comDiagnostico:false, comValores:false }))}<br>${cabQtd}${amostra.length ? `<br>${amostra.join('<br>')}` : `<br>Nenhum ${modo === 'servico' ? 'serviço' : modo === 'peca' ? 'item de peça' : 'item'} aprovado/executado identificado.`}${extra ? `<br><small>+ ${extra} item(ns).</small>` : ''}`;
+        const cabQtd = modo === 'servico' ? `Serviços localizados: ${relevantes.filter(i=>i.tipo==='servico').length}` : modo === 'peca' ? `Peças localizadas: ${relevantes.filter(i=>i.tipo==='peca').length}` : `Serviços: ${servicos.length} | Peças: ${pecas.length}`;
+        return `${resumoOS(ctx, o, Object.assign({}, opts, { comDiagnostico:false, comValores:false }))}<br>${cabQtd}${amostra.length ? `<br>${amostra.join('<br>')}` : `<br>Nenhum ${modo === 'servico' ? 'serviço' : modo === 'peca' ? 'item de peça' : 'item'} compatível localizado nessa O.S.`}${extra ? `<br><small>+ ${extra} item(ns).</small>` : ''}`;
       });
-      const titulo = modo === 'servico' ? `Serviços realizados/localizados na placa ${esc(placa)}` : modo === 'peca' ? `Peças aplicadas/localizadas na placa ${esc(placa)}` : `Resumo de serviços da placa ${esc(placa)}`;
-      return `<strong>${titulo}:</strong><br>${blocos.join('<br><br>')}`;
+      const titulo = modo === 'servico' ? `Serviços da placa ${esc(placa)}` : modo === 'peca' ? `Peças da placa ${esc(placa)}` : `Resumo de serviços e peças da placa ${esc(placa)}`;
+      return `<strong>${titulo}:</strong><br>${blocos.join('<br><br>')}<br><br><small>Regra de verdade: somente itens com evidência de execução são chamados de executados/trocados. Registros antigos de O.S. entregue aparecem como localizados, mas sem confirmação individual quando esse dado não existe.</small>`;
     }
 
     const termos = termosItemPergunta(texto, placa);
@@ -1826,11 +2403,11 @@
       return `- O.S. #${esc(String(o.numero || o.id || '').slice(-6).toUpperCase())} | ${esc(dataBR(o.data || o.createdAt))} | ${esc(item.codigo ? `[${item.codigo}] ` : '')}${esc(item.desc || '-')} | ${statusVerdadeiroItem(o, item)}`;
     });
     const confirmados = encontrados.filter(x => x.item.executado).length;
-    const legados = encontrados.filter(x => x.item.legadoFinalizado).length;
+    const legados = encontrados.filter(x => x.item.legadoFinalizado || x.item.registradoFinalizado).length;
     const conclusao = confirmados
       ? `Sim. Há ${confirmados} registro(s) com execução confirmada.`
       : legados
-        ? `O item consta em O.S. finalizada, mas sem confirmação individual de execução. Não é correto afirmar troca comprovada.`
+        ? `O item consta em O.S. finalizada/entregue, mas sem confirmação individual de execução. Não é correto afirmar troca comprovada.`
         : `O item consta, porém não há execução confirmada.`;
     return `<strong>${esc(conclusao)}</strong><br>${linhas.join('<br>')}`;
   }
@@ -2317,6 +2894,16 @@
     const placa = extrairPlaca(texto);
     if (placa) {
       const lista = osMatchesPlaca(ctx, placa).sort((a, b) => String(b.updatedAt || b.createdAt || '').localeCompare(String(a.updatedAt || a.createdAt || '')));
+      const agendaPlaca = responderAgendaIA(texto, q, ctx, placa);
+      if (agendaPlaca) return aplicarComportamento(agendaPlaca);
+      const auditoriaPlaca = responderAuditoriaIA(texto, q, ctx);
+      if (auditoriaPlaca) return aplicarComportamento(auditoriaPlaca);
+      const movimentosPlaca = responderMovimentosEstoqueIA(texto, q, ctx);
+      if (movimentosPlaca) return aplicarComportamento(movimentosPlaca);
+      const donoPlaca = responderDonoPlacaIA(texto, q, ctx, placa);
+      if (donoPlaca) return aplicarComportamento(donoPlaca);
+      const comprasPlaca = responderComprasDaPlacaIA(texto, q, ctx, opts, placa, lista);
+      if (comprasPlaca) return aplicarComportamento(comprasPlaca);
       if (!lista.length) return `Nao encontrei O.S. carregada para a placa ${esc(placa)}. Confirme se a placa esta correta ou se os dados ja sincronizaram.`;
       const placaMecanico = responderPlacaMecanicoIA(texto, q, ctx, placa, lista);
       if (placaMecanico) return aplicarComportamento(placaMecanico);
@@ -2503,10 +3090,128 @@
     if (el) el.innerHTML = '<strong>thIAguinho:</strong> ' + html;
   }
 
+
+  function textoFalavelIA(html) {
+    try {
+      const tmp=D.createElement('div');
+      tmp.innerHTML=String(html||'').replace(/<br\s*\/?>/gi,'\n');
+      return String(tmp.textContent||tmp.innerText||'').replace(/[ \t]+/g,' ').replace(/\n\s*/g,'\n').trim();
+    } catch (_) {
+      return String(html||'').replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim();
+    }
+  }
+
+  function falarRespostaIA(html) {
+    if (!('speechSynthesis' in W) || typeof W.SpeechSynthesisUtterance !== 'function') return false;
+    const texto=textoFalavelIA(html);
+    if(!texto) return false;
+    try { W.speechSynthesis.cancel(); } catch(_){}
+    const geracao=(W.__thiaSpeechGeneration||0)+1; W.__thiaSpeechGeneration=geracao;
+    const partes=[];
+    let atual='';
+    texto.split(/(?<=[.!?;:\n])\s+/).forEach(p=>{
+      if(!p) return;
+      if((atual+' '+p).trim().length>260 && atual){partes.push(atual.trim());atual=p;}
+      else atual=(atual+' '+p).trim();
+    });
+    if(atual) partes.push(atual.trim());
+    let idx=0;
+    const proxima=()=>{
+      if(W.__thiaSpeechGeneration!==geracao || idx>=partes.length) return;
+      const u=new W.SpeechSynthesisUtterance(partes[idx++]);
+      u.lang='pt-BR'; u.rate=0.98; u.pitch=1; u.volume=1;
+      u.onend=proxima;
+      u.onerror=()=>{};
+      try { W.speechSynthesis.speak(u); } catch(_){}
+    };
+    proxima();
+    return true;
+  }
+
+  function instalarVozIA() {
+    const input=D.getElementById('iaInput');
+    if(!input || input.dataset.thiaVoiceReady==='1') return;
+    input.dataset.thiaVoiceReady='1';
+    const SR=W.SpeechRecognition||W.webkitSpeechRecognition;
+    const area=input.closest?.('.ia-input-area')||input.parentElement;
+    if(!area) return;
+
+    // Mantém a responsividade: o microfone fica dentro da área do input e não
+    // cria uma terceira coluna que comprimiria o botão PROCESSAR no celular.
+    let wrapper=input.parentElement;
+    if(!wrapper?.classList?.contains('thia-ia-input-wrap')){
+      wrapper=D.createElement('div');
+      wrapper.className='thia-ia-input-wrap';
+      wrapper.style.cssText='position:relative;flex:1;min-width:0;display:flex;';
+      input.parentNode.insertBefore(wrapper,input);
+      wrapper.appendChild(input);
+      input.style.flex='1';
+      input.style.minWidth='0';
+      input.style.paddingRight='48px';
+    }
+    const btn=D.createElement('button');
+    btn.type='button'; btn.id='thiaIaMicBtn'; btn.setAttribute('aria-label','Falar com thIAguinho IA'); btn.title='Falar com thIAguinho IA';
+    btn.textContent='🎙';
+    btn.style.cssText='position:absolute;right:4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:1px solid rgba(125,211,252,.35);border-radius:7px;background:rgba(15,23,42,.82);color:var(--cyan,#7dd3fc);font-size:18px;display:flex;align-items:center;justify-content:center;z-index:2;cursor:pointer;';
+    wrapper.appendChild(btn);
+
+    if(!SR){
+      btn.disabled=true; btn.style.opacity='.45'; btn.title='Reconhecimento de voz não disponível neste navegador';
+      return;
+    }
+
+    const rec=new SR();
+    rec.lang='pt-BR'; rec.continuous=false; rec.interimResults=true; rec.maxAlternatives=1;
+    let finalTexto=''; let ouvindo=false; let placeholderOriginal=input.placeholder||'';
+    const visual=(on)=>{
+      ouvindo=on;
+      btn.textContent=on?'⏹':'🎙';
+      btn.style.borderColor=on?'rgba(248,113,113,.85)':'rgba(125,211,252,.35)';
+      btn.style.background=on?'rgba(127,29,29,.38)':'rgba(15,23,42,.82)';
+      input.placeholder=on?'Ouvindo... fale normalmente':placeholderOriginal;
+    };
+    rec.onstart=()=>{finalTexto='';visual(true);};
+    rec.onresult=e=>{
+      let parcial='';
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const t=String(e.results[i][0]?.transcript||'').trim();
+        if(e.results[i].isFinal) finalTexto=(finalTexto+' '+t).trim(); else parcial=(parcial+' '+t).trim();
+      }
+      input.value=(finalTexto+' '+parcial).trim();
+    };
+    rec.onerror=e=>{
+      visual(false);
+      if(['not-allowed','service-not-allowed'].includes(String(e?.error||''))){
+        addBot('O microfone foi bloqueado pelo navegador. Autorize o acesso ao microfone para conversar por voz.');
+      }
+    };
+    rec.onend=()=>{
+      visual(false);
+      const frase=String(finalTexto||input.value||'').trim();
+      if(!frase) return;
+      input.value=frase;
+      W.__thiaVoiceNext=true;
+      setTimeout(()=>{
+        if(location.pathname.toLowerCase().includes('equipe')) W.iaEnviar?.();
+        else W.iaPerguntar?.();
+      },220);
+    };
+    btn.addEventListener('click',()=>{
+      try {
+        if(ouvindo){rec.stop();return;}
+        try { W.speechSynthesis?.cancel?.(); } catch(_){}
+        input.value=''; finalTexto=''; rec.start();
+      } catch(e){console.warn('[thIAguinho IA] microfone:',e?.message||e);}
+    });
+    W.thiaPararVoz=()=>{ try{rec.stop();}catch(_){} try{W.speechSynthesis?.cancel?.();}catch(_){} };
+  }
+
   async function thiaIAAsk(inputId, perfil) {
     const input = D.getElementById(inputId || 'iaInput');
     const msg = input?.value?.trim();
     if (!msg) return;
+    const veioDaVoz = W.__thiaVoiceNext === true;
+    W.__thiaVoiceNext = false;
     input.value = '';
     addUser(msg);
     const consultaCatalogo = pareceConsultaCatalogo(msg);
@@ -2515,19 +3220,20 @@
     W.iaHistorico.push({ role: 'user', text: msg });
     W.iaHistorico.push({ role: 'model', text: String(resp).replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '') });
     replaceBot(lid, resp);
+    if (veioDaVoz) falarRespostaIA(resp);
   }
 
   async function thiaResponderLocalAsync(pergunta, opts) {
-    const msg = String(pergunta || '').trim();
-    if (!msg) return '';
+    const originalMsg = String(pergunta || '').trim();
+    if (!originalMsg) return '';
+    const msg = contextualizarPerguntaIA(originalMsg);
     try { await carregarCerebroGlobal(); } catch (_) {}
 
-    // Dados fiscais são caros e, por projeto, não ficam ativos na tela da IA.
-    // Só carregamos quando a pergunta realmente exige histórico de compra/preço.
-    if (pareceComparacaoCompraFornecedorIA(msg) && typeof W.thiaLoadFiscalV2612 === 'function') {
-      try { await W.thiaLoadFiscalV2612(false); } catch (e) {
-        console.warn('[thIAguinho IA] histórico fiscal sob demanda:', e?.message || e);
-      }
+    // A própria IA identifica quais conjuntos de dados a pergunta exige e hidrata
+    // somente no PROCESSAR. A camada econômica preserva cache/TTL e evita leituras
+    // durante digitação ou repetição da mesma consulta.
+    try { await garantirDadosPerguntaIA(msg); } catch (e) {
+      console.warn('[thIAguinho IA] hidratação por intenção:', e?.message || e);
     }
 
     if (pareceConsultaCatalogo(msg) && typeof W.thiaCatalogosPrepararPergunta === 'function') {
@@ -2535,7 +3241,9 @@
         console.warn('[thIAguinho IA] falha ao preparar catálogos:', e?.message || e);
       }
     }
-    return thiaResponderLocal(msg, opts);
+    const resposta = thiaResponderLocal(msg, opts);
+    try { atualizarContextoConversacionalIA(msg, dataSets(opts)); } catch (_) {}
+    return resposta;
   }
 
   function setPromptAndAsk(txt, perfil) {
@@ -2612,6 +3320,7 @@
   };
 
   D.addEventListener('DOMContentLoaded', function () {
+    instalarVozIA();
     const input = D.getElementById('iaInput');
     if (input && !input.__thiaLocalEnter) {
       input.__thiaLocalEnter = true;
@@ -2623,4 +3332,6 @@
       });
     }
   });
+  // Se o script for injetado depois do DOMContentLoaded (hot reload/PWA), instala a voz também.
+  setTimeout(instalarVozIA, 0);
 })();
