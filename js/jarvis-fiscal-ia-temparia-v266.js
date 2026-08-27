@@ -228,9 +228,14 @@
     return raw ? 'ativo' : 'sem_status';
   }
 
-  function stockFor(item) {
+  function stockFor(item, stockIndex) {
     const ci = code(item?.codigoFornecedor || item?.codigo || item?.codigoComercial || item?.oem || '');
     const di = norm(item?.descricao || item?.desc || '');
+    if (stockIndex) {
+      if (ci && stockIndex.byCode.has(ci)) return stockIndex.byCode.get(ci);
+      if (di && stockIndex.byDesc.has(di)) return stockIndex.byDesc.get(di);
+      return null;
+    }
     return (J().estoque || []).find(p => {
       const cp = code(p.codigo || p.codigoFornecedor || p.codigoComercial || p.oem || '');
       if (ci && cp && ci === cp) return true;
@@ -244,15 +249,80 @@
     return !/cancelad|excluid|estornad|devolvid/.test(raw);
   }
 
-  function buildFiscalPieceRecords() {
-    const linksAll = (J().nfItensVinculos || []).filter(activeFiscalLink);
+  const fiscalRecordsCacheV270 = { notesRef:null, linksRef:null, stockRef:null, notesLen:-1, linksLen:-1, stockLen:-1, records:[] };
+  let fiscalPieceLimitV270 = 80;
+  let fiscalFilterSignatureV270 = '';
+  let fiscalRenderTimerV270 = null;
+
+  function invalidateFiscalRecordsCacheV270() {
+    fiscalRecordsCacheV270.notesRef = null;
+    fiscalRecordsCacheV270.linksRef = null;
+    fiscalRecordsCacheV270.stockRef = null;
+    fiscalRecordsCacheV270.notesLen = -1;
+    fiscalRecordsCacheV270.linksLen = -1;
+    fiscalRecordsCacheV270.stockLen = -1;
+    fiscalRecordsCacheV270.records = [];
+  }
+
+  function buildStockIndexV270(stock) {
+    const byCode = new Map();
+    const byDesc = new Map();
+    (stock || []).forEach(p => {
+      /* Preserva exatamente a precedência original de código do stockFor(). */
+      const k = code(p?.codigo || p?.codigoFornecedor || p?.codigoComercial || p?.oem || '');
+      if (k && !byCode.has(k)) byCode.set(k,p);
+      const d = norm(p?.desc || p?.descricao || '');
+      if (d && !byDesc.has(d)) byDesc.set(d,p);
+    });
+    return { byCode, byDesc };
+  }
+
+  function buildLinkIndexV270(links) {
+    const byId = new Map(), byKey = new Map(), byNumber = new Map();
+    const add = (map, key, value) => {
+      const k = String(key || '');
+      if (!k) return;
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(value);
+    };
+    (links || []).forEach(v => {
+      if (!activeFiscalLink(v)) return;
+      add(byId, v?.nfId, v);
+      add(byKey, v?.chave, v);
+      add(byNumber, v?.nfNumero, v);
+    });
+    return { byId, byKey, byNumber };
+  }
+
+  function linksForNoteV270(note, index) {
+    const found = [];
+    const seen = new Set();
+    const add = list => (list || []).forEach(v => { if (!seen.has(v)) { seen.add(v); found.push(v); } });
+    add(index.byId.get(String(note?.id || '')));
+    add(index.byKey.get(String(note?.chave || '')));
+    add(index.byNumber.get(String(note?.numero || '')));
+    return found;
+  }
+
+  function buildFiscalPieceRecords(force) {
+    const state = J();
+    const notes = Array.isArray(state.notasFiscaisEntrada) ? state.notasFiscaisEntrada : [];
+    const linksSource = Array.isArray(state.nfItensVinculos) ? state.nfItensVinculos : [];
+    const stock = Array.isArray(state.estoque) ? state.estoque : [];
+    const cached = !force &&
+      fiscalRecordsCacheV270.notesRef === notes && fiscalRecordsCacheV270.linksRef === linksSource && fiscalRecordsCacheV270.stockRef === stock &&
+      fiscalRecordsCacheV270.notesLen === notes.length && fiscalRecordsCacheV270.linksLen === linksSource.length && fiscalRecordsCacheV270.stockLen === stock.length;
+    if (cached) return fiscalRecordsCacheV270.records;
+
+    const linkIndex = buildLinkIndexV270(linksSource);
+    const stockIndex = buildStockIndexV270(stock);
     const out = [];
-    (J().notasFiscaisEntrada || []).forEach(n => {
-      const nfLinks = linksAll.filter(v => sameNF(v, n));
+    notes.forEach(n => {
+      const nfLinks = linksForNoteV270(n, linkIndex);
       (n.itens || []).forEach((item, index) => {
         const links = nfLinks.filter(v => linkMatchesItem(v, item, index));
         const destinations = classifyDestination(item, links);
-        const st = stockFor(item);
+        const st = stockFor(item, stockIndex);
         const placas = [...new Set(links.map(v => plate(v.placa)).filter(Boolean))];
         const osIds = [...new Set(links.map(v => v.osNumero || v.osId).filter(Boolean).map(String))];
         out.push({
@@ -276,7 +346,13 @@
         });
       });
     });
+    Object.assign(fiscalRecordsCacheV270, { notesRef:notes, linksRef:linksSource, stockRef:stock, notesLen:notes.length, linksLen:linksSource.length, stockLen:stock.length, records:out });
     return out;
+  }
+
+  function scheduleFiscalPiecesV270(delay) {
+    clearTimeout(fiscalRenderTimerV270);
+    fiscalRenderTimerV270 = setTimeout(() => renderFiscalPieces(), Number(delay ?? 160));
   }
 
   const DEST_LABEL = {
@@ -309,7 +385,7 @@
       </style>
       <div class="fp-v266-title">🔎 PESQUISA DE PEÇAS DAS NOTAS FISCAIS</div>
       <div class="fp-v266-filters">
-        <div><label class="j-label">Peça, código, NF, fornecedor, placa ou O.S.</label><input class="j-input" id="fiscalPecaBuscaV266" placeholder="Ex.: OC90, filtro, NF 123, ABC1D23" oninput="window.renderFiscalPecasV266()"></div>
+        <div><label class="j-label">Peça, código, NF, fornecedor, placa ou O.S.</label><input class="j-input" id="fiscalPecaBuscaV266" placeholder="Ex.: OC90, filtro, NF 123, ABC1D23" oninput="window.agendarRenderFiscalPecasV270()"></div>
         <div><label class="j-label">Destino</label><select class="j-select" id="fiscalPecaDestinoV266" onchange="window.renderFiscalPecasV266()">
           <option value="">Todos os destinos</option><option value="estoque">Com estoque</option><option value="os">Vinculada a O.S./veículo</option>
           <option value="garantia">Garantia</option><option value="uso_interno">Uso interno</option><option value="venda">Venda/saída</option>
@@ -367,11 +443,18 @@
     const target = byId('fiscalPecaResultadosV266');
     const summary = byId('fiscalPecaResumoV266');
     if (!target || !summary) return;
+    const filters = currentFiscalFilters();
+    const signature = `${norm(filters.q)}|${filters.dest}|${filters.status}|${filters.ini}|${filters.fim}`;
+    if (signature !== fiscalFilterSignatureV270) {
+      fiscalFilterSignatureV270 = signature;
+      fiscalPieceLimitV270 = 80;
+    }
     const all = buildFiscalPieceRecords();
-    const filtered = filterFiscalRecords(all, currentFiscalFilters());
+    const filtered = filterFiscalRecords(all, filters);
     const totalQtd = filtered.reduce((s,r)=>s+r.quantidade,0);
-    summary.textContent = `${filtered.length} peça(s) localizada(s) · quantidade ${totalQtd.toLocaleString('pt-BR')} · exibindo até 200 resultados.`;
-    target.innerHTML = filtered.slice(0,200).map(r => `
+    const visible = filtered.slice(0, Math.max(80, fiscalPieceLimitV270));
+    summary.textContent = `${filtered.length} peça(s) localizada(s) · quantidade ${totalQtd.toLocaleString('pt-BR')} · exibindo ${visible.length} de ${filtered.length}.`;
+    target.innerHTML = visible.map(r => `
       <div class="fp-v266-card">
         <div>
           <div class="fp-v266-label">Nota fiscal</div><div class="fp-v266-value"><b>NF ${esc(r.nfNumero || '-')}</b><br>${esc(r.fornecedor || '-')}<br><small>${esc(dataBR(r.data))}</small></div>
@@ -386,16 +469,24 @@
           <div class="fp-v266-label">Quantidade / estoque / status</div><div class="fp-v266-value">Qtd NF: <b>${esc(r.quantidade)}</b> · ${moeda(r.custo)}<br>Saldo atual: <b>${r.estoqueEncontrado ? esc(r.saldoEstoque) : 'não localizado'}</b><br><small>${esc(STATUS_LABEL[r.status] || r.status)}</small></div>
         </div>
       </div>`).join('') || `<div style="padding:16px;text-align:center;color:var(--muted);">Nenhuma peça encontrada com estes filtros.</div>`;
+    if (visible.length < filtered.length) {
+      target.insertAdjacentHTML('beforeend', `<div style="padding:10px;text-align:center;"><button type="button" class="btn-outline" onclick="window.carregarMaisFiscalPecasV270()">CARREGAR MAIS RESULTADOS (${visible.length}/${filtered.length})</button></div>`);
+    }
   }
 
+  W.agendarRenderFiscalPecasV270 = scheduleFiscalPiecesV270;
+  W.carregarMaisFiscalPecasV270 = function () { fiscalPieceLimitV270 += 80; renderFiscalPieces(); };
+  W.invalidarCacheFiscalPecasV266 = invalidateFiscalRecordsCacheV270;
   W.renderFiscalPecasV266 = renderFiscalPieces;
   W.limparFiscalPecasV266 = function () {
     ['fiscalPecaBuscaV266','fiscalPecaDestinoV266','fiscalPecaStatusV266','fiscalPecaInicioV266','fiscalPecaFimV266'].forEach(id => {
       const el = byId(id); if (el) el.value = '';
     });
+    fiscalPieceLimitV270 = 80;
+    fiscalFilterSignatureV270 = '';
     renderFiscalPieces();
   };
-  W.thiaFiscalPecasV266 = { build:buildFiscalPieceRecords, filter:filterFiscalRecords, labels:DEST_LABEL };
+  W.thiaFiscalPecasV266 = { build:buildFiscalPieceRecords, filter:filterFiscalRecords, labels:DEST_LABEL, invalidate:invalidateFiscalRecordsCacheV270 };
 
   function hookFiscalRender() {
     const old = W.renderDocsFiscaisHardening;

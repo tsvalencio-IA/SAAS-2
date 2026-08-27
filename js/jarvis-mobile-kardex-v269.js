@@ -49,7 +49,9 @@
       .j-input,.j-select,input,select,textarea,button{max-width:100%;}
 
       /* Grade automática: evita apertar Inventário e Fornecedores em colunas estreitas. */
-      #s-estoque>div{
+      /* Somente a grade Inventário + Fornecedores recebe comportamento de grade.
+         Cards fiscais independentes NÃO podem herdar grid, pois isso distorce toda a seção. */
+      #s-estoque>.j-auto-card-grid-stock{
         display:grid!important;
         grid-template-columns:repeat(auto-fit,minmax(min(100%,720px),1fr))!important;
         gap:16px!important;
@@ -57,7 +59,8 @@
         width:100%!important;
         min-width:0!important;
       }
-      #s-estoque>div>.j-card{width:100%!important;min-width:0!important;max-width:100%!important;}
+      #s-estoque>.j-auto-card-grid-stock>.j-card{width:100%!important;min-width:0!important;max-width:100%!important;}
+      #s-estoque>.j-card{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;}
 
       /* Filtros reais do inventário. */
       #estoqueFiltrosV269{
@@ -146,7 +149,8 @@
       }
 
       @media(max-width:900px){
-        #s-clientes>div,#s-estoque>div{grid-template-columns:1fr!important;width:100%!important;min-width:0!important;}
+        #s-clientes>div,#s-estoque>.j-auto-card-grid-stock{grid-template-columns:1fr!important;width:100%!important;min-width:0!important;}
+        #s-estoque>.j-card{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;}
       }
 
       @media(max-width:768px){
@@ -267,6 +271,16 @@
     return 'stock';
   }
 
+  const STOCK_PAGE_SIZE_V270 = 60;
+  let stockRenderLimitV270 = STOCK_PAGE_SIZE_V270;
+  let stockFilterSignatureV270 = '';
+  let stockRenderTimerV270 = null;
+
+  function scheduleStockRenderV270(delay) {
+    clearTimeout(stockRenderTimerV270);
+    stockRenderTimerV270 = setTimeout(() => renderStockStable(), Number(delay ?? 160));
+  }
+
   function currentStockFilters() {
     return {
       raw:byId('estoqueBuscaV269')?.value || W._estoqueBuscaPecas || '',
@@ -320,9 +334,12 @@
       if (oldSearch?.value) byId('estoqueBuscaV269').value = oldSearch.value;
       byId('estoqueBuscaV269')?.addEventListener('input', () => {
         W._estoqueBuscaPecas = byId('estoqueBuscaV269').value;
+        scheduleStockRenderV270(160);
+      });
+      byId('estoqueStatusV269')?.addEventListener('change', () => {
+        stockRenderLimitV270 = STOCK_PAGE_SIZE_V270;
         renderStockStable();
       });
-      byId('estoqueStatusV269')?.addEventListener('change', renderStockStable);
     }
     return true;
   }
@@ -335,8 +352,14 @@
     const filters = currentStockFilters();
     W._estoqueBuscaPecas = filters.raw;
     const list = filteredStockList(all);
+    const filterSignature = `${filters.q}|${filters.status}`;
+    if (filterSignature !== stockFilterSignatureV270) {
+      stockFilterSignatureV270 = filterSignature;
+      stockRenderLimitV270 = STOCK_PAGE_SIZE_V270;
+    }
+    const visible = list.slice(0, Math.max(STOCK_PAGE_SIZE_V270, stockRenderLimitV270));
 
-    tbody.innerHTML = list.map(p => {
+    tbody.innerHTML = visible.map(p => {
       const id = esc(p?.id || '');
       const qtd = num(p?.qtd ?? p?.quantidade ?? p?.saldo ?? 0);
       const min = num(p?.min ?? p?.minimo ?? 0);
@@ -359,14 +382,25 @@
       </tr>`;
     }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px;">${filters.q || filters.status !== 'all' ? 'Nenhuma peça encontrada para a pesquisa e o filtro selecionados' : 'Nenhum item'}</td></tr>`;
 
+    if (visible.length < list.length) {
+      tbody.insertAdjacentHTML('beforeend', `<tr data-stock-more="1"><td colspan="8" style="padding:12px;text-align:center;white-space:normal;"><button type="button" class="btn-outline" data-stock-action="load-more">CARREGAR MAIS PEÇAS (${visible.length}/${list.length})</button></td></tr>`);
+    }
+
     const summary = byId('estoqueResumoV269');
     if (summary) {
-      const positive = list.filter(p => num(p?.qtd ?? p?.quantidade ?? p?.saldo ?? 0) > 0).length;
-      const zero = list.filter(p => stockStatus(p) === 'zero').length;
-      const critical = list.filter(p => ['zero','critical'].includes(stockStatus(p))).length;
-      summary.textContent = `${list.length} peça(s) localizada(s) de ${all.length} · em estoque ${positive} · zeradas ${zero} · críticas ${critical}`;
+      let positive = 0, zero = 0, critical = 0;
+      list.forEach(p => {
+        const qtd = num(p?.qtd ?? p?.quantidade ?? p?.saldo ?? 0);
+        const st = stockStatus(p);
+        if (qtd > 0) positive++;
+        if (st === 'zero') zero++;
+        if (st === 'zero' || st === 'critical') critical++;
+      });
+      summary.textContent = `${list.length} peça(s) localizada(s) de ${all.length} · exibindo ${visible.length} · em estoque ${positive} · zeradas ${zero} · críticas ${critical}`;
     }
   }
+  W.agendarRenderEstoqueV270 = scheduleStockRenderV270;
+  W.resetRenderEstoqueV270 = function () { stockRenderLimitV270 = STOCK_PAGE_SIZE_V270; renderStockStable(); };
   renderStockStable.__thiaV2610Stock = true;
   renderStockStable.__thiaV2611Stock = true;
   renderStockStable.__estoqueMobileFixWrap = true;
@@ -388,6 +422,11 @@
       event.preventDefault();
       const id = button.dataset.stockId || '';
       const action = button.dataset.stockAction;
+      if (action === 'load-more') {
+        stockRenderLimitV270 += STOCK_PAGE_SIZE_V270;
+        renderStockStable();
+        return;
+      }
       if (action === 'edit') {
         W.prepPeca?.('edit', id);
         W.abrirModal?.('modalPeca');

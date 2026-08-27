@@ -124,7 +124,14 @@
       .hist-os-card[open] .hist-os-chevron{transform:rotate(90deg);}
       .exec-finalizados details{border:1px solid rgba(0,255,170,.18);background:rgba(0,255,170,.035);border-radius:4px;padding:8px;}
       .exec-finalizados summary{cursor:pointer;font-family:var(--fm);font-size:.7rem;color:var(--success);font-weight:800;letter-spacing:.8px;}
+      #docsFiscaisPanel,#consultaServicosTerceirizadosFin{width:100%;max-width:100%;min-width:0;}
+      #docsFiscaisPanel .j-card-body,#consultaServicosTerceirizadosFin .j-card-body{min-width:0;max-width:100%;}
+      #consultaServicosTerceirizadosFin .fin-terceiro-filtros-v270{display:grid;grid-template-columns:minmax(260px,1fr) minmax(135px,150px) minmax(135px,150px) minmax(145px,160px);gap:8px;align-items:end;margin-bottom:8px;min-width:0;}
+      #consultaServicosTerceirizadosFin .fin-terceiro-filtros-v270>*{min-width:0;}
+      #consultaServicosTerceirizadosFin .fin-terceiro-filtros-v270 input,#consultaServicosTerceirizadosFin .fin-terceiro-filtros-v270 select{width:100%;min-width:0;max-width:100%;}
+      @media(max-width:1050px){#consultaServicosTerceirizadosFin .fin-terceiro-filtros-v270{grid-template-columns:repeat(2,minmax(0,1fr));}}
       @media(max-width:900px){.op-table{min-width:640px}.nf-batch-tools .form-row{grid-template-columns:1fr!important}.execucao-aprovado-row{grid-template-columns:1fr!important}}
+      @media(max-width:620px){#consultaServicosTerceirizadosFin .fin-terceiro-filtros-v270{grid-template-columns:1fr;}#consultaServicosTerceirizadosFin .op-table{min-width:760px;}}
     `;
     D.head.appendChild(st);
   }
@@ -1094,7 +1101,7 @@
       </div>
       <div class="j-card-body">
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-          <input class="j-input" id="fiscalDocBusca" placeholder="Buscar por NF, fornecedor, codigo, placa, O.S." style="min-width:260px;flex:1;" oninput="window.renderDocsFiscaisHardening()">
+          <input class="j-input" id="fiscalDocBusca" placeholder="Buscar por NF, fornecedor, codigo, placa, O.S." style="min-width:260px;flex:1;" oninput="window.agendarRenderDocsFiscaisV270?.()">
           <select class="j-select" id="fiscalDocTipo" onchange="window.renderDocsFiscaisHardening()" style="width:180px;"><option value="">Todos</option><option value="entrada">Entradas NF</option><option value="mov">Movimentos estoque</option><option value="saida">Saidas/vendas</option></select>
         </div>
         <div class="op-table-wrap"><table class="op-table"><thead><tr><th>Tipo</th><th>Documento</th><th>Fornecedor/Cliente</th><th>Data</th><th>Valor/Qtd</th><th>Vinculos</th><th>Acoes</th></tr></thead><tbody id="tbDocsFiscais"></tbody></table></div>
@@ -1103,19 +1110,64 @@
     sec.prepend(panel);
     ensureFiscalModal();
   }
+  const fiscalDocsCacheV270 = { notesRef:null, movsRef:null, vendasRef:null, rows:[], linksRef:null, linksByNf:new Map() };
+  let fiscalDocsLimitV270 = 80;
+  let fiscalDocsFilterSignatureV270 = '';
+  let fiscalDocsTimerV270 = null;
+
+  function agendarRenderDocsFiscaisV270(delay) {
+    clearTimeout(fiscalDocsTimerV270);
+    fiscalDocsTimerV270 = setTimeout(() => renderDocsFiscais(), Number(delay ?? 160));
+  }
+
+  function fiscalDocsBaseRowsV270() {
+    const state = J();
+    const notes = Array.isArray(state.notasFiscaisEntrada) ? state.notasFiscaisEntrada : [];
+    const movsSrc = Array.isArray(state.estoqueMovimentos) ? state.estoqueMovimentos : [];
+    const vendasSrc = Array.isArray(state.vendasAutopecas) ? state.vendasAutopecas : [];
+    if (fiscalDocsCacheV270.notesRef === notes && fiscalDocsCacheV270.movsRef === movsSrc && fiscalDocsCacheV270.vendasRef === vendasSrc) return fiscalDocsCacheV270.rows;
+    const notas = notes.map(n => { const texto=[n.numero,n.chave,n.fornecedorSnapshot?.nome,n.fornecedorNome,n.totalNF].join(' '); return { kind:'entrada', doc:n, texto, textoNorm:norm(texto) }; });
+    const movs = movsSrc.map(m => { const texto=[m.tipo,m.nfNumero,m.desc,m.codigo,m.placa,m.osId].join(' '); return { kind:'mov', doc:m, texto, textoNorm:norm(texto) }; });
+    const vendas = vendasSrc.map(v => { const texto=[v.clienteNome,v.id,v.pagamento,(v.itens||[]).map(i=>i.desc).join(' ')].join(' '); return { kind:'saida', doc:v, texto, textoNorm:norm(texto) }; });
+    fiscalDocsCacheV270.notesRef = notes;
+    fiscalDocsCacheV270.movsRef = movsSrc;
+    fiscalDocsCacheV270.vendasRef = vendasSrc;
+    fiscalDocsCacheV270.rows = notas.concat(movs, vendas);
+    return fiscalDocsCacheV270.rows;
+  }
+
+  function fiscalLinksByNfV270() {
+    const links = Array.isArray(J().nfItensVinculos) ? J().nfItensVinculos : [];
+    if (fiscalDocsCacheV270.linksRef === links) return fiscalDocsCacheV270.linksByNf;
+    const map = new Map();
+    links.forEach(x => {
+      const id = String(x?.nfId || '');
+      if (!id) return;
+      if (!map.has(id)) map.set(id, []);
+      map.get(id).push(x);
+    });
+    fiscalDocsCacheV270.linksRef = links;
+    fiscalDocsCacheV270.linksByNf = map;
+    return map;
+  }
+
   function renderDocsFiscais() {
     const tb = byId('tbDocsFiscais');
     if (!tb) return;
     const q = norm(byId('fiscalDocBusca')?.value || '');
     const tipoFiltro = byId('fiscalDocTipo')?.value || '';
-    const notas = (J().notasFiscaisEntrada || []).map(n => ({ kind:'entrada', doc:n, texto:[n.numero,n.chave,n.fornecedorSnapshot?.nome,n.fornecedorNome,n.totalNF].join(' ') }));
-    const movs = (J().estoqueMovimentos || []).map(m => ({ kind:'mov', doc:m, texto:[m.tipo,m.nfNumero,m.desc,m.codigo,m.placa,m.osId].join(' ') }));
-    const vendas = (J().vendasAutopecas || []).map(v => ({ kind:'saida', doc:v, texto:[v.clienteNome,v.id,v.pagamento,(v.itens||[]).map(i=>i.desc).join(' ')].join(' ') }));
-    const rows = notas.concat(movs, vendas).filter(r => (!tipoFiltro || r.kind === tipoFiltro) && (!q || norm(r.texto).includes(q)));
-    tb.innerHTML = rows.slice(0,160).map(r => {
+    const signature = `${q}|${tipoFiltro}`;
+    if (signature !== fiscalDocsFilterSignatureV270) {
+      fiscalDocsFilterSignatureV270 = signature;
+      fiscalDocsLimitV270 = 80;
+    }
+    const rows = fiscalDocsBaseRowsV270().filter(r => (!tipoFiltro || r.kind === tipoFiltro) && (!q || r.textoNorm.includes(q)));
+    const visible = rows.slice(0, Math.max(80, fiscalDocsLimitV270));
+    const linksByNf = fiscalLinksByNfV270();
+    tb.innerHTML = visible.map(r => {
       const d = r.doc;
       if (r.kind === 'entrada') {
-        const vinc = (J().nfItensVinculos || []).filter(x => x.nfId === d.id);
+        const vinc = linksByNf.get(String(d.id || '')) || [];
         const vincReais = vinc.filter(vinculoFiscalReal);
         const excluida = d.excluidaAuditada || /excluida|cancelada/i.test(String(d.statusFiscal || d.statusConferencia || ''));
         return `<tr><td><span class="op-chip ${excluida?'danger':'ok'}">${excluida?'Excluida auditada':'Entrada NF'}</span></td><td><b>NF ${esc(d.numero || '-')}</b><br><small>${esc(d.chave || '')}</small></td><td>${esc(d.fornecedorSnapshot?.nome || d.fornecedorNome || '-')}</td><td>${esc(d.dataNF || d.createdAt || '-')}</td><td>${moeda(d.totalNF || d.totalItens || 0)}<br><small>${(d.itens||[]).length} item(ns)</small></td><td>${vincReais.length} vinculo(s)<br><small>${vinc.filter(x=>x.estoqueBaixadoAutomatico).length} baixa(s) auto</small></td><td><button class="btn-ghost" onclick="window.editarDocFiscal('${esc(d.id)}')">EDITAR</button>${excluida?'':`<button class="btn-danger" onclick="window.excluirNFAuditada ? window.excluirNFAuditada('${esc(d.id)}') : window.excluirNFDef('${esc(d.id)}')" style="margin-left:4px;">EXCLUIR</button>`}</td></tr>`;
@@ -1125,7 +1177,12 @@
       }
       return `<tr><td><span class="op-chip warn">${esc(d.tipo || 'Movimento')}</span></td><td>${esc(d.nfNumero || d.nfId || '-')}</td><td>${esc(d.fornecedorId || '-')}</td><td>${esc(d.createdAt || '-')}</td><td>${esc(d.qtd || 0)}<br><small>${moeda(d.total || 0)}</small></td><td>${esc(d.placa || '')} ${d.osId ? 'OS #' + esc(String(d.osId).slice(-6).toUpperCase()) : ''}<br>${esc(d.desc || '')}</td><td>-</td></tr>`;
     }).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:18px;">Nenhum documento fiscal/movimento encontrado.</td></tr>';
+    if (visible.length < rows.length) {
+      tb.insertAdjacentHTML('beforeend', `<tr><td colspan="7" style="padding:12px;text-align:center;white-space:normal;"><button type="button" class="btn-outline" onclick="window.carregarMaisDocsFiscaisV270?.()">CARREGAR MAIS DOCUMENTOS (${visible.length}/${rows.length})</button></td></tr>`);
+    }
   }
+  W.agendarRenderDocsFiscaisV270 = agendarRenderDocsFiscaisV270;
+  W.carregarMaisDocsFiscaisV270 = function () { fiscalDocsLimitV270 += 80; renderDocsFiscais(); };
   W.renderDocsFiscaisHardening = renderDocsFiscais;
   function ensureFiscalModal() {
     if (byId('modalFiscalDocHardening')) return;
@@ -1193,8 +1250,8 @@
         <div class="j-collapse-tools"><button type="button" class="btn-ghost j-collapse-toggle" onclick="window.toggleJarvisCollapse(this)" title="Minimizar ou expandir">−</button></div>
       </div>
       <div class="j-card-body">
-        <div style="display:grid;grid-template-columns:minmax(260px,1fr) 150px 150px 160px;gap:8px;align-items:end;margin-bottom:8px;">
-          <div class="form-group"><label class="j-label">Pesquisar</label><input class="j-input" id="finTerceiroBusca" placeholder="Serviço, fornecedor, placa, O.S., pedido ou NF" oninput="window.renderServicosTerceirizadosFinanceiro?.()"></div>
+        <div class="fin-terceiro-filtros-v270">
+          <div class="form-group"><label class="j-label">Pesquisar</label><input class="j-input" id="finTerceiroBusca" placeholder="Serviço, fornecedor, placa, O.S., pedido ou NF" oninput="window.agendarRenderServicosTerceirizadosV270?.()"></div>
           <div class="form-group"><label class="j-label">De</label><input type="date" class="j-input" id="finTerceiroInicio" onchange="window.renderServicosTerceirizadosFinanceiro?.()"></div>
           <div class="form-group"><label class="j-label">Até</label><input type="date" class="j-input" id="finTerceiroFim" onchange="window.renderServicosTerceirizadosFinanceiro?.()"></div>
           <div class="form-group"><label class="j-label">Origem</label><select class="j-select" id="finTerceiroOrigem" onchange="window.renderServicosTerceirizadosFinanceiro?.()"><option value="">Todos</option><option value="os">Serviço da O.S.</option><option value="real">Custo real / documento</option></select></div>
@@ -1202,7 +1259,7 @@
         <div id="finTerceiroResumo" style="font-family:var(--fm);font-size:.62rem;color:var(--muted);margin:4px 0 8px;">Nenhum filtro aplicado.</div>
         <div class="op-table-wrap"><table class="op-table"><thead><tr><th>Data</th><th>O.S. / Placa</th><th>Cliente</th><th>Serviço</th><th>Prestador / Fornecedor</th><th>Pedido / NF / Documento</th><th>Valor / Custo</th><th>Status O.S.</th></tr></thead><tbody id="tbServicosTerceirizadosFin"></tbody></table></div>
       </div>`;
-    fluxo.parentNode.insertBefore(card, fluxo);
+    fluxo.insertAdjacentElement('afterend', card);
     W.renderServicosTerceirizadosFinanceiro?.();
   }
 
@@ -1213,18 +1270,28 @@
     return '';
   }
 
-  W.renderServicosTerceirizadosFinanceiro = function () {
-    instalarConsultaServicosTerceirizadosFinanceiro();
-    const tb = byId('tbServicosTerceirizadosFin');
-    if (!tb) return;
-    const busca = norm(byId('finTerceiroBusca')?.value || '');
-    const ini = byId('finTerceiroInicio')?.value || '';
-    const fim = byId('finTerceiroFim')?.value || '';
-    const origemFiltro = byId('finTerceiroOrigem')?.value || '';
+  const terceirosCacheV270 = { osRef:null, clientesRef:null, veiculosRef:null, linhas:[] };
+  let terceirosLimitV270 = 80;
+  let terceirosFilterSignatureV270 = '';
+  let terceirosTimerV270 = null;
+
+  function agendarRenderServicosTerceirizadosV270(delay) {
+    clearTimeout(terceirosTimerV270);
+    terceirosTimerV270 = setTimeout(() => W.renderServicosTerceirizadosFinanceiro?.(), Number(delay ?? 160));
+  }
+
+  function linhasServicosTerceirizadosV270() {
+    const state = J();
+    const osList = Array.isArray(state.os) ? state.os : [];
+    const clientes = Array.isArray(state.clientes) ? state.clientes : [];
+    const veiculos = Array.isArray(state.veiculos) ? state.veiculos : [];
+    if (terceirosCacheV270.osRef === osList && terceirosCacheV270.clientesRef === clientes && terceirosCacheV270.veiculosRef === veiculos) return terceirosCacheV270.linhas;
+    const clientesById = new Map(clientes.map(c => [String(c.id || ''), c]));
+    const veiculosById = new Map(veiculos.map(v => [String(v.id || ''), v]));
     const linhas = [];
-    (J().os || []).forEach(o => {
-      const v = veiculoByOS(o) || {};
-      const cliente = (J().clientes || []).find(c => String(c.id) === String(o.clienteId)) || {};
+    osList.forEach(o => {
+      const v = veiculosById.get(String(o?.veiculoId || o?.veiculo || '')) || {};
+      const cliente = clientesById.get(String(o?.clienteId || '')) || {};
       const baseData = dataTerceiroFinanceiro(o.updatedAt || o.createdAt || o.dataAbertura || o.data);
       (o.servicos || []).forEach(sv => {
         const terceirizado = String(sv.tipoExecucao || sv.execucaoTipo || '').toLowerCase() === 'terceirizada' || sv.terceirizado === true || sv.servicoTerceirizado === true || !!(sv.terceirizadoNome || sv.prestadorNome || sv.fornecedorServicoNome);
@@ -1240,7 +1307,29 @@
         linhas.push({ origem:'real', data:dataTerceiroFinanceiro(sv.dataCompra || sv.dataServico || sv.data || sv.createdAt) || baseData, os:o, v, cliente, descricao:sv.descricao || sv.desc || '', fornecedor:sv.fornecedor || sv.fornecedorNome || sv.terceirizadoNome || '', documento:sv.pedidoFornecedor || sv.numeroPedidoFornecedor || sv.pedido || sv.nf || sv.nfNumero || sv.documento || '', valor:num(sv.valorCompra || sv.custo || sv.valorReal || sv.valor || 0) });
       });
     });
-    const filtradas = linhas.filter(x => {
+    terceirosCacheV270.osRef = osList;
+    terceirosCacheV270.clientesRef = clientes;
+    terceirosCacheV270.veiculosRef = veiculos;
+    terceirosCacheV270.linhas = linhas;
+    return linhas;
+  }
+
+  W.agendarRenderServicosTerceirizadosV270 = agendarRenderServicosTerceirizadosV270;
+  W.carregarMaisServicosTerceirizadosV270 = function () { terceirosLimitV270 += 80; W.renderServicosTerceirizadosFinanceiro?.(); };
+  W.renderServicosTerceirizadosFinanceiro = function () {
+    instalarConsultaServicosTerceirizadosFinanceiro();
+    const tb = byId('tbServicosTerceirizadosFin');
+    if (!tb) return;
+    const busca = norm(byId('finTerceiroBusca')?.value || '');
+    const ini = byId('finTerceiroInicio')?.value || '';
+    const fim = byId('finTerceiroFim')?.value || '';
+    const origemFiltro = byId('finTerceiroOrigem')?.value || '';
+    const signature = `${busca}|${ini}|${fim}|${origemFiltro}`;
+    if (signature !== terceirosFilterSignatureV270) {
+      terceirosFilterSignatureV270 = signature;
+      terceirosLimitV270 = 80;
+    }
+    const filtradas = linhasServicosTerceirizadosV270().filter(x => {
       if (origemFiltro && x.origem !== origemFiltro) return false;
       if (ini && x.data && x.data < ini) return false;
       if (fim && x.data && x.data > fim) return false;
@@ -1252,9 +1341,13 @@
     }).sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')));
     const totalReal = filtradas.filter(x=>x.origem==='real').reduce((s,x)=>s+num(x.valor),0);
     const totalTerceirosOS = filtradas.filter(x=>x.origem==='os' && x.valorEhCustoTerceiro).reduce((s,x)=>s+num(x.valor),0);
+    const visible = filtradas.slice(0, Math.max(80, terceirosLimitV270));
     const resumo = byId('finTerceiroResumo');
-    if (resumo) resumo.innerHTML = `<b style="color:var(--cyan)">${filtradas.length} registro(s)</b> • serviços terceiros informados: <b style="color:var(--warn)">${moeda(totalTerceirosOS)}</b> • custos reais documentados: <b style="color:var(--warn)">${moeda(totalReal)}</b>`;
-    tb.innerHTML = filtradas.map(x => `<tr><td>${esc(x.data || '-')}</td><td><b>${esc(String(x.os?.numero || x.os?.id || '').slice(-8).toUpperCase())}</b><br><small>${esc(x.os?.placa || x.v?.placa || '-')}</small></td><td>${esc(x.cliente?.nome || x.os?.cliente || '-')}</td><td>${esc(x.descricao || '-')}<br><small>${x.origem==='real'?'CUSTO REAL / DOCUMENTO':'SERVIÇO LANÇADO NA O.S.'}</small></td><td>${esc(x.fornecedor || '-')}</td><td>${esc(x.documento || '-')}</td><td>${x.origem==='os' && !x.valorEhCustoTerceiro ? '<span style="color:var(--muted)">NÃO INFORMADO</span>' : moeda(x.valor || 0)}</td><td>${esc(x.os?.status || '-')}</td></tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:18px;">Nenhum serviço terceirizado encontrado para os filtros informados.</td></tr>';
+    if (resumo) resumo.innerHTML = `<b style="color:var(--cyan)">${filtradas.length} registro(s)</b> • exibindo <b>${visible.length}</b> • serviços terceiros informados: <b style="color:var(--warn)">${moeda(totalTerceirosOS)}</b> • custos reais documentados: <b style="color:var(--warn)">${moeda(totalReal)}</b>`;
+    tb.innerHTML = visible.map(x => `<tr><td>${esc(x.data || '-')}</td><td><b>${esc(String(x.os?.numero || x.os?.id || '').slice(-8).toUpperCase())}</b><br><small>${esc(x.os?.placa || x.v?.placa || '-')}</small></td><td>${esc(x.cliente?.nome || x.os?.cliente || '-')}</td><td>${esc(x.descricao || '-')}<br><small>${x.origem==='real'?'CUSTO REAL / DOCUMENTO':'SERVIÇO LANÇADO NA O.S.'}</small></td><td>${esc(x.fornecedor || '-')}</td><td>${esc(x.documento || '-')}</td><td>${x.origem==='os' && !x.valorEhCustoTerceiro ? '<span style="color:var(--muted)">NÃO INFORMADO</span>' : moeda(x.valor || 0)}</td><td>${esc(x.os?.status || '-')}</td></tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:18px;">Nenhum serviço terceirizado encontrado para os filtros informados.</td></tr>';
+    if (visible.length < filtradas.length) {
+      tb.insertAdjacentHTML('beforeend', `<tr><td colspan="8" style="padding:12px;text-align:center;white-space:normal;"><button type="button" class="btn-outline" onclick="window.carregarMaisServicosTerceirizadosV270?.()">CARREGAR MAIS SERVIÇOS (${visible.length}/${filtradas.length})</button></td></tr>`);
+    }
   };
 
   function fornecedorNomePacote(id) {

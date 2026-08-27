@@ -105,6 +105,9 @@
       #cotacaoPecasOS[data-collapsed="1"] .cot-v263-body{display:none}
       #cotacaoPecasOS[data-collapsed="1"] .cot-v263-head{border-bottom:0}
       #cotacaoPecasOS .cot-v263-toggle{flex:0 0 auto;max-width:100%;white-space:normal}
+      #s-financeiro>#consultaServicosTerceirizadosFin,#s-financeiro>.j-card{min-width:0!important;max-width:100%!important;}
+      #s-financeiro #consultaServicosTerceirizadosFin .op-table-wrap{width:100%!important;max-width:100%!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch;}
+      #s-financeiro #consultaServicosTerceirizadosFin .op-table{width:100%!important;}
       @media(max-width:980px){
         #s-financeiro .j-card-header>div:last-child{width:100%;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
         #s-financeiro .j-card-header>div:last-child>*{width:100%!important;min-width:0!important}
@@ -475,6 +478,18 @@
     if(title)title.textContent='GASTO INTERNO / MANUTENÇÃO';
   };
 
+  let financeiroBuscaTimerV270 = null;
+  function installFinanceSearchDebounceV270(){
+    const input = byId('filtroFinBusca');
+    if (!input || input.dataset.thiaDebounceV270 === '1') return;
+    input.dataset.thiaDebounceV270 = '1';
+    input.oninput = function(){
+      clearTimeout(financeiroBuscaTimerV270);
+      W.thiaFinLimitV23 = 100;
+      financeiroBuscaTimerV270 = setTimeout(() => W.renderFinanceiro?.(), 160);
+    };
+  }
+
   function decorateCotacao(){
     const root=byId('cotacaoPecasOS');
     if(!root||root.dataset.v263==='1')return;
@@ -512,6 +527,7 @@
     injectStyle();
     ensureCategoryField();
     ensureToolbar();
+    installFinanceSearchDebounceV270();
     wrapRender();
     wrapExport();
     wrapPrepFin();
