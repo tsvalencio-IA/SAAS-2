@@ -490,14 +490,18 @@
   }
 
   function responderComissoesDetalhadas(texto, q, ctx, opts) {
-    if (!/comiss|mecanico|funcionario|colaborador/.test(q)) {
-      const funcSozinho = funcionarioPorPergunta(ctx, q);
-      if (!funcSozinho) return null;
-    }
+    // Comissão só é consultada quando a pergunta fala explicitamente em comissão.
+    // "Mecânico", "funcionário" ou "atendimento" isoladamente são consultas operacionais,
+    // e nunca devem ser desviadas para o financeiro.
+    if (!/comiss/.test(q)) return null;
     if (!podeFinanceiro(opts)) return 'Seu perfil nao tem permissao para consultar comissoes ou financeiro.';
     const func = funcionarioPorPergunta(ctx, q);
     let lista = ctx.financeiro.filter(financeiroEhComissao);
     if (func) lista = lista.filter(f => financeiroDoFuncionario(f, func));
+    const periodo = extrairPeriodoNaturalIA(texto);
+    if (periodo) {
+      lista = lista.filter(f => periodoContem(periodo, f.data || f.createdAt || f.dataLancamento || f.venc || f.vencimento || f.dataPagamento || f.pagoEm));
+    }
     const querPagas = /\b(pagas|pago|pagos|pagamento|liquidadas|quitadas)\b/.test(q) && !/\ba\s+pagar\b/.test(q);
     const querPendentes = /\b(a\s+pagar|pagar|pendente|pendentes|aberto|abertas|em\s+aberto|devido|devidas)\b/.test(q) || !querPagas;
     if (querPagas) lista = lista.filter(f => isPagoStatus(f.status));
@@ -521,7 +525,7 @@
     const consultaFinanceira = /boleto|boletos|conta|contas|titulo|duplicata|financeiro|pix|vencid|vencendo|vencimento|pagar|receber|paga|pagas|pago|pagos|pendente|pendentes|atrasad|hoje|amanha|dre|caixa|comiss/.test(q);
     if (!consultaFinanceira) return null;
     const comissoes = responderComissoesDetalhadas(texto, q, ctx, opts);
-    if (comissoes && /comiss|mecanico|funcionario|colaborador/.test(q)) return comissoes;
+    if (comissoes && /comiss/.test(q)) return comissoes;
     if (!podeFinanceiro(opts)) return 'Seu perfil nao tem permissao para consultar financeiro. Posso consultar O.S., historico tecnico, defeitos, veiculos e execucao.';
     const hoje = hojeISO();
     const amanha = (() => { const d = new Date(); d.setDate(d.getDate()+1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
@@ -972,6 +976,93 @@
     return null;
   }
 
+
+  // ===== V26.20.1 — consultas operacionais por cliente/período =====
+  // Mantém a consulta de frota cadastral separada do histórico real de atendimento.
+  function mecanicosRelacionadosOSIA(ctx, os) {
+    const nomes = [];
+    const ids = [];
+    const addNome = v => { const t=String(v||'').trim(); if(t) nomes.push(t); };
+    const addId = v => { const t=String(v||'').trim(); if(t) ids.push(t); };
+    addNome(os?.mecNome); addNome(os?.mecanicoNome); addNome(os?.responsavelNome);
+    addId(os?.mecId); addId(os?.mecanicoId); addId(os?.responsavelId);
+    (Array.isArray(os?.mecanicos) ? os.mecanicos : []).forEach(m => {
+      addNome(m?.nome || m?.mecNome || m?.mecanicoNome); addId(m?.id || m?.mecId || m?.mecanicoId);
+    });
+    (Array.isArray(os?.servicos) ? os.servicos : []).forEach(sv => {
+      addNome(sv?.mecNome || sv?.mecanicoNome || sv?.responsavelNome);
+      addId(sv?.mecId || sv?.mecanicoId || sv?.responsavelId);
+      (Array.isArray(sv?.rateiosComissao) ? sv.rateiosComissao : []).forEach(r => {
+        addNome(r?.mecNome || r?.nome); addId(r?.mecId || r?.funcionarioId || r?.id);
+      });
+    });
+    ids.forEach(id => {
+      const f=(ctx.equipe||[]).find(e => [e?.id,e?.uid,e?.userId,e?.usuarioId,e?.usuario,e?.login].map(v=>String(v||'')).includes(id));
+      if(f) addNome(f.nome || f.usuario || f.apelido);
+    });
+    return uniq(nomes);
+  }
+
+  function osTeveAtendimentoNoPeriodoIA(os, periodo) {
+    if (!periodo) return true;
+    if (periodoContem(periodo, dataPrincipalOS(os))) return true;
+    if (Object.values(os?.execucaoItens || {}).some(reg => periodoContem(periodo, reg?.atualizadoEm || reg?.updatedAt || reg?.data || reg?.em))) return true;
+    if ((Array.isArray(os?.timeline) ? os.timeline : []).some(ev => periodoContem(periodo, ev?.dt || ev?.data || ev?.createdAt || ev?.ts))) return true;
+    return (Array.isArray(os?.servicos) ? os.servicos : []).some(sv => periodoContem(periodo, dataLancamentoServicoIA(os, sv).data));
+  }
+
+  function resumoExecucaoOSClienteIA(ctx, os) {
+    const itens = itensOrcamentoOS(ctx, os);
+    const servicos = itens.filter(i => i.tipo === 'servico');
+    const pecas = itens.filter(i => i.tipo === 'peca');
+    const fmt = (lista, rotulo) => {
+      if (!lista.length) return '';
+      const executados = lista.filter(i => i.executado).slice(0,8);
+      const legados = lista.filter(i => !i.executado && i.legadoFinalizado).slice(0,8);
+      const aprovados = lista.filter(i => !i.executado && !i.legadoFinalizado && i.aprovado).slice(0,8);
+      const linhas=[];
+      if(executados.length) linhas.push(`${rotulo} com execu&ccedil;&atilde;o confirmada: ${executados.map(i=>esc(i.desc||'-')).join('; ')}`);
+      if(legados.length) linhas.push(`${rotulo} em O.S. finalizada sem confirma&ccedil;&atilde;o individual: ${legados.map(i=>esc(i.desc||'-')).join('; ')}`);
+      if(aprovados.length) linhas.push(`${rotulo} aprovado(s), execu&ccedil;&atilde;o n&atilde;o confirmada: ${aprovados.map(i=>esc(i.desc||'-')).join('; ')}`);
+      return linhas.join('<br>&nbsp;&nbsp;');
+    };
+    const partes=[fmt(servicos,'Servi&ccedil;o(s)'),fmt(pecas,'Pe&ccedil;a(s)')].filter(Boolean);
+    if(partes.length) return partes.join('<br>&nbsp;&nbsp;');
+    const servLancados=(Array.isArray(os?.servicos)?os.servicos:[]).filter(s=>s?.desc||s?.descricao).slice(0,8);
+    if(servLancados.length) return `Servi&ccedil;o(s) lan&ccedil;ado(s)/or&ccedil;ado(s), sem execu&ccedil;&atilde;o comprovada: ${servLancados.map(s=>esc(s.desc||s.descricao)).join('; ')}`;
+    return 'Nenhum servi&ccedil;o executado/lan&ccedil;ado foi identificado.';
+  }
+
+  function responderAtendimentosClientePeriodoIA(texto, q, ctx, opts) {
+    const periodo = extrairPeriodoNaturalIA(texto);
+    if (!periodo) return null;
+    const falaCliente = /cliente|frota|frotista|carros?|veiculos?/.test(q);
+    const falaAtendimento = /atend|vieram|veio|entraram|entrada|passaram|fizemos|fizeram|feito|servic|resumo/.test(q);
+    if (!falaCliente || !falaAtendimento) return null;
+    const cliente = clientePorPerguntaDiretaIA(ctx, texto) || clienteFiltroDaPergunta(texto, q, ctx)?.cliente || null;
+    if (!cliente) return null;
+    const id=String(cliente.id||'');
+    let lista=(ctx.os||[]).filter(os => {
+      if(id && (String(os?.clienteId||'')===id || String(os?.cliente?.id||'')===id)) return true;
+      return norm(clienteTextoOS(ctx,os)).includes(norm(cliente.nome||cliente.razaoSocial||cliente.fantasia||''));
+    });
+    const querVieram=/(vieram|veio|entraram|entrada|deram entrada|recebidos?)/.test(q);
+    lista=lista.filter(os => querVieram ? periodoContem(periodo,dataPrincipalOS(os)) : osTeveAtendimentoNoPeriodoIA(os,periodo));
+    lista.sort((a,b)=>dataISO(dataPrincipalOS(a)).localeCompare(dataISO(dataPrincipalOS(b))));
+    const nome=cliente.nome||cliente.razaoSocial||cliente.fantasia||cliente.id||'cliente';
+    if(!lista.length) return `N&atilde;o encontrei O.S./atendimento de <strong>${esc(nome)}</strong>${periodoRotuloIA(periodo)}.`;
+    const veiculos=new Set(lista.map(os=>placaOS(ctx,os)||os.veiculoId||os.id));
+    const linhas=lista.slice(0,60).map(os=>{
+      const v=veiculoDeOS(ctx,os);
+      const placa=placaOS(ctx,os)||'-';
+      const modelo=v.modelo||os.veiculoSnapshot?.modelo||os.veiculoModelo||os.veiculo||os.tipoVeiculo||'-';
+      const mecs=mecanicosRelacionadosOSIA(ctx,os);
+      const status=statusOperacionalAtendimento(os).rotulo;
+      return `- ${esc(dataBR(dataPrincipalOS(os))||'-')} | O.S. ${esc(String(os.numero||os.id||'-').slice(-10))} | <strong>${esc(placa)}</strong> | ${esc(modelo)} | ${esc(status)}${mecs.length?` | mec&acirc;nico(s): ${esc(mecs.join(', '))}`:''}<br>&nbsp;&nbsp;${resumoExecucaoOSClienteIA(ctx,os)}`;
+    });
+    return `<strong>Atendimentos de ${esc(nome)}${periodoRotuloIA(periodo)}:</strong><br>${lista.length} O.S. | ${veiculos.size} ve&iacute;culo(s).<br><br>${linhas.join('<br><br>')}<br><br><small>O relat&oacute;rio usa somente O.S. e eventos existentes no per&iacute;odo. Itens aprovados sem execu&ccedil;&atilde;o confirmada s&atilde;o identificados como tal.</small>`;
+  }
+
   function periodoAgendaIA(texto) {
     const q=norm(texto), agora=new Date();
     const isoLocal=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -1141,6 +1232,12 @@
     if (resumoCompleto) return resumoCompleto;
     const comparacaoCompra = responderComparacaoCompraFornecedorIA(texto, q, ctx, opts);
     if (comparacaoCompra) return comparacaoCompra;
+    const atendimentosCliente = responderAtendimentosClientePeriodoIA(texto, q, ctx, opts);
+    if (atendimentosCliente) return atendimentosCliente;
+    const atendimentosTodos = responderAtendimentosTodosMecanicosPeriodoIA(texto, q, ctx);
+    if (atendimentosTodos) return atendimentosTodos;
+    const veiculosAtendidosPeriodo = responderVeiculosAtendidosPeriodoIA(texto, q, ctx);
+    if (veiculosAtendidosPeriodo) return veiculosAtendidosPeriodo;
     const clienteFrota = responderClienteFrotaIA(texto, q, ctx);
     if (clienteFrota) return clienteFrota;
     const agenda = responderAgendaIA(texto, q, ctx);
@@ -1170,7 +1267,7 @@
     const notas = responderNotasDetalhadas(texto, q, ctx);
     if (notas) return notas;
     const comissoes = responderComissoesDetalhadas(texto, q, ctx, opts);
-    if (comissoes && /comiss|mecanico|funcionario|colaborador/.test(q)) return comissoes;
+    if (comissoes && /comiss/.test(q)) return comissoes;
     const financeiro = responderFinanceiroDetalhado(texto, q, ctx, opts);
     if (financeiro) return financeiro;
     const func = funcionarioPorPergunta(ctx, q);
@@ -1922,6 +2019,51 @@
     ].join('<br>');
   }
 
+
+  function responderAtendimentosTodosMecanicosPeriodoIA(texto, q, ctx) {
+    if (!/(?:todos|toda equipe|equipe).*(?:mecanicos|funcionarios|colaboradores)|(?:mecanicos|funcionarios|colaboradores).*(?:todos|toda equipe)/.test(q)) return null;
+    if (!/atend|resumo|relatorio|fizeram|trabalharam|realizaram|executaram/.test(q) || /comiss/.test(q)) return null;
+    const periodo=extrairPeriodoNaturalIA(texto);
+    if(!periodo) return 'Informe o per&iacute;odo para o resumo de atendimento de todos os mec&acirc;nicos.';
+    const blocos=[];
+    let totalOS=0;
+    const veiculos=new Set();
+    (ctx.equipe||[]).forEach(func=>{
+      const lista=(ctx.os||[])
+        .filter(os=>statusOperacionalAtendimento(os).permitido)
+        .filter(os=>evidenciaAtendimentoFuncionario(os,func,periodo))
+        .sort((a,b)=>dataISO(dataPrincipalOS(a)).localeCompare(dataISO(dataPrincipalOS(b))));
+      if(!lista.length) return;
+      totalOS+=lista.length;
+      lista.forEach(os=>veiculos.add(placaOS(ctx,os)||os.veiculoId||os.id));
+      const nome=func.nome||func.usuario||func.id||'Colaborador';
+      const linhas=lista.slice(0,30).map(os=>{
+        const v=veiculoDeOS(ctx,os); const placa=placaOS(ctx,os)||'-';
+        const serv=servicosDoFuncionarioNaOSIA(os,func).slice(0,6).map(s=>esc(s.desc||s.descricao||'Servi&ccedil;o')).join('; ');
+        return `- ${esc(dataBR(dataPrincipalOS(os))||'-')} | ${esc(placa)} | ${esc(v.modelo||os.veiculo||'-')} | ${esc(statusOperacionalAtendimento(os).rotulo)}${serv?` | ${serv}`:' | relacionado &agrave; O.S., sem servi&ccedil;o individual atribu&iacute;do'}`;
+      });
+      blocos.push(`<strong>${esc(nome)}</strong> — ${lista.length} O.S.:<br>${linhas.join('<br>')}`);
+    });
+    if(!blocos.length) return `N&atilde;o encontrei atendimento de mec&acirc;nicos${periodoRotuloIA(periodo)}.`;
+    return `<strong>Resumo de atendimento de todos os mec&acirc;nicos${periodoRotuloIA(periodo)}:</strong><br>${blocos.join('<br><br>')}<br><br><strong>Total:</strong> ${totalOS} rela&ccedil;&otilde;es de atendimento | ${veiculos.size} ve&iacute;culo(s) &uacute;nico(s).<br><small>Atendimento operacional e comiss&atilde;o permanecem separados.</small>`;
+  }
+
+  function responderVeiculosAtendidosPeriodoIA(texto, q, ctx) {
+    if (!/(?:todos|resumo|quais|liste|mostrar|mostre).*(?:veiculos|carros).*(?:atendid|atendimento)|(?:veiculos|carros).*(?:atendid|atendimento).*(?:todos|resumo|quais|liste|mostrar|mostre)/.test(q)) return null;
+    if (/cliente|frota|frotista/.test(q)) return null;
+    const periodo=extrairPeriodoNaturalIA(texto);
+    if(!periodo) return null;
+    const lista=(ctx.os||[]).filter(os=>!isCanceladaOS(os)&&osTeveAtendimentoNoPeriodoIA(os,periodo))
+      .sort((a,b)=>dataISO(dataPrincipalOS(a)).localeCompare(dataISO(dataPrincipalOS(b))));
+    if(!lista.length) return `N&atilde;o encontrei ve&iacute;culos atendidos${periodoRotuloIA(periodo)}.`;
+    const unicos=new Set(lista.map(os=>placaOS(ctx,os)||os.veiculoId||os.id));
+    const linhas=lista.slice(0,80).map(os=>{
+      const c=clienteDeOS(ctx,os); const v=veiculoDeOS(ctx,os); const mecs=mecanicosRelacionadosOSIA(ctx,os);
+      return `- ${esc(dataBR(dataPrincipalOS(os))||'-')} | ${esc(placaOS(ctx,os)||'-')} | ${esc(v.modelo||os.veiculo||'-')} | ${esc(c.nome||os.cliente||'-')} | ${esc(statusOperacionalAtendimento(os).rotulo)}${mecs.length?` | mec&acirc;nico(s): ${esc(mecs.join(', '))}`:''}<br>&nbsp;&nbsp;${resumoExecucaoOSClienteIA(ctx,os)}`;
+    });
+    return `<strong>Ve&iacute;culos atendidos${periodoRotuloIA(periodo)}:</strong><br>${lista.length} O.S. | ${unicos.size} ve&iacute;culo(s).<br><br>${linhas.join('<br><br>')}`;
+  }
+
   function extrairPlaca(txt) {
     const m = String(txt || '').match(/\b[A-Z]{3}[-\s]?\d[A-Z0-9]\d{2}\b/i);
     if (!m) return '';
@@ -2565,7 +2707,26 @@
     if (!/(servic|fez|realiz|execut|atend|trabalh|relacionad)/.test(q)) return null;
     const osRelacionadas = listaOS.filter(o => osAtribuidaFuncionario(o, func));
     const nome = func.nome || func.usuario || func.id || 'mec&acirc;nico';
+    const querConfirmarAutor = /(?:foi|era).*(?:quem|que).*(?:fez|realizou|executou|servic)|(?:foi|era)\s+(?:o|a)?\s*[^?]{2,40}\s+(?:que|quem)\s+(?:fez|realizou|executou)|quem\s+(?:fez|realizou|executou)/.test(q);
     if (!osRelacionadas.length) return `N&atilde;o encontrei <strong>${esc(nome)}</strong> relacionado &agrave;s O.S. carregadas da placa ${esc(placa)}.`;
+    if (querConfirmarAutor) {
+      const evidencias=[];
+      osRelacionadas.forEach(os=>{
+        const atribuida=osAtribuidaFuncionario(os,func);
+        const servicos=servicosDoFuncionarioNaOSIA(os,func);
+        const exec=Object.values(os?.execucaoItens||{}).filter(reg=>autoriaRegistroFuncionario(reg,func,atribuida));
+        const timeline=(Array.isArray(os?.timeline)?os.timeline:[]).filter(ev=>eventoMencionaFuncionarioIA(ev,func));
+        if(exec.length){
+          evidencias.push(`O.S. ${esc(String(os.numero||os.id||'-').slice(-10))}: execu&ccedil;&atilde;o registrada em nome de ${esc(nome)}${servicos.length?` — ${servicos.slice(0,6).map(s=>esc(s.desc||s.descricao||'Servi&ccedil;o')).join('; ')}`:''}`);
+        } else if(servicos.length){
+          evidencias.push(`O.S. ${esc(String(os.numero||os.id||'-').slice(-10))}: ${esc(nome)} est&aacute; atribu&iacute;do ao(s) servi&ccedil;o(s) ${servicos.slice(0,6).map(s=>esc(s.desc||s.descricao||'Servi&ccedil;o')).join('; ')}, mas sem confirma&ccedil;&atilde;o individual de execu&ccedil;&atilde;o.`);
+        } else if(timeline.length || atribuida){
+          evidencias.push(`O.S. ${esc(String(os.numero||os.id||'-').slice(-10))}: ${esc(nome)} est&aacute; relacionado &agrave; O.S., mas n&atilde;o h&aacute; servi&ccedil;o individual com execu&ccedil;&atilde;o comprovada em nome dele.`);
+        }
+      });
+      const confirmado=evidencias.some(x=>/execu&ccedil;&atilde;o registrada/.test(x));
+      return `<strong>${confirmado?'Sim, existe evid&ecirc;ncia de execu&ccedil;&atilde;o registrada.':'N&atilde;o &eacute; poss&iacute;vel afirmar que foi ele apenas pela rela&ccedil;&atilde;o com a O.S.'}</strong><br>${evidencias.join('<br>')}`;
+    }
     const querQuando = /\bquando\b|que\s+dia|que\s+hora|data.*(?:servic|troc|fez)/.test(q);
     const linhas = [];
     osRelacionadas.forEach(os => {
