@@ -789,13 +789,18 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 
     <section class="section" id="s-kanban">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;gap:12px;flex-wrap:wrap;">
-        <div style="display:flex;gap:10px;align-items:center;">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <div class="search-wrap">
             <svg viewBox="0 0 16 16"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
             <input class="j-input" id="searchOS" placeholder="Buscar placa ou cliente..." oninput="window.renderKanban()">
           </div>
           <select class="j-select" style="width:130px" id="filtroNichoKanban" onchange="window.renderKanban()">
             <option value="">Todos</option><option value="carro">🚗 Carros</option><option value="moto">🏍️ Motos</option><option value="bicicleta">🚲 Bicicletas</option>
+          </select>
+          <select class="j-select" style="width:190px" id="filtroRecebimentoKanban" onchange="window.renderKanban()" title="Filtrar O.S. pelo selo operacional de recebimento">
+            <option value="" id="optRecebimentoTodos">Recebimento: Todos</option>
+            <option value="nao_recebida" id="optRecebimentoNao">💰 Não recebidas</option>
+            <option value="recebida" id="optRecebimentoSim">✓ Recebidas</option>
           </select>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -4258,7 +4263,7 @@ window.iaAnalisarEstoque = function() { _jiaChamar('Quais pecas estao em estoque
 <script src="js/nfe-real-pro.js?v=26.16.0"></script>
 <script src="js/thia-runtime-core-v2613.js?v=26.13.0"></script>
 <script src="js/os-utils.js?v=26.17.2"></script>
-<script src="js/os.js?v=26.21.3"></script>
+<script src="js/os.js?v=26.21.4"></script>
 <script src="js/checklist-jarvis-bridge.js?v=26.13.0"></script>
 <script src="js/cotacoes.js"></script>
 <script src="js/assinatura-os.js"></script>

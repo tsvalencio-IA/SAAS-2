@@ -1528,6 +1528,8 @@ window.renderKanban = function() {
   const busca = ($v('searchOS') || '').trim().toLowerCase();
   const buscaEntregues = ($v('buscaEntreguesKanban') || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
   const filtroNicho = $v('filtroNichoKanban');
+  const filtroRecebimento = $v('filtroRecebimentoKanban');
+  const contagemRecebimento = { total: 0, naoRecebidas: 0, recebidas: 0 };
   const cols = {}; const cnts = {};
   KANBAN_STATUSES.forEach(s => { cols[s] = []; cnts[s] = 0; });
 
@@ -1552,9 +1554,24 @@ window.renderKanban = function() {
         .filter(Boolean).join(' ').toLowerCase().replace(/[^a-z0-9]/g, '');
       if (!txtEntregue.includes(buscaEntregues)) return;
     }
+
+    const estaRecebida = o.recebidaOperacional === true;
+    contagemRecebimento.total++;
+    if (estaRecebida) contagemRecebimento.recebidas++;
+    else contagemRecebimento.naoRecebidas++;
+
+    if (filtroRecebimento === 'recebida' && !estaRecebida) return;
+    if (filtroRecebimento === 'nao_recebida' && estaRecebida) return;
     
     if (cols[st]) { cols[st].push({ os: o, v, c }); cnts[st]++; }
   });
+
+  const optRecebimentoTodos = $('optRecebimentoTodos');
+  const optRecebimentoNao = $('optRecebimentoNao');
+  const optRecebimentoSim = $('optRecebimentoSim');
+  if (optRecebimentoTodos) optRecebimentoTodos.textContent = `Recebimento: Todos (${contagemRecebimento.total})`;
+  if (optRecebimentoNao) optRecebimentoNao.textContent = `💰 Não recebidas (${contagemRecebimento.naoRecebidas})`;
+  if (optRecebimentoSim) optRecebimentoSim.textContent = `✓ Recebidas (${contagemRecebimento.recebidas})`;
 
   KANBAN_STATUSES.forEach(s => {
     const cntEl = $('cnt-' + s); if (cntEl) cntEl.innerText = cnts[s];
