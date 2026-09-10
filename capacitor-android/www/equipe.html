@@ -2395,7 +2395,7 @@ async function salvarOS(){
 
       const obsEquipeNova = ($v('osObsEquipeNova') || '').trim();
       if (obsEquipeNova) {
-          tl.push({ dt: new Date().toISOString(), user: funcUser, userId: J.fid || '', perfil: J.role || 'equipe', tipo: 'observacao_equipe', observacao: obsEquipeNova, acao: `Observação da equipe: ${obsEquipeNova}` });
+          tl.push({ dt: new Date().toISOString(), user: funcUser, userId: J.fid || '', perfil: J.role || 'equipe', tipo: 'observacao_equipe', interno: true, visivelCliente: false, observacao: obsEquipeNova, acao: `Observação da equipe: ${obsEquipeNova}` });
           registouAlgo = true;
       }
 
@@ -2413,7 +2413,7 @@ async function salvarOS(){
       tl = JSON.parse($v('tlData') || '[]');
       tl.push({ dt: new Date().toISOString(), user: funcUser, acao: `Abriu a O.S. (Status inicial: ${statusPreservadoEquipe})` });
       const obsEquipeNova = ($v('osObsEquipeNova') || '').trim();
-      if (obsEquipeNova) tl.push({ dt: new Date().toISOString(), user: funcUser, userId: J.fid || '', perfil: J.role || 'equipe', tipo: 'observacao_equipe', observacao: obsEquipeNova, acao: `Observação da equipe: ${obsEquipeNova}` });
+      if (obsEquipeNova) tl.push({ dt: new Date().toISOString(), user: funcUser, userId: J.fid || '', perfil: J.role || 'equipe', tipo: 'observacao_equipe', interno: true, visivelCliente: false, observacao: obsEquipeNova, acao: `Observação da equipe: ${obsEquipeNova}` });
   }
   // --- FIM: DEEP DIFF ---
   
@@ -2439,7 +2439,7 @@ async function salvarOS(){
     prisma: prismaInformadoOS,
     numeroPrisma: prismaInformadoOS,
     desc:$v('osDesc'),diagnostico:$v('osDiag'),status:statusPreservadoEquipe,
-    observacoesEquipe:[...(Array.isArray(osBaseEquipe.observacoesEquipe)?osBaseEquipe.observacoesEquipe:[]), ...((($v('osObsEquipeNova')||'').trim()) ? [{dt:new Date().toISOString(),usuario:J.nome||'Equipe',usuarioId:J.fid||'',perfil:J.role||'equipe',texto:($v('osObsEquipeNova')||'').trim()}] : [])],
+    observacoesEquipe:(id && (($v('osObsEquipeNova')||'').trim()) ? firebase.firestore.FieldValue.arrayUnion({dt:new Date().toISOString(),usuario:J.nome||'Equipe',usuarioId:J.fid||'',perfil:J.role||'equipe',interno:true,visivelCliente:false,texto:($v('osObsEquipeNova')||'').trim()}) : [...(Array.isArray(osBaseEquipe.observacoesEquipe)?osBaseEquipe.observacoesEquipe:[]), ...((($v('osObsEquipeNova')||'').trim()) ? [{dt:new Date().toISOString(),usuario:J.nome||'Equipe',usuarioId:J.fid||'',perfil:J.role||'equipe',interno:true,visivelCliente:false,texto:($v('osObsEquipeNova')||'').trim()}] : [])]),
     maoObra:parseBR($v('osMO')||0),
     total: t,
     pecas,

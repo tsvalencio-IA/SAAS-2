@@ -663,6 +663,7 @@ function _renderPortalOS(osList) {
     const orcAlerta = isOrcamento ? `<div class="alerta-orcamento"><div style="font-family:var(--ff-display);font-size:1.2rem;font-weight:700;color:var(--warn);margin-bottom:6px">Orçamento Disponível</div>${resumoValoresHTML}<div style="display:flex;gap:10px;flex-wrap:wrap;"><button class="btn btn-success" style="flex:1;" onclick="_aprovarOrcamento('${os.id}')">✓ APROVAR</button><button class="btn btn-outline" style="flex:1;" onclick="_negociarOrcamento('${placaFormatada}')">💬 NEGOCIAR</button></div></div>` : '';
 
     const timelinePublica = (os.timeline || []).filter(t => {
+      if (t?.interno === true || String(t?.tipo || t?.tipoEvento || '').toLowerCase() === 'observacao_equipe') return false;
       if (t.tipo === 'status_os' || t.visivelCliente === true) return true;
       const acao = String(t.acao || '').toLowerCase();
       if (/interna|execu[cç][aã]o|pe[cç]as reais|financeiro|custo|margem|comiss|auditoria|estoque|nf\b|fornecedor/.test(acao)) return false;

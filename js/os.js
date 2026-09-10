@@ -2399,6 +2399,7 @@ window.prepOS = function(mode, id = null) {
   if ($('osMediaArray')) $('osMediaArray').value = '[]';
   if ($('osTimeline')) $('osTimeline').innerHTML = ''; 
   if ($('osTimelineData')) $('osTimelineData').value = '[]';
+  window.renderObservacoesEquipeJarvisOS?.(null);
   if ($('osIdBadge')) $('osIdBadge').innerText = 'NOVA O.S.';
   window.atualizarVisibilidadeDescontosOS?.();
   atualizarResumoDescontosOS({ descMO: 0, descPeca: 0, brutoServicos: 0, liquidoServicos: 0, brutoPecas: 0, liquidoPecas: 0 });
@@ -2572,6 +2573,7 @@ window.prepOS = function(mode, id = null) {
         $('osTimelineData').value = JSON.stringify(o.timeline);
         window.renderTimelineOS();
     }
+    window.renderObservacoesEquipeJarvisOS?.(o);
     
     if($('osMediaArray')) {
         $('osMediaArray').value = JSON.stringify(window.osFotos);
@@ -5734,6 +5736,60 @@ window.renderMediaOS = function() {
 window.removerMediaOS = function(idx) {
   const media = JSON.parse($('osMediaArray').value || '[]');
   media.splice(idx, 1); $('osMediaArray').value = JSON.stringify(media); window.renderMediaOS();
+};
+
+window.renderObservacoesEquipeJarvisOS = function(os) {
+  const box = $('osObservacoesEquipeInternas');
+  const listaEl = $('osObservacoesEquipeLista');
+  if (!box || !listaEl) return;
+
+  const registros = [];
+  const adicionar = (dt, usuario, texto) => {
+    const txt = String(texto || '').trim();
+    if (!txt) return;
+    registros.push({
+      dt: dt || '',
+      usuario: String(usuario || 'Equipe').trim() || 'Equipe',
+      texto: txt
+    });
+  };
+
+  (Array.isArray(os?.observacoesEquipe) ? os.observacoesEquipe : []).forEach(o => {
+    adicionar(o?.dt || o?.data || o?.createdAt, o?.usuario || o?.user || o?.usuarioNome, o?.texto || o?.obs || o?.observacao);
+  });
+
+  // Compatibilidade com observações já gravadas somente na timeline em versões anteriores.
+  (Array.isArray(os?.timeline) ? os.timeline : []).forEach(t => {
+    const tipo = String(t?.tipo || t?.tipoEvento || '').toLowerCase();
+    const acao = String(t?.acao || '');
+    if (tipo !== 'observacao_equipe' && !/^observa[cç][aã]o da equipe\s*:/i.test(acao)) return;
+    const texto = t?.observacao || acao.replace(/^observa[cç][aã]o da equipe\s*:\s*/i, '');
+    adicionar(t?.dt || t?.data || t?.createdAt, t?.user || t?.usuario || t?.usuarioNome, texto);
+  });
+
+  registros.sort((a,b) => String(b.dt || '').localeCompare(String(a.dt || '')));
+  const unicos = [];
+  registros.forEach(r => {
+    const rTs = Date.parse(r.dt || '') || 0;
+    const repetidoDaMesmaGravacao = unicos.some(u => {
+      if (u.usuario.toLowerCase() !== r.usuario.toLowerCase() || u.texto !== r.texto) return false;
+      const uTs = Date.parse(u.dt || '') || 0;
+      return rTs && uTs ? Math.abs(uTs - rTs) <= 60000 : String(u.dt || '') === String(r.dt || '');
+    });
+    if (!repetidoDaMesmaGravacao) unicos.push(r);
+  });
+
+  if (!unicos.length) {
+    box.style.display = 'none';
+    listaEl.innerHTML = '';
+    return;
+  }
+
+  box.style.display = 'block';
+  listaEl.innerHTML = unicos.slice(0, 30).map(r => {
+    const data = r.dt ? dtHrBr(r.dt) : '-';
+    return `<div style="padding:7px 0;border-top:1px solid rgba(255,183,77,.12);"><span style="color:var(--muted);">${escOS(data)}</span> · <strong style="color:var(--warn);">${escOS(r.usuario)}</strong><br><span>${escOS(r.texto)}</span></div>`;
+  }).join('');
 };
 
 window.renderTimelineOS = function() {

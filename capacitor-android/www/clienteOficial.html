@@ -895,12 +895,12 @@ function _buildOSCard(os){
 
   // Linha do tempo: apenas mudanças de status (filtra logs de auditoria técnica)
   const tlFiltrado=(os.timeline||[]).filter(t=>{
-    if(_eventoPecaRealOficial(t)||t.interno===true) return false;
+    if(_eventoPecaRealOficial(t)||t.interno===true||String(t?.tipo||t?.tipoEvento||'').toLowerCase()==='observacao_equipe') return false;
     if(t.tipo==='status_os'||t.visivelCliente===true) return true;
     const a=(t.acao||'').toLowerCase();
     return a.includes('status alterado')||a.includes('abriu a o.s')||a.includes('aprovou')||a.includes('recusou')||a.includes('entregue')||a.includes('aprovado');
   });
-  const tlParaExibir=tlFiltrado.length>0?tlFiltrado:(os.timeline||[]).filter(t=>!_eventoPecaRealOficial(t)&&t.interno!==true&&(t.acao||'').toLowerCase().includes('status'));
+  const tlParaExibir=tlFiltrado.length>0?tlFiltrado:(os.timeline||[]).filter(t=>!_eventoPecaRealOficial(t)&&t.interno!==true&&String(t?.tipo||t?.tipoEvento||'').toLowerCase()!=='observacao_equipe'&&(t.acao||'').toLowerCase().includes('status'));
   const textoTimelineOficial=t=>{
     if(t.tipo==='status_os'){
       return `Status atualizado para ${String(t.statusNovo||'').replace('_',' ')} por ${t.user||t.usuario||'Sistema'}.`;

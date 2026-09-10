@@ -1251,6 +1251,13 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
       <label class="j-label">Diagnóstico Técnico (Interno)</label>
       <textarea class="j-textarea" id="osDiagnostico" rows="2" placeholder="Diagnóstico da equipe técnica após avaliação..."></textarea>
     </div>
+    <div id="osObservacoesEquipeInternas" style="display:none;background:rgba(255,183,77,.06);border:1px solid rgba(255,183,77,.30);border-left:3px solid var(--warn);border-radius:3px;padding:12px 14px;margin:8px 0 12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:7px;">
+        <div style="font-family:var(--fm);font-size:.68rem;font-weight:800;letter-spacing:.9px;color:var(--warn);">🔒 OBSERVAÇÕES INTERNAS DA EQUIPE</div>
+        <div style="font-family:var(--fm);font-size:.55rem;color:var(--muted);">NÃO APARECE PARA CLIENTE • PDF • PLANILHAS • ORÇAMENTOS EXPORTADOS</div>
+      </div>
+      <div id="osObservacoesEquipeLista" style="font-family:var(--fm);font-size:.68rem;line-height:1.55;color:var(--text);"></div>
+    </div>
 
     <div style="background:var(--surf3);border:1px solid rgba(0,212,255,0.15);border-radius:3px;padding:18px;margin-top:12px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
@@ -4199,7 +4206,7 @@ window.iaAnalisarEstoque = function() { _jiaChamar('Quais pecas estao em estoque
 <script src="js/nfe-real-pro.js?v=26.16.0"></script>
 <script src="js/thia-runtime-core-v2613.js?v=26.13.0"></script>
 <script src="js/os-utils.js?v=26.17.2"></script>
-<script src="js/os.js?v=26.21.2"></script>
+<script src="js/os.js?v=26.21.3"></script>
 <script src="js/checklist-jarvis-bridge.js?v=26.13.0"></script>
 <script src="js/cotacoes.js"></script>
 <script src="js/assinatura-os.js"></script>
