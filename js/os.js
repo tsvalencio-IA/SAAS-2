@@ -1627,7 +1627,7 @@ window.renderKanban = function() {
               ${prismaFmt}${recebidaBadge}
             </div>
             <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
-              ${s !== 'Entregue' ? `<button title="${recebidaOperacional?'Desmarcar recebimento operacional':'Marcar O.S. como recebida sem registrar forma de pagamento'}" onclick="event.stopPropagation();window.toggleOSRecebidaOperacional('${os.id}')" style="background:${recebidaOperacional?'rgba(0,255,136,.14)':'transparent'};border:1px solid ${recebidaOperacional?'var(--success)':'rgba(0,255,136,.42)'};color:${recebidaOperacional?'var(--success)':'var(--muted2)'};font-family:var(--fm);font-size:.56rem;padding:3px 6px;border-radius:3px;cursor:pointer;white-space:nowrap;">${recebidaOperacional?'✓ RECEBIDA':'💰 RECEBER'}</button>` : ''}
+              <button title="${recebidaOperacional?'Desmarcar recebimento operacional':'Marcar O.S. como recebida sem registrar forma de pagamento'}" onclick="event.stopPropagation();window.toggleOSRecebidaOperacional('${os.id}')" style="background:${recebidaOperacional?'rgba(0,255,136,.14)':'transparent'};border:1px solid ${recebidaOperacional?'var(--success)':'rgba(0,255,136,.42)'};color:${recebidaOperacional?'var(--success)':'var(--muted2)'};font-family:var(--fm);font-size:.56rem;padding:3px 6px;border-radius:3px;cursor:pointer;white-space:nowrap;">${recebidaOperacional?'✓ RECEBIDA':'💰 RECEBER'}</button>
               ${btnExcluir}
             </div>
         </div>
