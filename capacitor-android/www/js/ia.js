@@ -468,6 +468,13 @@
     return `<strong>Notas fiscais localizadas (${lista.length}):</strong><br>${lista.slice(0, 25).map(formatarLinhaNota).join('<br>')}<br><br><strong>Total:</strong> ${moeda(total)}`;
   }
 
+  function acaoPagamentoComissaoIA(func, osIds) {
+    const id = String(func?.id || func?.uid || '').trim();
+    if (!id) return '';
+    const ids = Array.from(new Set((osIds || []).map(v => String(v || '').trim()).filter(Boolean))).slice(0, 80);
+    return `<br><button type="button" data-mec-id="${esc(id)}" data-os-ids="${esc(ids.join(','))}" onclick="window.thiaAbrirComissaoIA && window.thiaAbrirComissaoIA(this)" style="margin-top:8px;padding:7px 10px;border:1px solid rgba(0,212,255,.42);border-radius:4px;background:rgba(0,212,255,.08);color:var(--cyan,#00d4ff);font-family:var(--fm);font-size:.62rem;font-weight:800;letter-spacing:.5px;cursor:pointer;">SELECIONAR O.S. / REGISTRAR COMISSÃO — ${esc(func.nome || func.usuario || 'COLABORADOR')}</button>`;
+  }
+
   function responderComissoesDetalhadas(texto, q, ctx, opts) {
     if (!/comiss|mecanico|funcionario|colaborador/.test(q)) {
       const funcSozinho = funcionarioPorPergunta(ctx, q);
@@ -493,7 +500,22 @@
     const resumo = Object.keys(porPessoa).length > 1
       ? '<br><strong>Resumo por colaborador:</strong><br>' + Object.entries(porPessoa).sort((a,b)=>b[1]-a[1]).map(([nome, total]) => `- ${esc(nome)}: ${moeda(total)}`).join('<br>')
       : '';
-    return `<strong>Comissões ${querPagas ? 'pagas' : 'a pagar'}${tituloPessoa} (${lista.length}):</strong><br>${lista.slice(0, 10).map(formatarLinhaFinanceiro).join('<br>')}<br><br><strong>Total:</strong> ${moeda(total)}${resumo}`;
+    const acoes = (() => {
+      if (querPagas) return '';
+      if (func) return acaoPagamentoComissaoIA(func, lista.map(f => f.osId));
+      const porMec = new Map();
+      lista.forEach(f => {
+        const id = String(f.mecId || f.funcId || f.funcionarioId || f.colaboradorId || '').trim();
+        if (!id) return;
+        if (!porMec.has(id)) porMec.set(id, []);
+        if (f.osId) porMec.get(id).push(f.osId);
+      });
+      return Array.from(porMec.entries()).slice(0, 12).map(([id, osIds]) => {
+        const pessoa = (ctx.equipe || []).find(e => String(e.id || e.uid || '') === id) || { id, nome: (lista.find(f => String(f.mecId || f.funcId || f.funcionarioId || f.colaboradorId || '') === id)?.mecNome || 'Colaborador') };
+        return acaoPagamentoComissaoIA(pessoa, osIds);
+      }).join('');
+    })();
+    return `<strong>Comissões ${querPagas ? 'pagas' : 'a pagar'}${tituloPessoa} (${lista.length}):</strong><br>${lista.slice(0, 10).map(formatarLinhaFinanceiro).join('<br>')}<br><br><strong>Total:</strong> ${moeda(total)}${resumo}${acoes}`;
   }
 
   function responderFinanceiroDetalhado(texto, q, ctx, opts) {
@@ -1184,7 +1206,8 @@
       return [
         `<strong>Resumo de ${esc(nome)} ${periodoTitulo}:</strong>`,
         linhasResumo.join('<br><br>'),
-        resumoValores
+        resumoValores,
+        podeVerValores ? acaoPagamentoComissaoIA(func, lista.map(item => item.os?.id).filter(Boolean)) : ''
       ].join('<br>');
     }
     return [

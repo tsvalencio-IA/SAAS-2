@@ -483,6 +483,49 @@ body.equipe-page .overlay.open{display:flex!important;}
   </div>
 </div>
 
+<!-- CADASTROS RÁPIDOS DA EQUIPE: usam somente os dados já carregados e uma gravação direta, sem consultas extras -->
+<div class="overlay" id="modalEquipeClienteRapido">
+  <div class="modal" style="max-width:540px;">
+    <div class="modal-head"><div class="modal-title">NOVO CLIENTE — DIRETO NA O.S.</div><button class="modal-close" onclick="fecharModal('modalEquipeClienteRapido')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="j-label">Nome *</label><input class="j-input" id="eqCliNome" autocomplete="name" placeholder="Nome / Razão social"></div>
+      <div class="form-row c2">
+        <div class="form-group"><label class="j-label">WhatsApp</label><input class="j-input" id="eqCliWpp" inputmode="tel" placeholder="17999999999"></div>
+        <div class="form-group"><label class="j-label">CPF / CNPJ</label><input class="j-input" id="eqCliDoc" inputmode="numeric" placeholder="Somente se informado"></div>
+      </div>
+      <div class="form-group"><label class="j-label">E-mail</label><input class="j-input" id="eqCliEmail" type="email" autocomplete="email" placeholder="Opcional"></div>
+      <div style="font-family:var(--fm);font-size:.58rem;color:var(--muted);line-height:1.45;">Cadastro rápido cria cliente comum (B2C). Cliente Oficial continua sendo cadastrado exclusivamente pelo gestor no Jarvis.</div>
+    </div>
+    <div class="modal-foot"><button class="btn-ghost" onclick="fecharModal('modalEquipeClienteRapido')">CANCELAR</button><button class="btn-primary" id="btnSalvarEqCli" onclick="salvarCadastroRapidoClienteEquipe()">SALVAR E USAR NA O.S.</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="modalEquipeVeiculoRapido">
+  <div class="modal" style="max-width:620px;">
+    <div class="modal-head"><div class="modal-title">NOVO VEÍCULO — DIRETO NA O.S.</div><button class="modal-close" onclick="fecharModal('modalEquipeVeiculoRapido')">✕</button></div>
+    <div class="modal-body">
+      <div id="eqVeicClienteInfo" style="font-family:var(--fm);font-size:.62rem;color:var(--cyan);margin-bottom:10px;"></div>
+      <div class="form-row c2">
+        <div class="form-group"><label class="j-label">Placa *</label><input class="j-input" id="eqVeicPlaca" maxlength="8" autocapitalize="characters" placeholder="ABC1D23"></div>
+        <div class="form-group"><label class="j-label">Modelo *</label><input class="j-input" id="eqVeicModelo" placeholder="Ex.: Gol 1.6"></div>
+      </div>
+      <div class="form-row c2">
+        <div class="form-group"><label class="j-label">Marca</label><input class="j-input" id="eqVeicMarca" placeholder="Ex.: VW"></div>
+        <div class="form-group"><label class="j-label">Tipo</label><select class="j-select" id="eqVeicTipo"><option value="carro">Carro</option><option value="moto">Moto</option><option value="bicicleta">Bicicleta</option></select></div>
+      </div>
+      <div class="form-row c2">
+        <div class="form-group"><label class="j-label">Ano</label><input class="j-input" id="eqVeicAno" inputmode="numeric" placeholder="2020"></div>
+        <div class="form-group"><label class="j-label">KM</label><input class="j-input" id="eqVeicKm" inputmode="numeric" placeholder="45000"></div>
+      </div>
+      <div class="form-row c2">
+        <div class="form-group"><label class="j-label">Cor</label><input class="j-input" id="eqVeicCor" placeholder="Cor"></div>
+        <div class="form-group"><label class="j-label">Chassi</label><input class="j-input" id="eqVeicChassi" autocapitalize="characters" placeholder="Opcional"></div>
+      </div>
+    </div>
+    <div class="modal-foot"><button class="btn-ghost" onclick="fecharModal('modalEquipeVeiculoRapido')">CANCELAR</button><button class="btn-primary" id="btnSalvarEqVeic" onclick="salvarCadastroRapidoVeiculoEquipe()">SALVAR E USAR NA O.S.</button></div>
+  </div>
+</div>
+
 <div class="overlay-ia" id="modalIaOS">
 <div class="modal-ia">
   <div class="modal-ia-head">
@@ -535,24 +578,24 @@ body.equipe-page .overlay.open{display:flex!important;}
           <option value="carro">🚗 Carro</option><option value="moto">🏍️ Moto</option><option value="bicicleta">🚲 Bicicleta</option>
         </select>
       </div>
-      <div class="form-group"><label class="j-label">Status</label>
-        <select class="j-select" id="osStatus" onchange="window._validarStatusMecanico(this)">
-          <option value="Aguardando">Triagem</option>
-          <option value="Orcamento">Orçamento</option>
-          <option value="Aprovado">Aprovado</option>
-          <option value="Andamento">Em Serviço</option>
-          <option value="Pronto">✓ Pronto p/ Retirada (mecânico finaliza aqui)</option>
-          <option value="Entregue" data-restrito="gestor">🔒 Entregue (somente gestor/caixa)</option>
-        </select>
-        <div id="osStatusAviso" style="font-family:var(--fm);font-size:0.6rem;color:var(--warn);margin-top:4px;display:none;letter-spacing:0.5px;"></div>
+      <div class="form-group"><label class="j-label">Status atual</label>
+        <input type="hidden" id="osStatus" value="Aguardando">
+        <input type="text" class="j-input" id="osStatusVisual" value="TRIAGEM" readonly aria-readonly="true" style="font-family:var(--fm);font-weight:800;color:var(--cyan);letter-spacing:.7px;background:rgba(0,212,255,.04);">
+        <div id="osStatusAviso" style="display:block;font-family:var(--fm);font-size:0.58rem;color:var(--muted);margin-top:4px;letter-spacing:0.4px;">Status controlado pelo gestor no Jarvis. A equipe não altera o fluxo da O.S.</div>
       </div>
     </div>
     <div class="form-row c2">
       <div class="form-group"><label class="j-label">Cliente</label>
-        <select class="j-select" id="osCliente" onchange="filtrarVeics()"></select>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;">
+          <select class="j-select" id="osCliente" onchange="filtrarVeics()"></select>
+          <button type="button" class="btn-outline" onclick="abrirCadastroRapidoClienteEquipe()" title="Cadastrar cliente sem sair da O.S." style="white-space:nowrap;padding:8px 10px;">+ CLIENTE</button>
+        </div>
       </div>
       <div class="form-group"><label class="j-label">Veículo</label>
-        <select class="j-select" id="osVeiculo"></select>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:center;">
+          <select class="j-select" id="osVeiculo"></select>
+          <button type="button" class="btn-outline" onclick="abrirCadastroRapidoVeiculoEquipe()" title="Cadastrar veículo para o cliente selecionado" style="white-space:nowrap;padding:8px 10px;">+ VEÍCULO</button>
+        </div>
       </div>
     </div>
     <div class="form-row c2">
@@ -586,6 +629,16 @@ body.equipe-page .overlay.open{display:flex!important;}
         <textarea class="j-textarea" id="osDiag" rows="2" placeholder="Diagnóstico do mecânico..."></textarea>
         <button type="button" class="btn-voice" onclick="iniciarVoz('osDiag',this)" title="Falar para preencher">🎙️</button>
       </div>
+    </div>
+
+    <div class="form-group" style="background:rgba(255,184,0,.035);border:1px solid rgba(255,184,0,.18);border-radius:4px;padding:12px;">
+      <label class="j-label" style="color:var(--warn);">Observação da equipe / auditoria</label>
+      <div class="field-voice-wrap has-textarea">
+        <textarea class="j-textarea" id="osObsEquipeNova" rows="2" placeholder="Ex.: ruído confirmado no teste, peça não localizada, cliente informou novo sintoma..."></textarea>
+        <button type="button" class="btn-voice" onclick="iniciarVoz('osObsEquipeNova',this)" title="Falar para preencher">🎙️</button>
+      </div>
+      <div style="font-family:var(--fm);font-size:.58rem;color:var(--muted);margin-top:5px;line-height:1.45;">Ao salvar, a observação recebe data, hora e usuário e fica registrada na auditoria/timeline da O.S.</div>
+      <div id="osObsEquipeHistorico" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);font-family:var(--fm);font-size:.62rem;color:var(--muted2);line-height:1.55;"></div>
     </div>
 
     <div style="background:var(--surf3);border:1px solid rgba(0,212,255,0.15);border-radius:3px;padding:14px;margin-bottom:14px;">
@@ -1079,6 +1132,10 @@ const STATUS_NEXT = {
 };
 
 async function quickMoveOS(osId, novoStatus, ev) {
+  // V26.21 — a equipe não altera mais o status da O.S.; fluxo controlado somente pelo gestor no Jarvis.
+  if (ev) { try { ev.stopPropagation(); } catch(_) {} }
+  toast('Status da O.S. é controlado pelo gestor no Jarvis.', 'warn');
+  return;
   ev.stopPropagation();
   if (!novoStatus) {
     toast('⚠ O gestor/caixa deve marcar como Entregue após confirmar o pagamento.', 'warn');
@@ -1762,8 +1819,8 @@ function renderKanban(){
     const cor = corMap[s];
     // O Mecânico NÃO vê os valores da O.S. no kanban
     kEl.innerHTML=cols[s].sort((a,b)=>new Date(b.os.updatedAt||0)-new Date(a.os.updatedAt||0)).map(({os,v,c})=>{
-      const qm = STATUS_NEXT[s];
-      const qmBtn = qm ? `<button class="k-move-btn" onclick="quickMoveOS('${os.id}','${qm.next}',event)">${qm.label}</button>` : '';
+      // Status é controlado pelo gestor no Jarvis. A equipe não recebe ação de mudança de status.
+      const qmBtn = '';
       const prismaAtual = String(os.prisma || os.numeroPrisma || '').trim();
       const prismaBadge = prismaAtual && s !== 'Entregue' ? `<div style="display:inline-flex;align-items:center;gap:4px;margin:4px 0 2px;font-family:var(--fm);font-size:.56rem;color:#111;background:var(--warn);border-radius:999px;padding:2px 7px;font-weight:900;letter-spacing:.8px;">PRISMA ${prismaAtual}</div>` : '';
       const valores = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;margin:8px 0;">
@@ -1806,10 +1863,77 @@ function filtrarVeics(){
   if($('osVeiculo')) $('osVeiculo').innerHTML='<option value="">Selecione...</option>'+veics.map(v=>`<option value="${v.id}">${v.modelo} (${v.placa})</option>`).join('');
 }
 
+function _statusVisualEquipe(status){
+  const mapa={Aguardando:'TRIAGEM',Triagem:'TRIAGEM',Orcamento:'ORÇAMENTO',Orcamento_Enviado:'ORÇAMENTO ENVIADO',Aprovado:'APROVADO',Andamento:'EM SERVIÇO',EmServico:'EM SERVIÇO',Pronto:'PRONTO / CAIXA',Entregue:'ENTREGUE',Concluido:'PRONTO / CAIXA'};
+  return mapa[String(status||'')] || String(status||'TRIAGEM').replace(/_/g,' ').toUpperCase();
+}
+function _atualizarStatusVisualEquipe(status){
+  if($('osStatus')) $('osStatus').value=status||'Aguardando';
+  if($('osStatusVisual')) $('osStatusVisual').value=_statusVisualEquipe(status||'Aguardando');
+}
+function _escapeEquipe(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function renderObservacoesEquipeOS(os){
+  const box=$('osObsEquipeHistorico'); if(!box)return;
+  const lista=Array.isArray(os?.observacoesEquipe)?os.observacoesEquipe.slice(-5).reverse():[];
+  if(!lista.length){box.style.display='none';box.innerHTML='';return;}
+  box.style.display='block';
+  box.innerHTML='<b style="color:var(--warn);">ÚLTIMAS OBSERVAÇÕES</b><br>'+lista.map(o=>`${_escapeEquipe(new Date(o.dt||o.data||Date.now()).toLocaleString('pt-BR'))} · <b>${_escapeEquipe(o.usuario||o.user||'Equipe')}</b> — ${_escapeEquipe(o.texto||o.obs||'')}`).join('<br>');
+}
+async function auditarEquipeOperacao(modulo,acao,extra={}){
+  try{await db.collection('lixeira_auditoria').add({tenantId:J.tid,modulo,acao,usuario:J.nome||'Equipe',usuarioId:J.fid||'',perfil:J.role||'equipe',ts:new Date().toISOString(),...extra});}catch(e){console.warn('[Equipe] auditoria:',e?.message||e);}
+}
+function abrirCadastroRapidoClienteEquipe(){
+  ['eqCliNome','eqCliWpp','eqCliDoc','eqCliEmail'].forEach(id=>{if($(id))$(id).value='';});
+  abrirModal('modalEquipeClienteRapido'); setTimeout(()=>$('eqCliNome')?.focus(),80);
+}
+async function salvarCadastroRapidoClienteEquipe(){
+  const nome=($v('eqCliNome')||'').trim(); if(!nome){toast('⚠ Informe o nome do cliente.','warn');return;}
+  const btn=$('btnSalvarEqCli'); if(btn)btn.disabled=true;
+  try{
+    const wpp=($v('eqCliWpp')||'').trim(),doc=($v('eqCliDoc')||'').trim(),email=($v('eqCliEmail')||'').trim();
+    const primeiro=nome.split(/\s+/)[0].toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'')||'cliente';
+    const login=primeiro+((wpp.replace(/\D/g,'').slice(-4))||String(Date.now()).slice(-4));
+    const pin=Math.random().toString(36).slice(-6).toUpperCase();
+    const ref=db.collection('clientes').doc(),agora=new Date().toISOString();
+    const p={tenantId:J.tid,nome,wpp,doc,docLimpo:doc.replace(/\D/g,''),email,login,pin,tipoCliente:'b2c',categoriaComercial:'comum',frotista:false,createdAt:agora,updatedAt:agora,cadastradoVia:'equipe_os',cadastradoPor:J.nome||'Equipe',cadastradoPorId:J.fid||''};
+    await ref.set(p);
+    if(!dbClientes.some(c=>String(c.id)===String(ref.id)))dbClientes.push({id:ref.id,...p});
+    popularSelects(); if($('osCliente'))$('osCliente').value=ref.id; filtrarVeics();
+    fecharModal('modalEquipeClienteRapido');
+    await auditarEquipeOperacao('CLIENTES',`Cadastrou cliente ${nome} diretamente pela O.S.`,{clienteId:ref.id,origem:'equipe_os'});
+    toast('✓ Cliente cadastrado e selecionado na O.S.','ok');
+  }catch(e){toast('Erro ao cadastrar cliente: '+(e.message||e),'err');}finally{if(btn)btn.disabled=false;}
+}
+function abrirCadastroRapidoVeiculoEquipe(){
+  const cid=$v('osCliente'); if(!cid){toast('⚠ Selecione ou cadastre o cliente primeiro.','warn');return;}
+  ['eqVeicPlaca','eqVeicModelo','eqVeicMarca','eqVeicAno','eqVeicKm','eqVeicCor','eqVeicChassi'].forEach(id=>{if($(id))$(id).value='';});
+  if($('eqVeicTipo'))$('eqVeicTipo').value=$v('osTipo')||'carro';
+  const c=dbClientes.find(x=>String(x.id)===String(cid)); if($('eqVeicClienteInfo'))$('eqVeicClienteInfo').textContent='CLIENTE: '+(c?.nome||'Selecionado na O.S.');
+  abrirModal('modalEquipeVeiculoRapido'); setTimeout(()=>$('eqVeicPlaca')?.focus(),80);
+}
+async function salvarCadastroRapidoVeiculoEquipe(){
+  const clienteId=$v('osCliente'),placa=($v('eqVeicPlaca')||'').toUpperCase().replace(/[^A-Z0-9]/g,''),modelo=($v('eqVeicModelo')||'').trim();
+  if(!clienteId){toast('⚠ Cliente obrigatório.','warn');return;} if(!placa||!modelo){toast('⚠ Placa e modelo são obrigatórios.','warn');return;}
+  const duplicado=dbVeiculos.find(v=>String(v.placa||'').toUpperCase().replace(/[^A-Z0-9]/g,'')===placa);
+  if(duplicado){toast('⚠ Esta placa já está cadastrada. O veículo existente foi selecionado.','warn');if($('osCliente'))$('osCliente').value=duplicado.clienteId||clienteId;filtrarVeics();if($('osVeiculo'))$('osVeiculo').value=duplicado.id;fecharModal('modalEquipeVeiculoRapido');return;}
+  const btn=$('btnSalvarEqVeic'); if(btn)btn.disabled=true;
+  try{
+    const agora=new Date().toISOString(),tipo=$v('eqVeicTipo')||'carro',chassi=($v('eqVeicChassi')||'').toUpperCase().trim();
+    const ref=db.collection('veiculos').doc();
+    const p={tenantId:J.tid,clienteId,tipo,placa,modelo,marca:($v('eqVeicMarca')||'').toUpperCase().trim(),ano:($v('eqVeicAno')||'').trim(),km:($v('eqVeicKm')||'').trim(),cor:($v('eqVeicCor')||'').trim(),chassis:chassi,chassi,createdAt:agora,updatedAt:agora,cadastradoVia:'equipe_os',cadastradoPor:J.nome||'Equipe',cadastradoPorId:J.fid||''};
+    await ref.set(p);
+    if(!dbVeiculos.some(v=>String(v.id)===String(ref.id)))dbVeiculos.push({id:ref.id,...p});
+    if($('osTipo'))$('osTipo').value=tipo; filtrarVeics(); if($('osVeiculo'))$('osVeiculo').value=ref.id; atualizarHeaderOS(ref.id,clienteId);
+    fecharModal('modalEquipeVeiculoRapido');
+    await auditarEquipeOperacao('VEÍCULOS',`Cadastrou veículo ${placa} (${modelo}) diretamente pela O.S.`,{veiculoId:ref.id,clienteId,placa,origem:'equipe_os'});
+    toast('✓ Veículo cadastrado e selecionado na O.S.','ok');
+  }catch(e){toast('Erro ao cadastrar veículo: '+(e.message||e),'err');}finally{if(btn)btn.disabled=false;}
+}
+
 function prepOS(mode,id=null){
   window._equipeOSAtual = null;
   ['osId','osDesc','osDiag','osKm','osPrisma'].forEach(f=>{if($(f))$(f).value='';});
-  $('osMO').value='0'; $('osTipo').value='carro'; $('osStatus').value='Aguardando';
+  $('osMO').value='0'; $('osTipo').value='carro'; _atualizarStatusVisualEquipe('Aguardando');
   $('osData').value=new Date().toISOString().split('T')[0];
   $('containerPecas').innerHTML=''; $('containerServicos').innerHTML='';
   document.getElementById('resumoAprovacaoEquipe')?.remove();
@@ -1821,19 +1945,9 @@ function prepOS(mode,id=null){
   const ch = document.getElementById('osClienteHeader'); if(ch) ch.innerText='';
   const bh = document.getElementById('bannerHistVeiculo'); if(bh) bh.style.display='none';
   limparPreviewOS(); _resetChkBtns();
+  if($('osObsEquipeNova'))$('osObsEquipeNova').value=''; renderObservacoesEquipeOS(null);
   popularSelects();
 
-  // ═══ Esconde opção "Entregue" se quem abriu não for gestor/admin ═══
-  // Mecânico não deve nem ver essa opção. UX limpa.
-  const role = (J.role||'').toLowerCase();
-  const ehGestor = ['admin','gestor','gerente','superadmin'].includes(role);
-  const optEntregue = document.querySelector('#osStatus option[value="Entregue"]');
-  if (optEntregue) {
-    optEntregue.style.display = ehGestor ? '' : 'none';
-    optEntregue.disabled = !ehGestor;
-  }
-  const av = document.getElementById('osStatusAviso');
-  if (av) av.style.display = 'none';
   if(mode==='edit'&&id){
     const os=dbOS.find(x=>x.id===id); if(!os) return;
     const roleAtual=String(J.role||'').toLowerCase();
@@ -1842,7 +1956,7 @@ function prepOS(mode,id=null){
     window._equipeOSAtual = os;
     $('osId').value=os.id; $('osIdBadge').innerText='OS#'+os.id.slice(-5).toUpperCase();
     $('osTipo').value=os.tipoVeiculo||'carro';
-    $('osStatus').value=os.status||'Aguardando';
+    _atualizarStatusVisualEquipe(os.status||'Aguardando');
     $('osCliente').value=os.clienteId||''; filtrarVeics();
     setTimeout(()=>{
       $('osVeiculo').value=os.veiculoId||'';
@@ -1862,6 +1976,7 @@ function prepOS(mode,id=null){
       if (podeVerTodas || window.equipeServicoPertenceAoUsuarioV22?.(s, os)) renderServicoRow(s, servicoIndex);
     });
     aplicarMarcadoresAprovacaoEquipe(os);
+    renderObservacoesEquipeOS(os);
   }
 }
 
@@ -2116,6 +2231,11 @@ function parseBR(v) {
 async function salvarOS(){
   if(!$v('osCliente')||!$v('osVeiculo')){toast('⚠ Cliente e veículo obrigatórios','warn');return;}
   const osAtualPreservar = window._equipeOSAtual || {};
+  const id = $v('osId');
+  const osBaseEquipe = id ? (dbOS.find(x => x.id === id) || osAtualPreservar || {}) : {};
+  // A equipe não altera status: em edição preserva exatamente o status salvo pelo Jarvis; em nova O.S. inicia em Triagem.
+  const statusPreservadoEquipe = id ? (osBaseEquipe.status || 'Aguardando') : 'Aguardando';
+  _atualizarStatusVisualEquipe(statusPreservadoEquipe);
   
   const pecas=[];
   document.querySelectorAll('#containerPecas>div').forEach((r,idx)=>{
@@ -2186,8 +2306,6 @@ async function salvarOS(){
     if(item.tipo==='peca'&&pecas[item.index]) Object.assign(pecas[item.index],descontos);
   });
 
-  const id = $v('osId');
-  const osBaseEquipe = id ? (dbOS.find(x => x.id === id) || {}) : {};
   const prismaInformadoOS = ($v('osPrisma') || '').trim();
   const funcUser = J.nome || 'Mecânico';
   let tl = [];
@@ -2200,10 +2318,10 @@ async function salvarOS(){
       const oldOS = dbOS.find(x => x.id === id) || {};
       const oldMediaCountStatus = (oldOS.media || oldOS.fotos || []).length;
       const newMediaCountStatus = (JSON.parse($('mediaArray').value || '[]')).length;
-      if (newMediaCountStatus > oldMediaCountStatus && isTriagemEquipe($v('osStatus')) && !isTriagemEquipe(oldOS.status)) {
+      if (newMediaCountStatus > oldMediaCountStatus && isTriagemEquipe(statusPreservadoEquipe) && !isTriagemEquipe(oldOS.status)) {
           const mover = confirm('Voce anexou foto/evidencia, mas a O.S. esta marcada para voltar para TRIAGEM.\n\nOK = mover para Triagem com motivo.\nCancelar = somente atualizar a evidencia e manter o status atual.');
           if (!mover) {
-              if ($('osStatus')) $('osStatus').value = oldOS.status || 'Aguardando';
+              _atualizarStatusVisualEquipe(oldOS.status || 'Aguardando');
           } else {
               motivoTriagemEquipe = prompt('Informe o motivo para mover esta O.S. para Triagem:') || '';
               motivoTriagemEquipe = motivoTriagemEquipe.trim();
@@ -2217,10 +2335,7 @@ async function salvarOS(){
       tl = oldOS.timeline ? [...oldOS.timeline] : JSON.parse($v('tlData') || '[]');
       let registouAlgo = false;
 
-      if (oldOS.status !== $v('osStatus')) {
-          tl.push({ dt: new Date().toISOString(), user: funcUser, acao: `Status alterado para: ${$v('osStatus')}${motivoTriagemEquipe ? '. Motivo: ' + motivoTriagemEquipe : ''}` });
-          registouAlgo = true;
-      }
+      // Status intencionalmente não é comparado nem alterado na tela da equipe.
 
       const oldDiag = (oldOS.diagnostico || '').trim();
       const novoDiag = ($v('osDiag') || '').trim();
@@ -2278,6 +2393,12 @@ async function salvarOS(){
           }
       });
 
+      const obsEquipeNova = ($v('osObsEquipeNova') || '').trim();
+      if (obsEquipeNova) {
+          tl.push({ dt: new Date().toISOString(), user: funcUser, userId: J.fid || '', perfil: J.role || 'equipe', tipo: 'observacao_equipe', observacao: obsEquipeNova, acao: `Observação da equipe: ${obsEquipeNova}` });
+          registouAlgo = true;
+      }
+
       const oldMedia = (oldOS.media || oldOS.fotos || []).length;
       const newMedia = (JSON.parse($('mediaArray').value || '[]')).length;
       if (newMedia > oldMedia) {
@@ -2290,7 +2411,9 @@ async function salvarOS(){
       }
   } else {
       tl = JSON.parse($v('tlData') || '[]');
-      tl.push({ dt: new Date().toISOString(), user: funcUser, acao: `Abriu a O.S. (Status inicial: ${$v('osStatus')})` });
+      tl.push({ dt: new Date().toISOString(), user: funcUser, acao: `Abriu a O.S. (Status inicial: ${statusPreservadoEquipe})` });
+      const obsEquipeNova = ($v('osObsEquipeNova') || '').trim();
+      if (obsEquipeNova) tl.push({ dt: new Date().toISOString(), user: funcUser, userId: J.fid || '', perfil: J.role || 'equipe', tipo: 'observacao_equipe', observacao: obsEquipeNova, acao: `Observação da equipe: ${obsEquipeNova}` });
   }
   // --- FIM: DEEP DIFF ---
   
@@ -2315,7 +2438,8 @@ async function salvarOS(){
     data:$v('osData'),km:$v('osKm'),
     prisma: prismaInformadoOS,
     numeroPrisma: prismaInformadoOS,
-    desc:$v('osDesc'),diagnostico:$v('osDiag'),status:$v('osStatus'),
+    desc:$v('osDesc'),diagnostico:$v('osDiag'),status:statusPreservadoEquipe,
+    observacoesEquipe:[...(Array.isArray(osBaseEquipe.observacoesEquipe)?osBaseEquipe.observacoesEquipe:[]), ...((($v('osObsEquipeNova')||'').trim()) ? [{dt:new Date().toISOString(),usuario:J.nome||'Equipe',usuarioId:J.fid||'',perfil:J.role||'equipe',texto:($v('osObsEquipeNova')||'').trim()}] : [])],
     maoObra:parseBR($v('osMO')||0),
     total: t,
     pecas,
@@ -2416,8 +2540,11 @@ async function salvarOS(){
     }
   }
 
+  let osIdSalva=id;
   if(id) await db.collection('ordens_servico').doc(id).update(p);
-  else{p.createdAt=new Date().toISOString();await db.collection('ordens_servico').add(p);}
+  else{p.createdAt=new Date().toISOString();const refNovaOS=await db.collection('ordens_servico').add(p);osIdSalva=refNovaOS.id;}
+  const obsAuditada=($v('osObsEquipeNova')||'').trim();
+  if(obsAuditada) await auditarEquipeOperacao('OS',`Observação na O.S. #${String(osIdSalva||'').slice(-6).toUpperCase()}: ${obsAuditada}`,{osId:osIdSalva||null,origem:'equipe_observacao'});
 
   // Avisa o admin/gestor no chat interno quando a O.S. acabou de virar PRONTO
   if (p.status === 'Pronto' && id) {
@@ -2782,7 +2909,7 @@ function aplicarSugestaoIA() {
 <script src="js/final-1010-regras-os.js"></script>
 <script src="js/theme.js"></script>
 <script src="js/hardening-comercial.js?v=26.13.0"></script>
-<script src="js/ia.js?v=26.17.0"></script>
+<script src="js/ia.js?v=26.21.0"></script>
 <script src="js/catalogos-ia.js?v=19.0.0"></script>
 <script src="js/uix-theme-fix.js"></script>
 <script src="js/equipe-comissoes-v21.js?v=26.1.0"></script>

@@ -1583,6 +1583,10 @@ window.renderKanban = function() {
       const prismaFmt = prismaAtual && s !== 'Entregue'
         ? `<div style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;font-family:var(--fm);font-size:.58rem;color:#111;background:var(--warn);border-radius:999px;padding:2px 7px;font-weight:900;letter-spacing:.8px;">PRISMA ${esc(prismaAtual)}</div>`
         : '';
+      const recebidaOperacional = os.recebidaOperacional === true;
+      const recebidaBadge = recebidaOperacional
+        ? `<div style="display:inline-flex;align-items:center;gap:4px;margin-top:4px;margin-left:${prismaAtual&&s!=='Entregue'?'4px':'0'};font-family:var(--fm);font-size:.58rem;color:#062b1c;background:var(--success);border-radius:999px;padding:2px 7px;font-weight:900;letter-spacing:.8px;">💰 RECEBIDA</div>`
+        : '';
       const UOS = window.JarvisOSUtils || window.JOS || {};
       const resumoValores = UOS.getBudgetSummary
         ? UOS.getBudgetSummary(os, c, J.financeiro)
@@ -1620,9 +1624,12 @@ window.renderKanban = function() {
               ${prefixoFmt ? `<div style="font-family:var(--fm);font-size:.58rem;color:var(--warn);letter-spacing:.8px;font-weight:800;margin-bottom:2px;">PREFIXO ${prefixoFmt}</div>` : ''}
               <div class="k-placa" style="color:${cor};margin:0;font-size:1rem;">${placaFmt}</div>
               ${modeloFmt ? `<div class="k-modelo" title="${modeloFmt}" style="font-family:var(--fm);font-size:.62rem;color:var(--muted2);letter-spacing:.45px;font-weight:700;margin-top:2px;max-width:126px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${modeloFmt}</div>` : ''}
-              ${prismaFmt}
+              ${prismaFmt}${recebidaBadge}
             </div>
-            ${btnExcluir}
+            <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+              ${s !== 'Entregue' ? `<button title="${recebidaOperacional?'Desmarcar recebimento operacional':'Marcar O.S. como recebida sem registrar forma de pagamento'}" onclick="event.stopPropagation();window.toggleOSRecebidaOperacional('${os.id}')" style="background:${recebidaOperacional?'rgba(0,255,136,.14)':'transparent'};border:1px solid ${recebidaOperacional?'var(--success)':'rgba(0,255,136,.42)'};color:${recebidaOperacional?'var(--success)':'var(--muted2)'};font-family:var(--fm);font-size:.56rem;padding:3px 6px;border-radius:3px;cursor:pointer;white-space:nowrap;">${recebidaOperacional?'✓ RECEBIDA':'💰 RECEBER'}</button>` : ''}
+              ${btnExcluir}
+            </div>
         </div>
         <div class="k-cliente" style="font-size:0.85rem;font-weight:700;color:var(--text);margin-bottom:2px;">${nomeCli}</div>
         ${finalizacaoHtml}
@@ -1630,7 +1637,7 @@ window.renderKanban = function() {
         ${valoresHtml}
         <div class="k-footer" style="margin-bottom:8px;">
           <span class="k-tipo ${tipoCls}">${tipoLabel}</span>
-          <span style="font-family:var(--fm);font-size:0.68rem;color:var(--muted);font-weight:700;">${resumoValores.pagamento?.forma ? esc(resumoValores.pagamento.forma).slice(0, 24) : 'Sem pgto'}</span>
+          <span style="font-family:var(--fm);font-size:0.68rem;color:${recebidaOperacional?'var(--success)':'var(--muted)'};font-weight:700;">${resumoValores.pagamento?.forma ? esc(resumoValores.pagamento.forma).slice(0, 24) : (recebidaOperacional ? 'Recebida · sem forma' : 'Sem pgto')}</span>
         </div>
         <div style="display:flex;align-items:center;justify-content:space-between;border-top:1px solid rgba(255,255,255,0.05);padding-top:6px;">
           ${btnPrev}
@@ -1640,6 +1647,47 @@ window.renderKanban = function() {
       </div>`;
     }).join('');
   });
+};
+
+window.toggleOSRecebidaOperacional = async function(id) {
+  const osAtual = (Array.isArray(J.os) ? J.os : []).find(o => String(o.id) === String(id));
+  if (!osAtual) { window.toast?.('O.S. não encontrada nos dados carregados.', 'warn'); return; }
+  const marcar = osAtual.recebidaOperacional !== true;
+  const placa = identidadeVeiculoOS(osAtual, (J.veiculos || []).find(v => String(v.id) === String(osAtual.veiculoId)) || {}).placa || osAtual.placa || String(id).slice(-6).toUpperCase();
+  const confirma = confirm(marcar
+    ? `Marcar ${placa} como RECEBIDA no pátio?\n\nIsto é apenas um controle operacional. NÃO cria lançamento financeiro e NÃO registra forma de pagamento.`
+    : `Desmarcar o indicador RECEBIDA de ${placa}?\n\nA alteração ficará registrada na auditoria da O.S.`);
+  if (!confirma) return;
+  const agora = new Date().toISOString();
+  const usuario = J.nome || sessionStorage.getItem('j_nome') || 'Gestor';
+  const usuarioId = J.uid || J.fid || sessionStorage.getItem('j_uid') || sessionStorage.getItem('j_fid') || '';
+  const perfil = J.role || sessionStorage.getItem('j_role') || 'gestor';
+  const acao = marcar
+    ? 'Marcou a O.S. como RECEBIDA no pátio, sem registrar forma de pagamento.'
+    : 'Desmarcou o indicador RECEBIDA da O.S. no pátio.';
+  const evento = { dt: agora, user: usuario, userId: usuarioId, perfil, tipo: 'recebimento_operacional', recebido: marcar, acao };
+  const update = {
+    recebidaOperacional: marcar,
+    recebidaOperacionalAtualizadoEm: agora,
+    recebidaOperacionalPor: usuario,
+    recebidaOperacionalPorId: usuarioId,
+    timeline: firebase.firestore.FieldValue.arrayUnion(evento)
+  };
+  if (marcar) {
+    update.recebidaOperacionalEm = agora;
+    update.recebidaOperacionalMarcadaPor = usuario;
+  } else {
+    update.recebidaOperacionalDesmarcadaEm = agora;
+    update.recebidaOperacionalDesmarcadaPor = usuario;
+  }
+  try {
+    await db.collection('ordens_servico').doc(id).update(update);
+    await auditGeralOS(id, acao, { tipo: 'recebimento_operacional', placa, recebido: marcar, usuarioId, perfil });
+    window.toast?.(marcar ? '✓ O.S. marcada como RECEBIDA no pátio.' : 'Indicador RECEBIDA removido da O.S.', marcar ? 'ok' : 'warn');
+  } catch (e) {
+    console.error('[O.S.] recebimento operacional:', e);
+    window.toast?.('Erro ao atualizar indicador de recebimento: ' + (e?.message || e), 'err');
+  }
 };
 
 window.moverStatusOS = async function(id, novoStatus) {
