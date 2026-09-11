@@ -1135,6 +1135,115 @@ function clienteOficialAtualReaisOS() {
 }
 window.clienteOficialAtualReaisOS = clienteOficialAtualReaisOS;
 
+function _escComissaoOficialOS(v) {
+  return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function _opcoesMecanicoComissaoOficialOS(selectedId, selectedName) {
+  const atual = String(selectedId || '');
+  const equipe = Array.isArray(window.J?.equipe) ? window.J.equipe : [];
+  const existe = equipe.some(mec => String(mec?.id || '') === atual);
+  const legado = atual && !existe ? `<option value="${_escComissaoOficialOS(atual)}" selected>${_escComissaoOficialOS(selectedName || ('Colaborador ' + atual))}</option>` : '';
+  return '<option value="">Selecione o mecânico</option>' + legado + equipe.map(mec => {
+    const id = String(mec?.id || '').trim();
+    if (!id) return '';
+    return `<option value="${_escComissaoOficialOS(id)}" ${id === atual ? 'selected' : ''}>${_escComissaoOficialOS(mec.nome || mec.usuario || id)}</option>`;
+  }).join('');
+}
+
+function _atualizarTotalComissaoOficialOS() {
+  const total = Array.from(document.querySelectorAll('#comissaoOficialRateiosOS .com-oficial-valor'))
+    .reduce((soma, input) => soma + Math.max(0, numBR(input.value || 0)), 0);
+  const out = document.getElementById('comissaoOficialTotalOS');
+  if (out) out.textContent = moeda(total);
+  return +total.toFixed(2);
+}
+window.atualizarTotalComissaoOficialOS = _atualizarTotalComissaoOficialOS;
+
+function _criarLinhaComissaoOficialOS(rateio) {
+  const linha = document.createElement('div');
+  linha.className = 'com-oficial-rateio-row';
+  linha.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,145px) 34px;gap:7px;align-items:center;';
+  const mecId = String(rateio?.mecId || rateio?.id || '');
+  const valor = Math.max(0, numBR(rateio?.valor ?? rateio?.valorPrevisto ?? rateio?.comissao ?? 0));
+  linha.innerHTML = `<select class="j-select com-oficial-mec" aria-label="Mecânico da comissão da viatura">${_opcoesMecanicoComissaoOficialOS(mecId, rateio?.mecNome || rateio?.nome || '')}</select><input class="j-input com-oficial-valor" type="text" inputmode="decimal" value="${valor > 0 ? valor.toFixed(2).replace('.', ',') : ''}" placeholder="Valor a receber R$" title="Valor fixo que este mecânico receberá por esta viatura oficial."><button type="button" class="com-oficial-remover" title="Remover divisão" style="height:36px;border:1px solid rgba(255,59,59,.35);background:rgba(255,59,59,.08);color:var(--danger);border-radius:3px;cursor:pointer;">✕</button>`;
+  linha.querySelector('.com-oficial-mec')?.addEventListener('change', _atualizarTotalComissaoOficialOS);
+  linha.querySelector('.com-oficial-valor')?.addEventListener('input', _atualizarTotalComissaoOficialOS);
+  linha.querySelector('.com-oficial-remover')?.addEventListener('click', () => {
+    const box = document.getElementById('comissaoOficialRateiosOS');
+    if (!box) return;
+    if (box.querySelectorAll('.com-oficial-rateio-row').length <= 1) {
+      const sel = linha.querySelector('.com-oficial-mec');
+      const inp = linha.querySelector('.com-oficial-valor');
+      if (sel) sel.value = document.getElementById('osMec')?.value || '';
+      if (inp) inp.value = '';
+    } else linha.remove();
+    _atualizarTotalComissaoOficialOS();
+  });
+  return linha;
+}
+
+window.adicionarRateioComissaoOficialOS = function(rateio) {
+  const box = document.getElementById('comissaoOficialRateiosOS');
+  if (!box) return;
+  const dado = rateio || {};
+  box.appendChild(_criarLinhaComissaoOficialOS(dado));
+  _atualizarTotalComissaoOficialOS();
+  if (!rateio) setTimeout(() => box.lastElementChild?.querySelector('.com-oficial-mec')?.focus(), 20);
+};
+
+window.sincronizarResponsavelComissaoOficialOS = function() {
+  if (!clienteGovernamentalAtualOS()) return;
+  const box = document.getElementById('comissaoOficialRateiosOS');
+  if (!box) return;
+  if (!box.children.length) window.adicionarRateioComissaoOficialOS({ mecId: document.getElementById('osMec')?.value || '', valor: 0 });
+  const linhas = Array.from(box.querySelectorAll('.com-oficial-rateio-row'));
+  if (linhas.length === 1) {
+    const sel = linhas[0].querySelector('.com-oficial-mec');
+    if (sel && !sel.value) sel.value = document.getElementById('osMec')?.value || '';
+  }
+};
+
+window.atualizarVisibilidadeComissaoOficialOS = function(opts) {
+  const bloco = document.getElementById('blocoComissaoOficialOS');
+  if (!bloco) return;
+  const oficial = typeof opts?.oficial === 'boolean' ? opts.oficial : clienteGovernamentalAtualOS();
+  bloco.style.display = oficial ? 'block' : 'none';
+  if (oficial) window.sincronizarResponsavelComissaoOficialOS?.();
+};
+
+window.carregarComissaoOficialOS = function(os) {
+  const box = document.getElementById('comissaoOficialRateiosOS');
+  if (!box) return;
+  box.innerHTML = '';
+  const cfg = os?.comissaoOficialOS || {};
+  const rateios = Array.isArray(cfg.rateios) ? cfg.rateios : [];
+  if (cfg.ativa === true && rateios.length) rateios.forEach(r => window.adicionarRateioComissaoOficialOS(r));
+  else window.adicionarRateioComissaoOficialOS({ mecId: os?.mecId || document.getElementById('osMec')?.value || '', valor: 0 });
+  window.atualizarVisibilidadeComissaoOficialOS?.();
+  _atualizarTotalComissaoOficialOS();
+};
+
+window.coletarComissaoOficialOS = function() {
+  if (!clienteGovernamentalAtualOS()) return { oficial: false, ativa: false, rateios: [], totalPrevisto: 0 };
+  const linhas = Array.from(document.querySelectorAll('#comissaoOficialRateiosOS .com-oficial-rateio-row'));
+  const vistos = new Set();
+  const rateios = [];
+  for (const linha of linhas) {
+    const mecId = String(linha.querySelector('.com-oficial-mec')?.value || '').trim();
+    const valor = Math.max(0, numBR(linha.querySelector('.com-oficial-valor')?.value || 0));
+    if (!mecId && valor <= 0) continue;
+    if (!mecId && valor > 0) return { erro: 'Selecione o mecânico para todo valor informado na comissão da viatura.' };
+    if (mecId && valor <= 0) continue;
+    if (vistos.has(mecId)) return { erro: 'O mesmo mecânico não pode aparecer duas vezes na divisão da comissão da viatura.' };
+    vistos.add(mecId);
+    const mec = (window.J?.equipe || []).find(f => String(f.id) === mecId) || {};
+    rateios.push({ mecId, mecNome: mec.nome || mec.usuario || '', valor: +valor.toFixed(2) });
+  }
+  const totalPrevisto = +rateios.reduce((soma, r) => soma + numBR(r.valor || 0), 0).toFixed(2);
+  return { oficial: true, ativa: rateios.length > 0 && totalPrevisto > 0, modo: 'valor_fixo_viatura', rateios, totalPrevisto };
+};
+
 window.atualizarVisibilidadeReaisOS = function() {
   const desbloqueado = window._pecasReaisDesbloqueadas === true || document.body?.dataset?.secret177 === 'on';
   const oficial = clienteOficialAtualReaisOS();
@@ -2374,6 +2483,7 @@ window.atualizarEquipeMecanicosOS = function() {
     }
   });
   window.renderMecanicosEquipeOS();
+  window.sincronizarResponsavelComissaoOficialOS?.();
   window._osMecPrincipalAnterior = principalAtual;
 };
 
@@ -2435,6 +2545,9 @@ window.prepOS = function(mode, id = null) {
   if (typeof window.popularSelects === 'function') window.popularSelects();
   window._osMecPrincipalAnterior = '';
   window.renderMecanicosEquipeOS?.([]);
+  if (document.getElementById('comissaoOficialRateiosOS')) document.getElementById('comissaoOficialRateiosOS').innerHTML = '';
+  if (document.getElementById('comissaoOficialTotalOS')) document.getElementById('comissaoOficialTotalOS').textContent = 'R$ 0,00';
+  window.atualizarVisibilidadeComissaoOficialOS?.();
 
   if (mode === 'add') { 
       if(typeof window.adicionarServicoOS === 'function') window.adicionarServicoOS();
@@ -2493,6 +2606,7 @@ window.prepOS = function(mode, id = null) {
     // Mostra blocos governo se cliente for gov
     const _cli_load = (window.J?.clientes||[]).find(cl=>cl.id===o.clienteId);
     const _ehGov_load = _cli_load?.tipoCliente === 'governo';
+    window.carregarComissaoOficialOS?.(o);
     const _blocoDesc = document.getElementById('blocoDescontoOS');
     const _blocoReais = document.getElementById('blocoReais');
     if (_blocoDesc) window.atualizarVisibilidadeDescontosOS?.();
@@ -3922,7 +4036,47 @@ function statusExecucaoComissaoOS(status) {
   return /^(executado|executado_obs|concluido|finalizado|feito|realizado|trocada)$/i.test(String(status || '').trim());
 }
 
+function comissaoOficialFixaCalculadaOS(payload) {
+  const cliente = (window.J?.clientes || []).find(c => String(c.id) === String(payload?.clienteId || '')) || {};
+  const tipo = String(cliente?.tipoCliente || cliente?.tipo || payload?.tipoCliente || '').toLowerCase();
+  const oficial = tipo === 'governo' || tipo === 'oficial' || cliente?.clienteOficial === true;
+  const cfg = payload?.comissaoOficialOS || {};
+  if (!oficial || cfg?.ativa !== true || !Array.isArray(cfg?.rateios)) return [];
+  const vistos = new Set();
+  return cfg.rateios.map(r => {
+    const mecId = String(r?.mecId || r?.id || '').trim();
+    const valor = Math.max(0, numBR(r?.valor ?? r?.valorPrevisto ?? 0));
+    if (!mecId || valor <= 0 || vistos.has(mecId)) return null;
+    vistos.add(mecId);
+    const snap = snapshotMecanicoOS(mecId, payload);
+    return {
+      mecId,
+      mecNome: r?.mecNome || r?.nome || snap.nome || mecId,
+      modo: 'oficial_valor_fixo_viatura',
+      baseServico: 0,
+      basePecas: 0,
+      percServico: 0,
+      percPeca: 0,
+      valorServico: +valor.toFixed(2),
+      valorPeca: 0,
+      valorTotal: +valor.toFixed(2),
+      servicos: [{
+        key: 'oficial-viatura',
+        desc: 'COMISSÃO FIXA DA VIATURA — CLIENTE OFICIAL',
+        valor: +valor.toFixed(2),
+        valorBase: +valor.toFixed(2),
+        valorServicoCobrado: 0,
+        percentual: 0,
+        valorComissao: +valor.toFixed(2),
+        statusExecucao: 'manual_cliente_oficial'
+      }]
+    };
+  }).filter(Boolean);
+}
+
 function calcularComissoesPorMecanicoOS(payload, totalPecasFallback) {
+  const especiais = comissaoOficialFixaCalculadaOS(payload);
+  if (especiais.length) return especiais;
   const U = OSU();
   const cliente = (window.J?.clientes || []).find(c => c.id === payload?.clienteId);
   const itens = U.buildBudgetItems?.(payload, cliente) || [];
@@ -4019,6 +4173,7 @@ async function reconciliarComissoesOS(osId, payload, calculos) {
   const existentes = snap.docs
     .map(doc => ({ id: doc.id, ref: doc.ref, ...doc.data() }))
     .filter(fin => fin.isComissao === true);
+  const comissaoOficialFixaAtiva = comissaoOficialFixaCalculadaOS(payload).length > 0;
   const alvos = new Map((calculos || []).map(calc => [String(calc.mecId), calc]));
   const mecanicos = new Set([
     ...alvos.keys(),
@@ -4046,7 +4201,7 @@ async function reconciliarComissoesOS(osId, payload, calculos) {
     if (Math.abs(saldoPendente) < 0.01 || !calc) {
       for (const pendente of pendentes) {
         const saldoManualDividido = pendente.origem === 'saldo_pagamento_comissao_detalhado' || pendente.categoria === 'comissao_os_servico_parcial';
-        if (!calc && saldoManualDividido) continue;
+        if (!calc && saldoManualDividido && !comissaoOficialFixaAtiva) continue;
         atualizar(pendente.ref, {
           status: 'Cancelado',
           canceladoEm: agora,
@@ -4059,11 +4214,14 @@ async function reconciliarComissoesOS(osId, payload, calculos) {
       continue;
     }
 
+    const comissaoOficialFixa = calc?.modo === 'oficial_valor_fixo_viatura';
     const dados = {
       tenantId: J.tid,
       tipo: 'Saída',
       status: 'Pendente',
-      desc: `${saldoPendente < 0 ? 'Ajuste de ' : ''}Comissão O.S. ${payload.placa || ''} — ${calc.mecNome} (Serv: ${moeda(calc.valorServico)} | Peça: ${moeda(calc.valorPeca)})`,
+      desc: comissaoOficialFixa
+        ? `${saldoPendente < 0 ? 'Ajuste de ' : ''}Comissão Cliente Oficial — O.S. ${payload.placa || ''} — ${calc.mecNome} — valor combinado ${moeda(calc.valorTotal)}`
+        : `${saldoPendente < 0 ? 'Ajuste de ' : ''}Comissão O.S. ${payload.placa || ''} — ${calc.mecNome} (Serv: ${moeda(calc.valorServico)} | Peça: ${moeda(calc.valorPeca)})`,
       valor: saldoPendente,
       pgto: 'A Combinar',
       venc: dataLocalISOOS(),
@@ -4073,7 +4231,10 @@ async function reconciliarComissoesOS(osId, payload, calculos) {
       mecId,
       mecNome: calc.mecNome,
       vinculo: `E_${mecId}`,
-      origem: saldoPendente < 0 ? 'comissao_os_ajuste' : 'comissao_os_por_servico',
+      origem: saldoPendente < 0 ? 'comissao_os_ajuste' : (comissaoOficialFixa ? 'comissao_cliente_oficial_valor_fixo' : 'comissao_os_por_servico'),
+      categoria: comissaoOficialFixa ? 'comissao_cliente_oficial_viatura' : 'comissao_os',
+      comissaoClienteOficial: comissaoOficialFixa,
+      modoComissao: comissaoOficialFixa ? 'valor_fixo_viatura' : 'percentual_servico',
       chaveComissao: `${osId}:${mecId}`,
       baseServico: calc.baseServico,
       basePecas: calc.basePecas,
@@ -4445,6 +4606,23 @@ window.salvarOS = async function() {
   payload.mecNome = snapshotMecanicoOS(payload.mecId, _oldOSPreservar).nome || _oldOSPreservar?.mecNome || '';
   payload.mecIds = idsUnicosMecanicosOS([payload.mecId, ...mecanicoIdsOS, ...servicos.flatMap(s => [s.mecId, ...(Array.isArray(s.rateiosComissao) ? s.rateiosComissao.map(r => r.mecId) : [])])]);
   payload.mecanicos = payload.mecIds.map(id => snapshotMecanicoOS(id, _oldOSPreservar));
+  const _clienteComissaoOficialOS = (window.J?.clientes || []).find(c => String(c.id) === String(payload.clienteId || '')) || {};
+  if (String(_clienteComissaoOficialOS?.tipoCliente || '').toLowerCase() === 'governo') {
+    const _cfgComissaoOficialOS = window.coletarComissaoOficialOS?.() || { ativa:false, rateios:[], totalPrevisto:0 };
+    if (_cfgComissaoOficialOS.erro) { window.toast(_cfgComissaoOficialOS.erro, 'warn'); return; }
+    if (_cfgComissaoOficialOS.ativa) {
+      payload.comissaoOficialOS = {
+        ativa: true,
+        modo: 'valor_fixo_viatura',
+        totalPrevisto: +numBR(_cfgComissaoOficialOS.totalPrevisto || 0).toFixed(2),
+        rateios: (_cfgComissaoOficialOS.rateios || []).map(r => ({ mecId:r.mecId, mecNome:r.mecNome || '', valor:+numBR(r.valor || 0).toFixed(2) })),
+        atualizadoEm: new Date().toISOString(),
+        atualizadoPor: window.J?.nome || 'Gestor'
+      };
+    } else if (_oldOSPreservar?.comissaoOficialOS) {
+      payload.comissaoOficialOS = { ativa:false, modo:'valor_fixo_viatura', totalPrevisto:0, rateios:[], atualizadoEm:new Date().toISOString(), atualizadoPor:window.J?.nome || 'Gestor' };
+    }
+  }
   if ($v('osData')) payload.data = $v('osData');
   if ($v('osKm')) payload.km = $v('osKm');
   if ($v('osEntregueA')) payload.entreguePara = $v('osEntregueA');

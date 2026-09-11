@@ -1248,6 +1248,24 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
         <input type="number" class="j-input" id="osKm" placeholder="Ex: 45000">
       </div>
     </div>
+    <div id="blocoComissaoOficialOS" style="display:none;background:rgba(167,139,250,.055);border:1px solid rgba(167,139,250,.28);border-left:3px solid #A78BFA;border-radius:4px;padding:13px 14px;margin:4px 0 14px;">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap;margin-bottom:9px;">
+        <div>
+          <div style="font-family:var(--fd);font-size:.76rem;font-weight:800;color:#A78BFA;letter-spacing:.7px;">🛡 COMISSÃO DA VIATURA — CLIENTE OFICIAL</div>
+          <div style="font-family:var(--fm);font-size:.59rem;color:var(--muted);line-height:1.45;margin-top:3px;">Valor interno combinado para o responsável pela viatura. Não depende do número de serviços e não aparece para o cliente, PDF, planilhas ou orçamento exportado.</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:var(--fm);font-size:.54rem;color:var(--muted);letter-spacing:.6px;">TOTAL PREVISTO</div>
+          <div id="comissaoOficialTotalOS" style="font-family:var(--fd);font-size:1rem;font-weight:900;color:var(--success);">R$ 0,00</div>
+        </div>
+      </div>
+      <div id="comissaoOficialRateiosOS" style="display:grid;gap:7px;"></div>
+      <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:8px;">
+        <button type="button" class="btn-outline" onclick="window.adicionarRateioComissaoOficialOS?.()" style="font-size:.62rem;padding:7px 10px;">+ DIVIDIR COMISSÃO</button>
+        <span style="font-family:var(--fm);font-size:.56rem;color:var(--muted);">Ex.: R$ 600,00 para um mecânico + R$ 400,00 para outro. Se não informar valor, a lógica atual permanece.</span>
+      </div>
+    </div>
+
     <div class="form-group">
       <label class="j-label">Defeito Reclamado / Queixa do Cliente</label>
       <textarea class="j-textarea" id="osDescricao" rows="2" placeholder="Descreva o problema reclamado pelo cliente..."></textarea>
@@ -2938,6 +2956,7 @@ window.filtrarVeiculosOS = function(opts) {
   const cliId = (document.getElementById('osCliente')?.value||'');
   const cli = (window.J?.clientes||[]).find(x=>x.id===cliId);
   const ehGov = cli?.tipoCliente === 'governo';
+  window.atualizarVisibilidadeComissaoOficialOS?.({ oficial: ehGov });
   const blocoDesc = document.getElementById('blocoDescontoOS');
   const blocoReais = document.getElementById('blocoReais');
   if (blocoDesc) {
@@ -4211,7 +4230,7 @@ window.iaAnalisarEstoque = function() { _jiaChamar('Quais pecas estao em estoque
 <script src="js/nfe-real-pro.js?v=26.16.0"></script>
 <script src="js/thia-runtime-core-v2613.js?v=26.13.0"></script>
 <script src="js/os-utils.js?v=26.17.2"></script>
-<script src="js/os.js?v=26.21.4"></script>
+<script src="js/os.js?v=26.22.0"></script>
 <script src="js/checklist-jarvis-bridge.js?v=26.13.0"></script>
 <script src="js/cotacoes.js"></script>
 <script src="js/assinatura-os.js"></script>
@@ -4536,7 +4555,7 @@ window.iaAnalisarEstoque = function() { _jiaChamar('Quais pecas estao em estoque
 </script>
 
 <script src="js/jarvis-crm-veiculos-v20.js?v=20.1.1"></script>
-<script src="js/comissoes-os-v21.js?v=26.21.0"></script>
+<script src="js/comissoes-os-v21.js?v=26.22.0"></script>
 <script src="js/thia-firestore-runtime-v2612.js?v=26.13.0"></script>
 <script src="js/performance-v23.js?v=26.13.0"></script>
 <script src="js/jarvis-financeiro-v263.js?v=26.15.1"></script>
