@@ -947,7 +947,10 @@
       if (!/^(executado|executado obs|concluido|finalizado|feito|realizado)$/.test(status.replace(/[_-]+/g, ' '))) return;
       const item = mapa.get(String(key)) || {};
       if (!norm(item?.tipo || registro?.tipo || '').includes('servico')) return;
-      if (!autoriaRegistroFuncionario(registro, func, atribuida)) return;
+      const autoriaValidaExecucao = exigirDataIndividual
+        ? autoriaRegistroFuncionarioExplicitaIA(registro, func)
+        : autoriaRegistroFuncionario(registro, func, atribuida);
+      if (!autoriaValidaExecucao) return;
       if (!itemPertenceFuncionario(Object.assign({}, item, {
         mecId: registro?.mecId || registro?.responsavelId || item?.mecId,
         mecNome: registro?.mecNome || registro?.responsavelNome || item?.mecNome
@@ -970,9 +973,9 @@
     });
     const unicosConfirmados = Array.from(new Map(confirmados.map(s => [`${s.key}|${s.data}`, s])).values());
     const operacionais = [];
-    if (atribuida) {
+    if (atribuida || exigirDataIndividual) {
       itensServico.forEach(item => {
-        if (!itemPertenceFuncionario(item, func, os)) return;
+        if (!exigirDataIndividual && !itemPertenceFuncionario(item, func, os)) return;
         const evidencia = dataAtribuicaoServicoFuncionarioIA(os, item, func, { estrito: exigirDataIndividual });
         if (!periodoContem(periodo, evidencia.data)) return;
         const desc = item?.desc || '';
@@ -987,7 +990,7 @@
       });
     }
     const registrados = [];
-    if (!unicosConfirmados.length && atribuida) {
+    if (!unicosConfirmados.length && (atribuida || exigirDataIndividual)) {
       const temAprovacao = typeof U.hasApproval === 'function'
         ? U.hasApproval(os)
         : !!((os?.aprovacao && Array.isArray(os.aprovacao.itens)) || Array.isArray(os?.itensAprovados));
@@ -996,7 +999,7 @@
         : new Set((os?.itensAprovados || []).map(item => typeof item === 'string' ? item : item?.key).filter(Boolean));
       itensServico.forEach(item => {
         if (temAprovacao && !aprovados.has(item.key)) return;
-        if (!itemPertenceFuncionario(item, func, os)) return;
+        if (!exigirDataIndividual && !itemPertenceFuncionario(item, func, os)) return;
         const evidencia = dataAtribuicaoServicoFuncionarioIA(os, item, func, { estrito: exigirDataIndividual });
         if (!periodoContem(periodo, evidencia.data)) return;
         const desc = item?.desc || '';
@@ -1053,13 +1056,23 @@
   function dataLancamentoServicoIA(os, item, opcoes = {}) {
     const estrito = opcoes?.estrito === true;
     const origem = _servicoOriginalIA(os, item);
-    const direta = origem?.lancadoEm || item?.lancadoEm || origem?.atribuidoEm || item?.atribuidoEm || origem?.createdAt || item?.createdAt || origem?.updatedAt || item?.updatedAt || origem?.dataLancamento || item?.dataLancamento || '';
+    // Em consulta por periodo, "updatedAt" NAO prova que o servico foi lancado naquele dia.
+    // Um simples salvar/editar a O.S. pode atualizar esse campo e criaria falso atendimento.
+    const direta = estrito
+      ? (origem?.lancadoEm || item?.lancadoEm || origem?.atribuidoEm || item?.atribuidoEm || origem?.createdAt || item?.createdAt || origem?.dataLancamento || item?.dataLancamento || '')
+      : (origem?.lancadoEm || item?.lancadoEm || origem?.atribuidoEm || item?.atribuidoEm || origem?.createdAt || item?.createdAt || origem?.updatedAt || item?.updatedAt || origem?.dataLancamento || item?.dataLancamento || '');
     if (dataISO(direta)) return { data: direta, fonte: 'servico' };
     if (Array.isArray(os?.timeline)) {
       const eventos = os.timeline.filter(ev => {
         const dt = ev?.dt || ev?.data || ev?.createdAt || ev?.ts || '';
         if (!dataISO(dt)) return false;
-        return eventoCorrespondeServicoIA(ev, origem || item);
+        if (!eventoCorrespondeServicoIA(ev, origem || item)) return false;
+        if (!estrito) return true;
+        const tipo = norm(ev?.tipoEvento || ev?.tipo || '');
+        const texto = norm([ev?.acao, ev?.msg, ev?.mensagem, ev?.descricao, ev?.detalhe, ev?.texto].join(' '));
+        // No periodo estrito, aceita somente evento que comprove inclusao/lancamento do servico.
+        // Edicao, remocao, mudanca de valor/status ou evento generico nao vira "data de atendimento".
+        return /(servico adicionado|adicion.*servic|inclu.*servic|lanc.*servic|novo.*servic)/.test((tipo + ' ' + texto).replace(/[_-]+/g, ' '));
       });
       const evento = eventos.sort((a,b) => String(b?.dt || b?.data || b?.createdAt || b?.ts || '').localeCompare(String(a?.dt || a?.data || a?.createdAt || a?.ts || '')))[0];
       const dt = evento?.dt || evento?.data || evento?.createdAt || evento?.ts || '';
@@ -1070,20 +1083,43 @@
     return dataISO(dataOS) ? { data: dataOS, fonte: 'data_os' } : { data: '', fonte: 'sem_data' };
   }
 
+  function itemPertenceFuncionarioExplicitoIA(item, func, os) {
+    const rateios = rateiosFuncionarioItem(item, os);
+    if (rateios.length) return rateios.some(r => idCombinaFuncionario(r.mecId, func) || nomeCombinaFuncionario(r.mecNome, func));
+    const ids = [item?.mecId, item?.mecanicoId, item?.responsavelId].filter(Boolean);
+    const nomes = [item?.mecNome, item?.mecanicoNome, item?.responsavelNome].filter(Boolean);
+    if (!ids.length && !nomes.length) return false;
+    return ids.some(v => idCombinaFuncionario(v, func)) || nomes.some(v => nomeCombinaFuncionario(v, func));
+  }
+
+  function relacaoOSFuncionarioAnteriorOuIgualIA(os, func, dataLimite) {
+    const limite = dataISO(dataLimite);
+    if (!limite) return false;
+    return eventosRelacaoFuncionarioIA(os, func).some(ev => {
+      const tipo = norm(ev?.tipoEvento || ev?.tipo || '').replace(/[^a-z0-9]+/g, ' ').trim();
+      if (!/^(mecanico relacionado os|mecanico principal alterado)$/.test(tipo)) return false;
+      const dt = dataISO(ev?.dt || ev?.data || ev?.createdAt || ev?.ts || '');
+      return !!dt && dt <= limite;
+    });
+  }
+
   function dataAtribuicaoServicoFuncionarioIA(os, item, func, opcoes = {}) {
     const estrito = opcoes?.estrito === true;
     const origem = _servicoOriginalIA(os, item);
-    const pertence = itemPertenceFuncionario(origem, func, os) || itemPertenceFuncionario(item, func, os);
+    const pertenceExplicito = itemPertenceFuncionarioExplicitoIA(origem, func, os) || itemPertenceFuncionarioExplicitoIA(item, func, os);
+    const pertenceLegado = itemPertenceFuncionario(origem, func, os) || itemPertenceFuncionario(item, func, os);
     const atribuicao = origem?.mecAtribuidoEm || item?.mecAtribuidoEm || origem?.responsavelAtribuidoEm || item?.responsavelAtribuidoEm || '';
-    if (pertence && dataISO(atribuicao)) return { data: atribuicao, fonte: 'atribuicao_mecanico' };
+    if (pertenceExplicito && dataISO(atribuicao)) return { data: atribuicao, fonte: 'atribuicao_mecanico' };
 
-    if (pertence && Array.isArray(os?.timeline)) {
+    // Evento estruturado e especifico do servico + mecanico e prova suficiente mesmo
+    // para registros em que o objeto do servico ainda nao possui mecId persistido.
+    if (Array.isArray(os?.timeline)) {
       const eventos = os.timeline.filter(ev => {
         const dt = ev?.dt || ev?.data || ev?.createdAt || ev?.ts || '';
         if (!dataISO(dt) || !eventoMencionaFuncionarioIA(ev, func)) return false;
         const tipo = norm(ev?.tipoEvento || ev?.tipo || '');
         const hay = norm([ev?.acao,ev?.msg,ev?.mensagem,ev?.descricao,ev?.detalhe,ev?.texto].join(' '));
-        const relacaoServico = /(mecanico.*servic|servic.*mecanico|responsavel.*servic|servic.*responsavel|relacion.*servic|atrib.*servic|servic.*adicion)/.test(tipo + ' ' + hay);
+        const relacaoServico = /(mecanico.*servic|servic.*mecanico|responsavel.*servic|servic.*responsavel|relacion.*servic|atrib.*servic)/.test(tipo + ' ' + hay);
         if (!relacaoServico) return false;
         return eventoCorrespondeServicoIA(ev, origem || item);
       });
@@ -1092,7 +1128,23 @@
       if (dataISO(dt)) return { data: dt, fonte: 'timeline_atribuicao_servico' };
     }
 
-    return dataLancamentoServicoIA(os, origem, { estrito });
+    const lancamento = dataLancamentoServicoIA(os, origem, { estrito });
+    if (!lancamento.data) return lancamento;
+
+    if (estrito) {
+      // Periodo informado: nao herda automaticamente todos os servicos antigos do mecanico da O.S.
+      // Aceita lancamento do servico se o proprio item aponta explicitamente para o mecanico.
+      if (pertenceExplicito) return lancamento;
+      // Compatibilidade com o fluxo atual em que existe apenas um mecanico na O.S.:
+      // o servico novo pode herdar esse responsavel SOMENTE se houver evento estruturado provando
+      // que ele ja estava relacionado a O.S. antes (ou no mesmo dia) do lancamento do servico.
+      if (pertenceLegado && relacaoOSFuncionarioAnteriorOuIgualIA(os, func, lancamento.data)) {
+        return { data: lancamento.data, fonte: 'servico_sob_responsabilidade_os' };
+      }
+      return { data: '', fonte: 'sem_relacao_individual_no_periodo' };
+    }
+
+    return pertenceLegado ? lancamento : { data: '', fonte: 'sem_relacao' };
   }
 
   function responsabilidadeOficialFuncionarioIA(os, func) {
@@ -1120,29 +1172,41 @@
     };
   }
 
+  function eventoRelacaoExplicitaFuncionarioIA(evento, func) {
+    if (!eventoMencionaFuncionarioIA(evento, func)) return false;
+    const tipo = norm(evento?.tipoEvento || evento?.tipo || '').replace(/[^a-z0-9]+/g, ' ');
+    const texto = norm([evento?.acao, evento?.msg, evento?.mensagem, evento?.descricao, evento?.detalhe, evento?.texto].join(' '));
+    // Eventos estruturados gerados pelo fluxo atual. O autor da edicao NAO e prova de atendimento.
+    if (/^(mecanico relacionado os|mecanico principal alterado|mecanico relacionado servico)$/.test(tipo.trim())) return true;
+    // Compatibilidade com eventos legados: exige mencao explicita ao mecanico nos campos
+    // mecanicoId/mecanicoNome E uma acao de relacao/atribuicao. Nunca usa somente user/autor.
+    return /(relacion.*mecanic|mecanic.*relacion|atrib.*mecanic|mecanic.*atrib|responsavel.*servic|servic.*responsavel|mecanic.*principal)/.test(tipo + ' ' + texto);
+  }
+
   function eventosRelacaoFuncionarioIA(os, func) {
     return (Array.isArray(os?.timeline) ? os.timeline : []).filter(evento => {
       const data = evento?.dt || evento?.data || evento?.createdAt || evento?.ts || '';
       if (!dataISO(data)) return false;
-      if (eventoMencionaFuncionarioIA(evento, func)) return true;
-      const autor = evento?.user || evento?.usuario || evento?.por || evento?.atualizadoPor || '';
-      return nomeCombinaFuncionario(autor, func);
+      return eventoRelacaoExplicitaFuncionarioIA(evento, func);
     });
   }
 
   function evidenciaAtendimentoFuncionario(os, func, periodo) {
     const atribuida = osAtribuidaFuncionario(os, func);
+    const periodoEstrito = !!periodo && periodo.origem !== 'historico_carregado';
 
     const execucao = Object.values(os?.execucaoItens || {}).some(registro => {
       const data = registro?.atualizadoEm || registro?.updatedAt || registro?.data || registro?.em;
-      return autoriaRegistroFuncionario(registro, func, atribuida) && periodoContem(periodo, data);
+      const autoriaValida = periodoEstrito
+        ? autoriaRegistroFuncionarioExplicitaIA(registro, func)
+        : autoriaRegistroFuncionario(registro, func, atribuida);
+      return autoriaValida && periodoContem(periodo, data);
     });
     if (execucao) return true;
 
     const servicoNoPeriodo = (Array.isArray(os?.servicos) ? os.servicos : []).some(servico => {
-      if (!itemPertenceFuncionario(servico, func, os)) return false;
-      const estrito = !!periodo && periodo.origem !== 'historico_carregado';
-      const evidencia = dataAtribuicaoServicoFuncionarioIA(os, servico, func, { estrito });
+      if (!periodoEstrito && !itemPertenceFuncionario(servico, func, os)) return false;
+      const evidencia = dataAtribuicaoServicoFuncionarioIA(os, servico, func, { estrito: periodoEstrito });
       return !!evidencia.data && periodoContem(periodo, evidencia.data);
     });
     if (servicoNoPeriodo) return true;
@@ -1150,11 +1214,14 @@
     const oficial = responsabilidadeOficialFuncionarioIA(os, func);
     if (oficial?.dataConfiavel && periodoContem(periodo, oficial.data)) return true;
 
+    // Em consulta COM periodo, relacao geral com a O.S. nao basta para afirmar atendimento.
+    // Isso evita que uma edicao/status feito pelo mecanico em uma O.S. antiga vire falso atendimento.
+    if (periodoEstrito) return false;
+
     const evento = eventosRelacaoFuncionarioIA(os, func).some(ev => periodoContem(periodo, ev?.dt || ev?.data || ev?.createdAt || ev?.ts));
     if (evento) return true;
 
-    // Compatibilidade com registros antigos: se nao existe evidencia individual melhor,
-    // continua aceitando a data original da O.S. como o fluxo anterior fazia.
+    // Compatibilidade somente para consulta historica sem periodo especifico.
     return atribuida && periodoContem(periodo, dataPrincipalOS(os));
   }
 
@@ -1268,7 +1335,7 @@
       ].filter(Boolean);
       const oficialAtendimento = responsabilidadeOficialFuncionarioIA(os, func);
       if (oficialAtendimento?.data && (!periodoInformado || (oficialAtendimento.dataConfiavel && periodoContem(periodo, oficialAtendimento.data)))) datasAtendimentoRaw.push(oficialAtendimento.data);
-      eventosRelacaoFuncionarioIA(os, func).forEach(ev => {
+      if (!periodoInformado) eventosRelacaoFuncionarioIA(os, func).forEach(ev => {
         const dt = ev?.dt || ev?.data || ev?.createdAt || ev?.ts || '';
         if (periodoContem(periodo, dt)) datasAtendimentoRaw.push(dt);
       });
@@ -1370,7 +1437,7 @@
       `${lista.length} O.S. em ${veiculosUnicos.size} ve&iacute;culo(s).`,
       linhas.join('<br><br>'),
       resumoComissao,
-      '<br><small>Crit&eacute;rio operacional: toda O.S. n&atilde;o cancelada em que o mec&acirc;nico esteja relacionado entra como atendimento, inclusive Triagem, Or&ccedil;amento e itens sem valor/sem servi&ccedil;o lan&ccedil;ado. A libera&ccedil;&atilde;o de comiss&atilde;o permanece separada e continua dependendo das regras financeiras existentes.</small>'
+      '<br><small>Crit&eacute;rio operacional: quando existe per&iacute;odo informado, s&oacute; entram O.S. com evid&ecirc;ncia datada do mec&acirc;nico naquele intervalo (servi&ccedil;o inclu&iacute;do/atribu&iacute;do, execu&ccedil;&atilde;o registrada ou responsabilidade de Cliente Oficial). Edi&ccedil;&atilde;o gen&eacute;rica, mudan&ccedil;a de status ou simples autoria de evento n&atilde;o contam como atendimento. Sem per&iacute;odo, o hist&oacute;rico legado continua dispon&iacute;vel. A libera&ccedil;&atilde;o de comiss&atilde;o permanece separada.</small>'
     ].join('<br>');
   }
 
@@ -1803,7 +1870,12 @@
   }
 
   function servicosDoFuncionarioNaOSIA(os, func) {
-    return (Array.isArray(os?.servicos) ? os.servicos : []).filter(s => itemPertenceFuncionario(s, func, os));
+    return (Array.isArray(os?.servicos) ? os.servicos : []).filter(s => {
+      if (itemPertenceFuncionario(s, func, os)) return true;
+      // Compatibilidade com registros estruturados em que a relacao mecânico↔serviço
+      // ficou registrada na timeline, mas o objeto antigo do serviço não recebeu mecId.
+      return !!dataAtribuicaoServicoFuncionarioIA(os, s, func, { estrito: true }).data;
+    });
   }
 
   function responderVeiculosMecanicoIA(texto, q, ctx) {
@@ -1821,8 +1893,12 @@
     const nome = func.nome || func.usuario || func.id || 'mec&acirc;nico';
     if (!lista.length) return `N&atilde;o encontrei ve&iacute;culo relacionado a <strong>${esc(nome)}</strong>${periodoRotuloIA(periodo)}.`;
     const linhas = lista.slice(0,50).map(o => {
-      const serv = servicosDoFuncionarioNaOSIA(o, func);
-      const resumo = serv.length ? serv.slice(0,5).map(s => esc(s.desc || s.descricao || 'Servi&ccedil;o')).join('; ') : 'mec&acirc;nico relacionado &agrave; O.S., sem servi&ccedil;o individual atribu&iacute;do';
+      const serv = servicosDoFuncionarioNaOSIA(o, func).filter(s => {
+        if (!periodo) return true;
+        const evid = dataAtribuicaoServicoFuncionarioIA(o, s, func, { estrito: true });
+        return !!evid.data && periodoContem(periodo, evid.data);
+      });
+      const resumo = serv.length ? serv.slice(0,5).map(s => esc(s.desc || s.descricao || 'Servi&ccedil;o')).join('; ') : 'atendimento comprovado no per&iacute;odo, sem servi&ccedil;o individual atribu&iacute;do';
       return `- ${esc(placaOS(ctx,o) || '-')} | O.S. ${esc(String(o.numero || o.id || '-').slice(-10))} | ${esc(statusOperacionalAtendimento(o).rotulo)} | ${resumo}`;
     });
     return `<strong>${esc(nome)} — ${lista.length} O.S. / ${new Set(lista.map(o => placaOS(ctx,o) || o.veiculoId || o.id)).size} ve&iacute;culo(s)${periodoRotuloIA(periodo)}:</strong><br>${linhas.join('<br>')}`;
@@ -1850,7 +1926,7 @@
       });
       Object.values(os?.execucaoItens || {}).forEach(reg => {
         const dt = reg?.atualizadoEm || reg?.updatedAt || reg?.data || reg?.em || '';
-        if (!periodoContem(periodo, dt) || !autoriaRegistroFuncionario(reg, func, osAtribuidaFuncionario(os, func))) return;
+        if (!periodoContem(periodo, dt) || !autoriaRegistroFuncionarioExplicitaIA(reg, func)) return;
         resultados.push({ dt, texto: `${esc(dataBR(dt))} | ${esc(placa)} | execu&ccedil;&atilde;o ${esc(reg?.desc || reg?.descricao || reg?.status || 'registrada')}` });
       });
       servicosDoFuncionarioNaOSIA(os, func).forEach(sv => {
@@ -1861,9 +1937,6 @@
       const oficial = responsabilidadeOficialFuncionarioIA(os, func);
       if (oficial?.dataConfiavel && periodoContem(periodo, oficial.data)) {
         resultados.push({ dt:oficial.data, texto: `${esc(dataBR(oficial.data))} | ${esc(placa)} | respons&aacute;vel pela viatura de Cliente Oficial${oficial.valor > 0 ? ` | valor combinado ${moeda(oficial.valor)}` : ''}.` });
-      }
-      if (osAtribuidaFuncionario(os, func) && periodoContem(periodo, dataPrincipalOS(os)) && !servicosDoFuncionarioNaOSIA(os, func).length && !oficial) {
-        resultados.push({ dt:dataPrincipalOS(os), texto: `${esc(dataBR(dataPrincipalOS(os)))} | ${esc(placa)} | mec&acirc;nico relacionado &agrave; O.S.; nenhum servi&ccedil;o individual atribu&iacute;do foi localizado. <small>Registro legado sem data individual de rela&ccedil;&atilde;o.</small>` });
       }
     });
     const unicos = Array.from(new Map(resultados.map(r => [`${r.dt}|${norm(r.texto.replace(/<[^>]+>/g,''))}`, r])).values()).sort((a,b)=>String(a.dt).localeCompare(String(b.dt)));
