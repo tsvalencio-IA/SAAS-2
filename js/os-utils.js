@@ -1359,3 +1359,273 @@
     U.autoDescribeFields(document);
   }
 })();
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * OFICIN-IA V26.23.0 — ETAPAS INTERNAS DA O.S.
+ * Recurso isolado do Jarvis. Não participa de orçamento, portal, PDF,
+ * planilhas, comissão, financeiro, status ou timeline pública.
+ * ═══════════════════════════════════════════════════════════════════════ */
+(function etapasInternasOSJarvis(){
+  'use strict';
+
+  const MARCA = '__thiaEtapasInternasOSV26230';
+  if (window[MARCA]) return;
+  window[MARCA] = true;
+
+  function ehJarvis(){
+    const path = String(window.location?.pathname || '').toLowerCase();
+    return path.includes('jarvis.html') && !!document.getElementById('modalOS') && !!document.getElementById('osTimeline');
+  }
+
+  function esc(v){
+    if (window.JarvisOSUtils?.escapeHtml) return window.JarvisOSUtils.escapeHtml(v);
+    return String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+
+  function agoraISO(){ return new Date().toISOString(); }
+  function usuarioAtual(){ return String(window.J?.nome || sessionStorage.getItem('j_nome') || 'Usuário'); }
+  function idOSAtual(){ return String(document.getElementById('osId')?.value || '').trim(); }
+  function osLocal(id){ return (window.J?.os || []).find(o => String(o?.id || '') === String(id || '')) || null; }
+
+  function fmtData(v){
+    if (!v) return '';
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function normalizarEtapas(lista){
+    if (!Array.isArray(lista)) return [];
+    return lista.map((item, idx) => {
+      if (typeof item === 'string') {
+        return { id:`legado-${idx}`, texto:item, realizado:false, interno:true };
+      }
+      return {
+        id: String(item?.id || `legado-${idx}`),
+        texto: String(item?.texto || item?.descricao || item?.recado || '').trim(),
+        realizado: item?.realizado === true || item?.feito === true || item?.concluido === true,
+        criadoEm: item?.criadoEm || item?.createdAt || '',
+        criadoPor: item?.criadoPor || item?.createdBy || '',
+        realizadoEm: item?.realizadoEm || item?.feitoEm || item?.concluidoEm || '',
+        realizadoPor: item?.realizadoPor || item?.feitoPor || item?.concluidoPor || '',
+        interno: true
+      };
+    }).filter(item => item.texto);
+  }
+
+  function garantirEstilo(){
+    if (document.getElementById('thiaEtapasInternasOSStyle')) return;
+    const st = document.createElement('style');
+    st.id = 'thiaEtapasInternasOSStyle';
+    st.textContent = `
+      #thiaEtapasInternasOS{margin:0 0 14px 0;padding:14px;background:rgba(0,212,255,.045);border:1px solid rgba(0,212,255,.24);border-radius:4px}
+      #thiaEtapasInternasOS .et-title{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+      #thiaEtapasInternasOS .et-title strong{font-family:var(--fm);font-size:.70rem;color:var(--cyan);letter-spacing:1.5px}
+      #thiaEtapasInternasOS .et-help{font-family:var(--fm);font-size:.60rem;color:var(--muted);line-height:1.45;margin-top:3px}
+      #thiaEtapasInternasOS .et-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-bottom:10px}
+      #thiaEtapasInternasOS .et-list{display:flex;flex-direction:column;gap:7px}
+      #thiaEtapasInternasOS .et-item{width:100%;text-align:left;display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;align-items:start;padding:10px;border-radius:4px;border:1px solid rgba(148,163,184,.18);background:rgba(255,255,255,.025);color:var(--text);cursor:pointer;transition:.15s ease}
+      #thiaEtapasInternasOS .et-item:hover{border-color:rgba(0,212,255,.45);background:rgba(0,212,255,.05)}
+      #thiaEtapasInternasOS .et-check{width:22px;height:22px;border:1px solid rgba(148,163,184,.45);border-radius:4px;display:flex;align-items:center;justify-content:center;font-weight:900;color:transparent;margin-top:1px}
+      #thiaEtapasInternasOS .et-text{font-family:var(--fm);font-size:.72rem;font-weight:700;line-height:1.35;word-break:break-word}
+      #thiaEtapasInternasOS .et-meta{font-family:var(--fm);font-size:.56rem;color:var(--muted);margin-top:4px;line-height:1.35}
+      #thiaEtapasInternasOS .et-item.done{border-color:rgba(0,255,136,.28);background:rgba(0,255,136,.045)}
+      #thiaEtapasInternasOS .et-item.done .et-check{border-color:rgba(0,255,136,.55);background:rgba(0,255,136,.12);color:var(--success)}
+      #thiaEtapasInternasOS .et-item.done .et-text{text-decoration:line-through;color:var(--muted)}
+      #thiaEtapasInternasOS .et-empty{padding:10px;border:1px dashed rgba(148,163,184,.22);border-radius:4px;font-family:var(--fm);font-size:.64rem;color:var(--muted)}
+      @media(max-width:640px){#thiaEtapasInternasOS .et-add{grid-template-columns:1fr}#thiaEtapasInternasOS .et-add button{width:100%}}
+    `;
+    document.head.appendChild(st);
+  }
+
+  function garantirPainel(){
+    if (!ehJarvis()) return null;
+    garantirEstilo();
+    let box = document.getElementById('thiaEtapasInternasOS');
+    if (box) return box;
+    const timeline = document.getElementById('osTimeline');
+    if (!timeline?.parentElement) return null;
+    box = document.createElement('section');
+    box.id = 'thiaEtapasInternasOS';
+    box.innerHTML = `
+      <div class="et-title">
+        <div>
+          <strong>📌 ETAPAS / RECADOS INTERNOS DA O.S.</strong>
+          <div class="et-help">Uso interno. Clique em uma etapa para marcar como REALIZADA; clique novamente para reabrir.</div>
+        </div>
+        <span class="pill pill-cyan" id="thiaEtapasInternasContador">0 PENDENTE(S)</span>
+      </div>
+      <div class="et-add">
+        <input id="thiaEtapasInternasTexto" class="j-input" maxlength="220" placeholder="Ex.: Veículo foi para o lava-jato / Falta trocar borracha da porta / Foi para alinhamento">
+        <button type="button" class="btn-primary" id="thiaEtapasInternasAdicionar">+ ADICIONAR ETAPA</button>
+      </div>
+      <div class="et-list" id="thiaEtapasInternasLista"></div>`;
+    timeline.parentElement.insertBefore(box, timeline);
+    box.querySelector('#thiaEtapasInternasAdicionar')?.addEventListener('click', () => window.thiaAdicionarEtapaInternaOS?.());
+    box.querySelector('#thiaEtapasInternasTexto')?.addEventListener('keydown', ev => {
+      if (ev.key === 'Enter') { ev.preventDefault(); window.thiaAdicionarEtapaInternaOS?.(); }
+    });
+    return box;
+  }
+
+  function render(listaOpt){
+    const box = garantirPainel();
+    if (!box) return;
+    const id = idOSAtual();
+    const listaEl = box.querySelector('#thiaEtapasInternasLista');
+    const input = box.querySelector('#thiaEtapasInternasTexto');
+    const btn = box.querySelector('#thiaEtapasInternasAdicionar');
+    const contador = box.querySelector('#thiaEtapasInternasContador');
+    if (!listaEl) return;
+
+    if (!id) {
+      if (input) input.disabled = true;
+      if (btn) btn.disabled = true;
+      if (contador) contador.textContent = 'SALVE A O.S.';
+      listaEl.innerHTML = '<div class="et-empty">Salve a O.S. primeiro. Depois você poderá registrar as etapas internas deste veículo.</div>';
+      return;
+    }
+
+    if (input) input.disabled = false;
+    if (btn) btn.disabled = false;
+    const o = osLocal(id) || {};
+    const etapas = normalizarEtapas(listaOpt !== undefined ? listaOpt : o.etapasInternas);
+    const pendentes = etapas.filter(e => !e.realizado).length;
+    if (contador) contador.textContent = `${pendentes} PENDENTE(S)`;
+
+    if (!etapas.length) {
+      listaEl.innerHTML = '<div class="et-empty">Nenhuma etapa interna registrada nesta O.S.</div>';
+      return;
+    }
+
+    listaEl.innerHTML = etapas.map(item => {
+      const metaCriacao = [item.criadoPor, fmtData(item.criadoEm)].filter(Boolean).join(' • ');
+      const metaFeito = item.realizado ? [item.realizadoPor, fmtData(item.realizadoEm)].filter(Boolean).join(' • ') : '';
+      const meta = item.realizado
+        ? `REALIZADO${metaFeito ? ' • ' + metaFeito : ''}`
+        : (metaCriacao ? `Registrado por ${metaCriacao}` : 'PENDENTE');
+      return `<button type="button" class="et-item ${item.realizado ? 'done' : ''}" data-etapa-id="${esc(item.id)}" title="Clique para ${item.realizado ? 'reabrir' : 'marcar como realizado'}">
+        <span class="et-check">✓</span>
+        <span><span class="et-text">${esc(item.texto)}</span><span class="et-meta">${esc(meta)}</span></span>
+      </button>`;
+    }).join('');
+
+    listaEl.querySelectorAll('.et-item').forEach(el => {
+      el.addEventListener('click', () => window.thiaAlternarEtapaInternaOS?.(el.dataset.etapaId));
+    });
+  }
+
+  async function atualizarTransacao(mutador){
+    const id = idOSAtual();
+    if (!id) { window.toast?.('Salve a O.S. antes de registrar etapas internas.', 'warn'); return null; }
+    if (!window.db?.runTransaction) { window.toast?.('Banco de dados indisponível para atualizar as etapas.', 'warn'); return null; }
+    const ref = window.db.collection('ordens_servico').doc(id);
+    const novo = await window.db.runTransaction(async tx => {
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new Error('O.S. não encontrada');
+      const atual = normalizarEtapas(snap.data()?.etapasInternas);
+      const prox = mutador(atual.slice());
+      if (!Array.isArray(prox)) throw new Error('Etapas internas inválidas');
+      tx.update(ref, {
+        etapasInternas: prox,
+        etapasInternasAtualizadoEm: agoraISO(),
+        etapasInternasAtualizadoPor: usuarioAtual()
+      });
+      return prox;
+    });
+    const local = osLocal(id);
+    if (local) {
+      local.etapasInternas = novo;
+      local.etapasInternasAtualizadoEm = agoraISO();
+      local.etapasInternasAtualizadoPor = usuarioAtual();
+    }
+    render(novo);
+    return novo;
+  }
+
+  window.thiaAdicionarEtapaInternaOS = async function(){
+    const input = document.getElementById('thiaEtapasInternasTexto');
+    const texto = String(input?.value || '').trim();
+    if (!texto) { window.toast?.('Digite a etapa ou recado interno.', 'warn'); input?.focus(); return; }
+    const btn = document.getElementById('thiaEtapasInternasAdicionar');
+    if (btn) btn.disabled = true;
+    try {
+      const agora = agoraISO();
+      await atualizarTransacao(lista => {
+        lista.push({
+          id: `et-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`,
+          texto,
+          realizado:false,
+          criadoEm:agora,
+          criadoPor:usuarioAtual(),
+          realizadoEm:'',
+          realizadoPor:'',
+          interno:true,
+          visivelCliente:false
+        });
+        return lista;
+      });
+      if (input) input.value = '';
+      window.toast?.('Etapa interna adicionada.', 'ok');
+    } catch (e) {
+      console.error('[Etapas internas OS] adicionar:', e);
+      window.toast?.('Não foi possível adicionar a etapa interna.', 'warn');
+    } finally {
+      if (btn) btn.disabled = false;
+      input?.focus();
+    }
+  };
+
+  window.thiaAlternarEtapaInternaOS = async function(etapaId){
+    const idAlvo = String(etapaId || '');
+    if (!idAlvo) return;
+    try {
+      let ficouRealizada = false;
+      await atualizarTransacao(lista => lista.map(item => {
+        if (String(item.id) !== idAlvo) return item;
+        ficouRealizada = !item.realizado;
+        return Object.assign({}, item, {
+          realizado: ficouRealizada,
+          realizadoEm: ficouRealizada ? agoraISO() : '',
+          realizadoPor: ficouRealizada ? usuarioAtual() : '',
+          interno:true,
+          visivelCliente:false
+        });
+      }));
+      window.toast?.(ficouRealizada ? 'Etapa marcada como realizada.' : 'Etapa reaberta.', 'ok');
+    } catch (e) {
+      console.error('[Etapas internas OS] alternar:', e);
+      window.toast?.('Não foi possível atualizar a etapa interna.', 'warn');
+    }
+  };
+
+  window.renderEtapasInternasOS = render;
+
+  function envolverPrepOS(){
+    const fn = window.prepOS;
+    if (typeof fn !== 'function') return false;
+    if (fn.__thiaEtapasInternasOSV26230) return true;
+    const wrapped = function(){
+      const r = fn.apply(this, arguments);
+      setTimeout(() => render(), 0);
+      return r;
+    };
+    wrapped.__thiaEtapasInternasOSV26230 = true;
+    window.prepOS = wrapped;
+    return true;
+  }
+
+  function iniciar(){
+    if (!ehJarvis()) return;
+    garantirPainel();
+    render();
+    let tentativas = 0;
+    const timer = setInterval(() => {
+      tentativas++;
+      if (envolverPrepOS() || tentativas >= 80) clearInterval(timer);
+    }, 100);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar, { once:true });
+  else setTimeout(iniciar, 0);
+})();
