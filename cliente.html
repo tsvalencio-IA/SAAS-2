@@ -717,7 +717,7 @@ function _renderPortalOS(osList) {
         if (pecas.length > 0) {
             financeiroDetalhe += `<div style="font-family:var(--ff-mono); font-size:0.65rem; color:var(--success); margin-top:12px; margin-bottom:6px; letter-spacing:1px;">PEÇAS DO ORÇAMENTO</div>`;
             pecas.forEach(p => {
-                financeiroDetalhe += `<div class="detalhe-row"><span>${p.codigo ? '<code style="font-size:.68rem;color:var(--brand)">'+(UOS.escapeHtml ? UOS.escapeHtml(p.codigo) : p.codigo)+'</code> ' : ''}${UOS.escapeHtml ? UOS.escapeHtml(p.desc) : p.desc}${badgeAprovacao(p)}<br><small style="color:var(--text-muted);font-family:var(--ff-mono);">${p.qtd}x ${formatter.format(p.valorUnit || 0)}</small></span><span class="detalhe-valor">${formatter.format(p.valorFinal || 0)}</span></div>`;
+                financeiroDetalhe += `<div class="detalhe-row"><span>${UOS.escapeHtml ? UOS.escapeHtml(p.desc) : p.desc}${badgeAprovacao(p)}<br><small style="color:var(--text-muted);font-family:var(--ff-mono);">${p.qtd}x ${formatter.format(p.valorUnit || 0)}</small></span><span class="detalhe-valor">${formatter.format(p.valorFinal || 0)}</span></div>`;
             });
         }
         if (os.maoObra) {

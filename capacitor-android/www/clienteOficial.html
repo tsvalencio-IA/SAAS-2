@@ -883,7 +883,7 @@ function _buildOSCard(os){
     const vf=+(vBruto*(1-pctDescPeca)).toFixed(2);
     totalPec+=vf;
     const riscado=pctDescPeca>0?`<span style="color:var(--muted);text-decoration:line-through;font-size:.75rem">${moeda(vBruto)}</span> <span style="color:var(--ok);font-size:.7rem">-${(pctDescPeca*100).toFixed(0)}%</span> `:'';
-    return `<div class="detalhe-row"><span><code style="font-size:.7rem;color:var(--gov)">${esc(p.codigo||'—')}</code> ${esc(p.desc||'—')}${badgeAprovacao('peca-'+idx)}<br><small style="color:var(--muted)">${q}× ${moeda(vl)}</small></span><span class="detalhe-val" style="text-align:right">${riscado}${moeda(vf)}</span></div>`;
+    return `<div class="detalhe-row"><span>${esc(p.desc||'—')}${badgeAprovacao('peca-'+idx)}<br><small style="color:var(--muted)">${q}× ${moeda(vl)}</small></span><span class="detalhe-val" style="text-align:right">${riscado}${moeda(vf)}</span></div>`;
   }).join('');
 
   const fotos=((os.media||[]).concat(os.fotos||[])).filter(m=>m);
