@@ -1413,6 +1413,246 @@
     }).filter(item => item.texto);
   }
 
+  function contextoRelatorioEtapas(){
+    const id = idOSAtual();
+    const os = osLocal(id) || {};
+    const veiculos = Array.isArray(window.J?.veiculos) ? window.J.veiculos : [];
+    const clientes = Array.isArray(window.J?.clientes) ? window.J.clientes : [];
+    const veic = veiculos.find(v => String(v?.id || '') === String(os?.veiculoId || '')) || os?.veiculoSnapshot || {};
+    const cli = clientes.find(c => String(c?.id || '') === String(os?.clienteId || '')) || os?.clienteSnapshot || {};
+    const etapas = normalizarEtapas(os?.etapasInternas);
+    const placa = String(veic?.placa || os?.placa || os?.veiculoPlaca || '-').trim() || '-';
+    const modelo = String(veic?.modelo || os?.veiculoModelo || os?.veiculo || '-').trim() || '-';
+    const cliente = String(cli?.nome || cli?.razaoSocial || cli?.fantasia || os?.clienteNome || os?.cliente || '-').trim() || '-';
+    const numero = String(os?.numero || id || '-').trim() || '-';
+    return {
+      id,
+      os,
+      placa,
+      modelo,
+      cliente,
+      numero,
+      etapas,
+      separados: etapas.filter(e => e.realizado),
+      pendentes: etapas.filter(e => !e.realizado),
+      geradoEm: new Date()
+    };
+  }
+
+  function nomeArquivoRelatorioEtapas(ctx, ext){
+    const placa = String(ctx?.placa || 'SEM-PLACA').replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'SEM-PLACA';
+    return `OS_${placa}_ITENS_SEPARADOS.${ext}`;
+  }
+
+  function validarRelatorioEtapas(ctx){
+    if (!ctx?.id) {
+      window.toast?.('Abra uma O.S. salva antes de gerar o relatório de separação.', 'warn');
+      return false;
+    }
+    if (!ctx?.etapas?.length) {
+      window.toast?.('Esta O.S. ainda não possui etapas/itens internos para gerar o relatório.', 'warn');
+      return false;
+    }
+    return true;
+  }
+
+  function metaEtapaRelatorio(item){
+    if (item?.realizado) {
+      const partes = [item?.realizadoPor, fmtData(item?.realizadoEm)].filter(Boolean);
+      return partes.length ? `Separado / realizado por ${partes.join(' • ')}` : 'Separado / realizado';
+    }
+    const partes = [item?.criadoPor, fmtData(item?.criadoEm)].filter(Boolean);
+    return partes.length ? `Pendente • registrado por ${partes.join(' • ')}` : 'Pendente';
+  }
+
+  function htmlRelatorioEtapas(ctx){
+    const dataGeracao = ctx.geradoEm.toLocaleString('pt-BR');
+    const linhas = (lista, classe, simbolo) => lista.length
+      ? lista.map((item, idx) => `<div class="item ${classe}"><div class="mark">${simbolo}</div><div><div class="txt">${idx + 1}. ${esc(item.texto)}</div><div class="meta">${esc(metaEtapaRelatorio(item))}</div></div></div>`).join('')
+      : '<div class="vazio">Nenhum item nesta situação.</div>';
+    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Itens separados - ${esc(ctx.placa)}</title><style>
+      @page{size:A4;margin:12mm}*{box-sizing:border-box}body{margin:0;background:#fff;color:#111827;font-family:Arial,Helvetica,sans-serif}.wrap{max-width:900px;margin:0 auto}.head{border-bottom:2px solid #111827;padding-bottom:10px;margin-bottom:12px}.brand{font-weight:800;font-size:17px;letter-spacing:.6px}.sub{font-size:11px;color:#475569;margin-top:3px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 16px;margin:12px 0;font-size:11px}.grid b{display:block;font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:.6px;margin-bottom:2px}.resumo{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 16px}.badge{border:1px solid #cbd5e1;border-radius:999px;padding:5px 9px;font-size:10px;font-weight:700}.sec{margin-top:14px}.sec h2{font-size:12px;margin:0 0 7px;padding:7px 9px;border:1px solid #cbd5e1;background:#f8fafc;letter-spacing:.5px}.item{display:grid;grid-template-columns:22px minmax(0,1fr);gap:7px;border:1px solid #e2e8f0;border-radius:5px;padding:8px 9px;margin-bottom:6px;break-inside:avoid}.item.done{border-color:#86efac;background:#f0fdf4}.item.pending{border-color:#fde68a;background:#fffbeb}.mark{font-size:15px;font-weight:900}.txt{font-size:11px;font-weight:700;line-height:1.35}.meta{font-size:9px;color:#64748b;margin-top:3px}.vazio{font-size:10px;color:#64748b;border:1px dashed #cbd5e1;padding:9px}.foot{margin-top:18px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:8.5px;color:#64748b;text-align:center}@media(max-width:600px){.grid{grid-template-columns:1fr}}@media print{.no-print{display:none!important}}
+    </style></head><body><div class="wrap"><div class="head"><div class="brand">RELATÓRIO DE SEPARAÇÃO — O.S.</div><div class="sub">Itens registrados em “Etapas / Recados Internos da O.S.”</div></div>
+      <div class="grid"><div><b>O.S.</b>${esc(ctx.numero)}</div><div><b>Placa</b>${esc(ctx.placa)}</div><div><b>Veículo</b>${esc(ctx.modelo)}</div><div><b>Cliente</b>${esc(ctx.cliente)}</div><div><b>Gerado em</b>${esc(dataGeracao)}</div><div><b>Gerado por</b>${esc(usuarioAtual())}</div></div>
+      <div class="resumo"><span class="badge">✓ ${ctx.separados.length} JÁ SEPARADO(S)</span><span class="badge">○ ${ctx.pendentes.length} PENDENTE(S)</span><span class="badge">TOTAL ${ctx.etapas.length}</span></div>
+      <section class="sec"><h2>✓ PEÇAS / ITENS JÁ SEPARADOS</h2>${linhas(ctx.separados,'done','✓')}</section>
+      <section class="sec"><h2>○ PENDENTES DE SEPARAÇÃO / EXECUÇÃO</h2>${linhas(ctx.pendentes,'pending','○')}</section>
+      <div class="foot">Documento interno da O.S. • Powered by thIAguinho Soluções Digitais</div></div></body></html>`;
+  }
+
+  function abrirJanelaRelatorioEtapas(ctx, imprimir){
+    const win = window.open('', '_blank');
+    if (!win) {
+      window.toast?.('O navegador bloqueou a nova janela. Libere pop-ups para imprimir.', 'warn');
+      return null;
+    }
+    win.document.open();
+    win.document.write(htmlRelatorioEtapas(ctx));
+    win.document.close();
+    if (imprimir) {
+      const disparar = () => { try { win.focus(); win.print(); } catch (_) {} };
+      if (win.document.readyState === 'complete') setTimeout(disparar, 180);
+      else win.addEventListener('load', () => setTimeout(disparar, 180), { once:true });
+    }
+    return win;
+  }
+
+  function quebrarTextoCanvas(ctx2d, texto, larguraMax){
+    const palavras = String(texto || '').split(/\s+/).filter(Boolean);
+    const linhas = [];
+    let linha = '';
+    palavras.forEach(p => {
+      const teste = linha ? `${linha} ${p}` : p;
+      if (ctx2d.measureText(teste).width <= larguraMax || !linha) linha = teste;
+      else { linhas.push(linha); linha = p; }
+    });
+    if (linha) linhas.push(linha);
+    return linhas.length ? linhas : [''];
+  }
+
+  function baixarBlobEtapas(blob, nome){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nome;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }
+
+  window.thiaImprimirEtapasInternasOS = function(){
+    const ctx = contextoRelatorioEtapas();
+    if (!validarRelatorioEtapas(ctx)) return;
+    abrirJanelaRelatorioEtapas(ctx, true);
+  };
+
+  window.thiaGerarPdfEtapasInternasOS = async function(){
+    const ctx = contextoRelatorioEtapas();
+    if (!validarRelatorioEtapas(ctx)) return;
+    try {
+      if (!window.jspdf?.jsPDF && typeof window.thiaLoadPdfLibsV23 === 'function') await window.thiaLoadPdfLibsV23();
+      if (!window.jspdf?.jsPDF) {
+        abrirJanelaRelatorioEtapas(ctx, true);
+        window.toast?.('PDF direto indisponível; abriu a impressão. Escolha “Salvar como PDF”.', 'warn');
+        return;
+      }
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('p','mm','a4');
+      const margem = 12;
+      const largura = 210 - margem * 2;
+      let y = 13;
+      const novaPagina = (altura = 10) => { if (y + altura > 283) { doc.addPage(); y = 13; } };
+      const texto = (txt, x, yy, opt={}) => {
+        doc.setFont('helvetica', opt.bold ? 'bold' : 'normal');
+        doc.setFontSize(opt.size || 9);
+        doc.setTextColor(...(opt.cor || [31,41,55]));
+        doc.text(String(txt ?? ''), x, yy, opt.options || {});
+      };
+      texto('RELATÓRIO DE SEPARAÇÃO — O.S.', margem, y, {bold:true,size:14}); y += 5;
+      texto('Itens registrados em “Etapas / Recados Internos da O.S.”', margem, y, {size:8,cor:[100,116,139]}); y += 6;
+      doc.setDrawColor(203,213,225); doc.line(margem,y,210-margem,y); y += 5;
+      const meta = [
+        `O.S.: ${ctx.numero}`,
+        `Placa: ${ctx.placa}`,
+        `Veículo: ${ctx.modelo}`,
+        `Cliente: ${ctx.cliente}`,
+        `Gerado em: ${ctx.geradoEm.toLocaleString('pt-BR')}`,
+        `Gerado por: ${usuarioAtual()}`
+      ];
+      meta.forEach(m => { novaPagina(5); texto(m,margem,y,{size:9}); y += 4.5; });
+      y += 2;
+      texto(`JÁ SEPARADOS: ${ctx.separados.length}    PENDENTES: ${ctx.pendentes.length}    TOTAL: ${ctx.etapas.length}`, margem, y, {bold:true,size:9}); y += 7;
+      const secao = (titulo, lista, simbolo) => {
+        novaPagina(12);
+        doc.setFillColor(248,250,252); doc.setDrawColor(203,213,225); doc.rect(margem,y-4,largura,7,'FD');
+        texto(titulo,margem+2,y,{bold:true,size:9}); y += 7;
+        if (!lista.length) { texto('Nenhum item nesta situação.',margem+2,y,{size:8,cor:[100,116,139]}); y += 6; return; }
+        lista.forEach((item, idx) => {
+          doc.setFont('helvetica','bold'); doc.setFontSize(9);
+          const linhas = doc.splitTextToSize(`${simbolo} ${idx+1}. ${item.texto}`, largura-8);
+          doc.setFont('helvetica','normal'); doc.setFontSize(7.5);
+          const metaLinhas = doc.splitTextToSize(metaEtapaRelatorio(item), largura-8);
+          const altura = linhas.length*4 + metaLinhas.length*3.4 + 5;
+          novaPagina(altura);
+          doc.setDrawColor(item.realizado ? 134 : 253, item.realizado ? 239 : 230, item.realizado ? 172 : 138);
+          doc.rect(margem,y-3,largura,altura-1);
+          doc.setFont('helvetica','bold'); doc.setFontSize(9); doc.setTextColor(31,41,55); doc.text(linhas,margem+3,y+1);
+          const yMeta = y + 1 + linhas.length*4;
+          doc.setFont('helvetica','normal'); doc.setFontSize(7.5); doc.setTextColor(100,116,139); doc.text(metaLinhas,margem+3,yMeta+1);
+          y += altura + 2;
+        });
+      };
+      secao('PEÇAS / ITENS JÁ SEPARADOS', ctx.separados, '[X]');
+      secao('PENDENTES DE SEPARAÇÃO / EXECUÇÃO', ctx.pendentes, '[ ]');
+      novaPagina(10); y += 2;
+      texto('Documento interno da O.S. • Powered by thIAguinho Soluções Digitais',105,y,{size:7,cor:[100,116,139],options:{align:'center'}});
+      doc.save(nomeArquivoRelatorioEtapas(ctx,'pdf'));
+      window.toast?.('PDF dos itens separados gerado.', 'ok');
+    } catch (e) {
+      console.error('[Etapas internas OS] PDF:', e);
+      window.toast?.('Não foi possível gerar o PDF. Use o botão IMPRIMIR para salvar como PDF.', 'warn');
+    }
+  };
+
+  window.thiaGerarImagemEtapasInternasOS = function(){
+    const ctx = contextoRelatorioEtapas();
+    if (!validarRelatorioEtapas(ctx)) return;
+    try {
+      const W = 1400, pad = 72, contentW = W - pad*2;
+      const canvasMedida = document.createElement('canvas');
+      canvasMedida.width = W; canvasMedida.height = 100;
+      const m = canvasMedida.getContext('2d');
+      m.font = '700 28px Arial';
+      const medirItem = item => {
+        m.font = '700 28px Arial';
+        const ls = quebrarTextoCanvas(m,item.texto,contentW-90);
+        m.font = '22px Arial';
+        const lm = quebrarTextoCanvas(m,metaEtapaRelatorio(item),contentW-90);
+        return 30 + ls.length*36 + lm.length*29;
+      };
+      const alturaLista = lista => lista.length ? lista.reduce((s,i)=>s+medirItem(i)+14,0) : 70;
+      const H = Math.max(900, 430 + alturaLista(ctx.separados) + alturaLista(ctx.pendentes) + 170);
+      const canvas = document.createElement('canvas'); canvas.width=W; canvas.height=H;
+      const c = canvas.getContext('2d');
+      c.fillStyle='#ffffff'; c.fillRect(0,0,W,H);
+      let y=70;
+      c.fillStyle='#111827'; c.font='800 42px Arial'; c.fillText('RELATÓRIO DE SEPARAÇÃO — O.S.',pad,y); y+=44;
+      c.fillStyle='#64748b'; c.font='24px Arial'; c.fillText('Itens registrados em “Etapas / Recados Internos da O.S.”',pad,y); y+=35;
+      c.strokeStyle='#cbd5e1'; c.lineWidth=2; c.beginPath(); c.moveTo(pad,y); c.lineTo(W-pad,y); c.stroke(); y+=38;
+      c.fillStyle='#111827'; c.font='700 24px Arial';
+      const metas=[`O.S.: ${ctx.numero}`,`PLACA: ${ctx.placa}`,`VEÍCULO: ${ctx.modelo}`,`CLIENTE: ${ctx.cliente}`,`GERADO: ${ctx.geradoEm.toLocaleString('pt-BR')} • ${usuarioAtual()}`];
+      metas.forEach(t=>{ quebrarTextoCanvas(c,t,contentW).forEach(l=>{c.fillText(l,pad,y);y+=32;}); }); y+=12;
+      c.font='800 24px Arial'; c.fillText(`✓ ${ctx.separados.length} JÁ SEPARADO(S)    ○ ${ctx.pendentes.length} PENDENTE(S)    TOTAL ${ctx.etapas.length}`,pad,y); y+=48;
+      const desenharSecao=(titulo,lista,realizado)=>{
+        c.fillStyle='#f8fafc'; c.strokeStyle='#cbd5e1'; c.lineWidth=2; c.fillRect(pad,y-28,contentW,48); c.strokeRect(pad,y-28,contentW,48);
+        c.fillStyle='#111827'; c.font='800 25px Arial'; c.fillText(titulo,pad+16,y+4); y+=48;
+        if(!lista.length){ c.fillStyle='#64748b'; c.font='22px Arial'; c.fillText('Nenhum item nesta situação.',pad+16,y); y+=60; return; }
+        lista.forEach((item,idx)=>{
+          c.font='700 28px Arial'; const linhas=quebrarTextoCanvas(c,item.texto,contentW-90);
+          c.font='22px Arial'; const metasItem=quebrarTextoCanvas(c,metaEtapaRelatorio(item),contentW-90);
+          const h=30+linhas.length*36+metasItem.length*29;
+          c.fillStyle=realizado?'#f0fdf4':'#fffbeb'; c.strokeStyle=realizado?'#86efac':'#fde68a'; c.fillRect(pad,y,contentW,h); c.strokeRect(pad,y,contentW,h);
+          c.fillStyle=realizado?'#15803d':'#a16207'; c.font='800 28px Arial'; c.fillText(realizado?'✓':'○',pad+18,y+38);
+          c.fillStyle='#111827'; c.font='700 28px Arial'; let yy=y+36; linhas.forEach((l,i)=>{c.fillText(`${i===0?`${idx+1}. `:''}${l}`,pad+58,yy);yy+=36;});
+          c.fillStyle='#64748b'; c.font='22px Arial'; metasItem.forEach(l=>{c.fillText(l,pad+58,yy);yy+=29;}); y+=h+14;
+        });
+        y+=20;
+      };
+      desenharSecao('PEÇAS / ITENS JÁ SEPARADOS',ctx.separados,true);
+      desenharSecao('PENDENTES DE SEPARAÇÃO / EXECUÇÃO',ctx.pendentes,false);
+      c.fillStyle='#64748b'; c.font='20px Arial'; c.textAlign='center'; c.fillText('Documento interno da O.S. • Powered by thIAguinho Soluções Digitais',W/2,Math.min(H-45,y+28)); c.textAlign='left';
+      canvas.toBlob(blob=>{
+        if(!blob){ window.toast?.('Não foi possível gerar a imagem.', 'warn'); return; }
+        baixarBlobEtapas(blob,nomeArquivoRelatorioEtapas(ctx,'png'));
+        window.toast?.('Imagem dos itens separados gerada.', 'ok');
+      },'image/png',1);
+    } catch (e) {
+      console.error('[Etapas internas OS] imagem:', e);
+      window.toast?.('Não foi possível gerar a imagem.', 'warn');
+    }
+  };
+
   function garantirEstilo(){
     if (document.getElementById('thiaEtapasInternasOSStyle')) return;
     const st = document.createElement('style');
@@ -1420,6 +1660,8 @@
     st.textContent = `
       #thiaEtapasInternasOS{margin:0 0 14px 0;padding:14px;background:rgba(0,212,255,.045);border:1px solid rgba(0,212,255,.24);border-radius:4px}
       #thiaEtapasInternasOS .et-title{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+      #thiaEtapasInternasOS .et-title-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+      #thiaEtapasInternasOS .et-export{padding:5px 8px;font-size:.56rem;letter-spacing:.7px;white-space:nowrap}
       #thiaEtapasInternasOS .et-title strong{font-family:var(--fm);font-size:.70rem;color:var(--cyan);letter-spacing:1.5px}
       #thiaEtapasInternasOS .et-help{font-family:var(--fm);font-size:.60rem;color:var(--muted);line-height:1.45;margin-top:3px}
       #thiaEtapasInternasOS .et-add{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-bottom:10px}
@@ -1453,7 +1695,12 @@
           <strong>📌 ETAPAS / RECADOS INTERNOS DA O.S.</strong>
           <div class="et-help">Uso interno. Clique em uma etapa para marcar como REALIZADA; clique novamente para reabrir.</div>
         </div>
-        <span class="pill pill-cyan" id="thiaEtapasInternasContador">0 PENDENTE(S)</span>
+        <div class="et-title-actions">
+          <span class="pill pill-cyan" id="thiaEtapasInternasContador">0 PENDENTE(S)</span>
+          <button type="button" class="btn-ghost et-export" id="thiaEtapasInternasImprimir">IMPRIMIR</button>
+          <button type="button" class="btn-ghost et-export" id="thiaEtapasInternasPdf">PDF</button>
+          <button type="button" class="btn-ghost et-export" id="thiaEtapasInternasImagem">IMAGEM</button>
+        </div>
       </div>
       <div class="et-add">
         <input id="thiaEtapasInternasTexto" class="j-input" maxlength="220" placeholder="Ex.: Veículo foi para o lava-jato / Falta trocar borracha da porta / Foi para alinhamento">
@@ -1462,6 +1709,9 @@
       <div class="et-list" id="thiaEtapasInternasLista"></div>`;
     timeline.parentElement.insertBefore(box, timeline);
     box.querySelector('#thiaEtapasInternasAdicionar')?.addEventListener('click', () => window.thiaAdicionarEtapaInternaOS?.());
+    box.querySelector('#thiaEtapasInternasImprimir')?.addEventListener('click', () => window.thiaImprimirEtapasInternasOS?.());
+    box.querySelector('#thiaEtapasInternasPdf')?.addEventListener('click', () => window.thiaGerarPdfEtapasInternasOS?.());
+    box.querySelector('#thiaEtapasInternasImagem')?.addEventListener('click', () => window.thiaGerarImagemEtapasInternasOS?.());
     box.querySelector('#thiaEtapasInternasTexto')?.addEventListener('keydown', ev => {
       if (ev.key === 'Enter') { ev.preventDefault(); window.thiaAdicionarEtapaInternaOS?.(); }
     });
