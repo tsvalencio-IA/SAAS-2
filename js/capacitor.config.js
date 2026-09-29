@@ -22,7 +22,7 @@ const config = {
   server: {
     // Carrega o sistema direto do GitHub Pages (sempre atualizado)
     // URL publica oficial do GitHub Pages.
-    url: 'https://tsvalencio-ia.github.io/OFICIN-IA/cliente.html',
+    url: 'https://tsvalencio-ia.github.io/SAAS-2/cliente.html',
     androidScheme: 'https',
     cleartext: false,
     allowNavigation: [

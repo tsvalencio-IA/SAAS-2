@@ -1,30 +1,51 @@
 /*
  * Configuracao central dos links publicos do SaaS.
  * Base publica oficial no GitHub Pages:
- * https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/
+ * https://tsvalencio-ia.github.io/SAAS-2/
  */
 (function () {
   'use strict';
 
-  const PUBLIC_BASE_URL = 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/';
+  const PUBLIC_BASE_URL = 'https://tsvalencio-ia.github.io/SAAS-2/';
+  const LEGACY_PUBLIC_BASES = [
+    'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA',
+    'https://tsvalencio-ia.github.io/OFICIN-IA'
+  ];
+
+  function normalizeLegacyPublicUrl(url) {
+    let value = String(url || '').trim();
+    if (!value) return '';
+    const target = PUBLIC_BASE_URL.replace(/\/+$/, '');
+    for (const legacy of LEGACY_PUBLIC_BASES) {
+      if (value === legacy || value.startsWith(legacy + '/')) {
+        value = target + value.slice(legacy.length);
+        break;
+      }
+    }
+    return value;
+  }
 
   window.THIA_PUBLIC_LINKS = Object.assign({
     baseUrl: PUBLIC_BASE_URL,
-    cliente: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/cliente.html',
-    clienteOficial: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/clienteOficial.html',
-    cotacaoFornecedor: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/cotacao.html',
-    cotacaoFornecedorCurta: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/c.html',
-    jarvis: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/jarvis.html',
-    equipe: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/equipe.html',
-    superadmin: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/superadmin.html',
-    login: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/index.html',
-    selecionarPerfil: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/selecionar-perfil.html',
+    cliente: 'https://tsvalencio-ia.github.io/SAAS-2/cliente.html',
+    clienteOficial: 'https://tsvalencio-ia.github.io/SAAS-2/clienteOficial.html',
+    cotacaoFornecedor: 'https://tsvalencio-ia.github.io/SAAS-2/cotacao.html',
+    cotacaoFornecedorCurta: 'https://tsvalencio-ia.github.io/SAAS-2/c.html',
+    jarvis: 'https://tsvalencio-ia.github.io/SAAS-2/jarvis.html',
+    equipe: 'https://tsvalencio-ia.github.io/SAAS-2/equipe.html',
+    superadmin: 'https://tsvalencio-ia.github.io/SAAS-2/superadmin.html',
+    login: 'https://tsvalencio-ia.github.io/SAAS-2/index.html',
+    selecionarPerfil: 'https://tsvalencio-ia.github.io/SAAS-2/selecionar-perfil.html',
     usarLinkCurtoCotacao: true,
     incluirFirebaseConfigNoLink: false,
-    qrCliente: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/cliente.html',
-    apkShareBase: 'https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/',
-    apkUrl: 'https://github.com/tsvalencio-ia/OFICIN-IA/releases/latest'
+    qrCliente: 'https://tsvalencio-ia.github.io/SAAS-2/cliente.html',
+    apkShareBase: 'https://tsvalencio-ia.github.io/SAAS-2/',
+    apkUrl: 'https://github.com/tsvalencio-IA/SAAS-2/releases/latest'
   }, window.THIA_PUBLIC_LINKS || {});
+
+  ['baseUrl','cliente','clienteOficial','cotacaoFornecedor','cotacaoFornecedorCurta','jarvis','equipe','superadmin','login','selecionarPerfil','qrCliente','apkShareBase'].forEach(key => {
+    if (window.THIA_PUBLIC_LINKS[key]) window.THIA_PUBLIC_LINKS[key] = normalizeLegacyPublicUrl(window.THIA_PUBLIC_LINKS[key]);
+  });
 
   function cleanBase(url) {
     return String(url || '').trim().replace(/\/+$/, '');
@@ -45,7 +66,7 @@
   function officeBase() {
     try {
       const ofi = (window.thiaGetOficinaAtual && window.thiaGetOficinaAtual()) || JSON.parse(sessionStorage.getItem('j_oficina') || 'null') || {};
-      return cleanBase(ofi.publicBaseUrl || ofi.linksPublicos?.baseUrl || '');
+      return cleanBase(normalizeLegacyPublicUrl(ofi.publicBaseUrl || ofi.linksPublicos?.baseUrl || ''));
     } catch (_) {
       return '';
     }
@@ -112,6 +133,7 @@
       const page = kind === 'cotacaoFornecedor' ? 'cotacao.html' : (kind === 'clienteOficial' ? 'clienteOficial.html' : 'cliente.html');
       url = page;
     }
+    url = normalizeLegacyPublicUrl(url);
 
     const qp = new URLSearchParams();
     Object.entries(params || {}).forEach(([key, value]) => {
@@ -143,7 +165,7 @@
   window.thiaGetCurrentPublicHttpUrl = function (kind) {
     const k = kind || (/clienteOficial\.html/i.test(location.pathname || '') ? 'clienteOficial' : 'cliente');
     const cfg = window.THIA_PUBLIC_LINKS || {};
-    const base = k === 'clienteOficial' ? cfg.clienteOficial : cfg.cliente;
+    const base = normalizeLegacyPublicUrl(k === 'clienteOficial' ? cfg.clienteOficial : cfg.cliente);
     const qs = location.search || '';
     return base ? (base + qs) : window.thiaGetPublicUrl(k, Object.fromEntries(new URLSearchParams(qs)));
   };

@@ -1596,7 +1596,7 @@ function montarLinkPortalClienteOS(os, cliente, veiculo) {
     placa: os?.placa || veiculo?.placa || '',
     login: cliente?.login || os?.placa || veiculo?.placa || ''
   });
-  return `https://tsvalencio-ia.github.io/OFICIN-IA/${page}?${params.toString()}`;
+  return `https://tsvalencio-ia.github.io/SAAS-2/${page}?${params.toString()}`;
 }
 
 const KANBAN_STATUSES = ['Triagem', 'Orcamento', 'Orcamento_Enviado', 'Aprovado', 'Andamento', 'Pronto', 'Entregue'];

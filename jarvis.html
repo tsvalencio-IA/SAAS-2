@@ -22,7 +22,7 @@ if ('serviceWorker' in navigator) {
 <script src="https://www.gstatic.com/firebasejs/12.17.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore-compat.js"></script>
 <script src="js/config.js?v=26.13.0"></script>
-<script src="js/links-publicos.js"></script>
+<script src="js/links-publicos.js?v=26.24.0"></script>
 <script src="js/tenant-modules.js"></script>
 <script src="js/brasil-cadastros.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Exo+2:wght@300;400;600;700;900&display=swap" rel="stylesheet">
@@ -3256,7 +3256,7 @@ window._wppAcessoCliente = function(cid) {
   // Link publico centralizado: governo -> clienteOficial, demais -> cliente.
   const link = typeof window.thiaGetClientePortalUrl === 'function'
     ? window.thiaGetClientePortalUrl({ tenant: J.oficina?.slug || J.oficina?.publicSlug || J.oficina?.oficinaSlug || J.tid || '', cliente: c, login: c.login || '' })
-    : `https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/${c.tipoCliente === 'governo' ? 'clienteOficial.html' : 'cliente.html'}?tenant=${encodeURIComponent(J.tid || '')}&login=${encodeURIComponent(c.login || '')}`;
+    : `https://tsvalencio-ia.github.io/SAAS-2/${c.tipoCliente === 'governo' ? 'clienteOficial.html' : 'cliente.html'}?tenant=${encodeURIComponent(J.tid || '')}&login=${encodeURIComponent(c.login || '')}`;
   const msg =
     `Olá ${c.nome.split(' ')[0]}! 👋\n\n` +
     `Aqui é a *${J.tnome}*. Seu acesso ao portal do cliente S.O.S Valêncio está pronto!\n\n` +
@@ -3297,7 +3297,7 @@ window.thiaLinkClienteCadastro = function() {
       login: c.login || ''
     });
   }
-  return `https://tsvalencio-ia.github.io/OFICIN-IA-COM_IA/${c.tipoCliente === 'governo' ? 'clienteOficial.html' : 'cliente.html'}?tenant=${encodeURIComponent(J.tid || '')}&login=${encodeURIComponent(c.login || '')}`;
+  return `https://tsvalencio-ia.github.io/SAAS-2/${c.tipoCliente === 'governo' ? 'clienteOficial.html' : 'cliente.html'}?tenant=${encodeURIComponent(J.tid || '')}&login=${encodeURIComponent(c.login || '')}`;
 };
 
 window.thiaCopiarLinkClienteCadastro = async function() {
@@ -4282,8 +4282,8 @@ window.iaAnalisarEstoque = function() { _jiaChamar('Quais pecas estao em estoque
 <script src="js/nfe-real-pro.js?v=26.16.0"></script>
 <script src="js/thia-runtime-core-v2613.js?v=26.13.0"></script>
 <script src="js/os-utils.js?v=26.17.2"></script>
-<script src="js/os.js?v=26.22.0"></script>
-<script src="js/checklist-jarvis-bridge.js?v=26.13.0"></script>
+<script src="js/os.js?v=26.24.0"></script>
+<script src="js/checklist-jarvis-bridge.js?v=26.24.0"></script>
 <script src="js/cotacoes.js"></script>
 <script src="js/assinatura-os.js"></script>
 <script src="js/ia.js?v=26.22.5"></script>

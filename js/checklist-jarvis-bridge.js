@@ -1,6 +1,7 @@
 (function(){
   'use strict';
   const W=window, DOC=document, CSS_ID='checklistInteligenteOSStyle';
+  const CHECKLIST_CANONICAL_URL='https://tsvalencio-ia.github.io/CHECKLIS_SOS/';
   function $(id){return DOC.getElementById(id);} 
   function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
   function placaNorm(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8);} 
@@ -9,10 +10,11 @@
   function currentOS(){ const id=$('osId')?.value||''; return (W.J?.os||[]).find(o=>o.id===id) || null; }
   function checklistUrl(){
     const saved=(localStorage.getItem('OFICINIA_CHECKLIST_APP_URL')||'').trim();
-    if(saved) return saved.replace(/\/+$/,'/');
-    const host=(location.hostname||'').toLowerCase();
-    if(host.endsWith('.github.io')) return `${location.protocol}//${location.host}/CHECKLIST/`;
-    return 'https://tsvalencio-ia.github.io/CHECKLIST/';
+    if(saved && /CHECKLIS_SOS/i.test(saved)) return saved.replace(/\/+$/,'/');
+    if(saved && /(\/CHECKLIST\/?$|OFICIN-IA(?:-COM_IA)?)/i.test(saved)) {
+      try{ localStorage.setItem('OFICINIA_CHECKLIST_APP_URL',CHECKLIST_CANONICAL_URL); }catch(_){}
+    }
+    return CHECKLIST_CANONICAL_URL;
   }
   function ensureStyle(){
     if($(CSS_ID)) return;
@@ -39,6 +41,13 @@
       #checklistInteligenteOSBox .ci-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px;margin-top:10px}
       #checklistInteligenteOSBox .ci-photo{display:block;border:1px solid rgba(148,163,184,.24);border-radius:6px;overflow:hidden;background:#020617;text-decoration:none;color:#cbd5e1;font-size:10px}
       #checklistInteligenteOSBox .ci-photo img{width:100%;height:70px;object-fit:cover;display:block}.ci-modal-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}.ci-modal-photos a{background:#020617;border:1px solid rgba(148,163,184,.22);border-radius:10px;overflow:hidden;color:#cbd5e1;text-decoration:none;font-size:11px}.ci-modal-photos img{width:100%;height:110px;object-fit:cover;display:block}
+      #checklistInteligenteOSBox .ci-op{margin-top:12px;border:1px solid rgba(56,189,248,.24);background:rgba(14,116,144,.06);border-radius:3px;padding:10px}
+      #checklistInteligenteOSBox .ci-op-title{font-family:var(--fm,monospace);font-size:.68rem;font-weight:900;color:#7dd3fc;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+      #checklistInteligenteOSBox .ci-op-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}
+      #checklistInteligenteOSBox .ci-op-group{border:1px solid rgba(148,163,184,.18);background:rgba(15,23,42,.28);border-radius:3px;padding:8px;min-width:0}
+      #checklistInteligenteOSBox .ci-op-group h4{margin:0 0 6px;font-size:.72rem;color:#e2e8f0}
+      #checklistInteligenteOSBox .ci-op-row{padding:6px 0;border-top:1px dashed rgba(148,163,184,.18);font-size:.7rem;line-height:1.35}.ci-op-row:first-of-type{border-top:0}
+      #checklistInteligenteOSBox .ci-op-row b{display:block;color:#f8fafc}.ci-op-row small{color:var(--muted,#94a3b8)}
     `;
     DOC.head.appendChild(st);
   }
@@ -71,6 +80,28 @@
     if(Array.isArray(c?.itens)) return c.itens.filter(i=>acFinal.has(i.acao)).map(i=>({secao:i.secao,item:i.item,acao:i.acao,acaoLabel:i.acaoLabel||i.acao,obs:i.obs||i.diagnosticoObs||'',fotoUrls:i.fotoUrls||i.fotosUrls||[]}));
     return [];
   }
+  function operacionalFrom(os,c){
+    const op=os?.checklistOperacional || c?.operacional || null;
+    if(op && (Array.isArray(op.pecasTrocar)||Array.isArray(op.servicosExecutar)||Array.isArray(op.atencoes))) {
+      return {
+        pecasTrocar:Array.isArray(op.pecasTrocar)?op.pecasTrocar:[],
+        servicosExecutar:Array.isArray(op.servicosExecutar)?op.servicosExecutar:[],
+        atencoes:Array.isArray(op.atencoes)?op.atencoes:[],
+        totais:op.totais||{}
+      };
+    }
+    const crit=criticosFrom(c);
+    const serv=new Set(['retificar','regular','ajustar','lubrificar','limpar']);
+    const avaliar=new Set(['atencao','revisar']);
+    const pecasTrocar=crit.filter(i=>i.acao==='trocar');
+    const servicosExecutar=crit.filter(i=>serv.has(i.acao));
+    const atencoes=crit.filter(i=>avaliar.has(i.acao));
+    return {pecasTrocar,servicosExecutar,atencoes,totais:{pecas:pecasTrocar.length,servicos:servicosExecutar.length,atencoes:atencoes.length}};
+  }
+  function operacionalGrupoHtml(titulo,itens,vazio){
+    const rows=Array.isArray(itens)?itens:[];
+    return `<div class="ci-op-group"><h4>${esc(titulo)} (${rows.length})</h4>${rows.length?rows.map(i=>`<div class="ci-op-row"><b>${esc(i.item||'Item')}</b><small>${esc(i.secao||'')}${i.acaoLabel||i.acao?' • '+esc(i.acaoLabel||i.acao):''}${i.obs?' • '+esc(i.obs):''}</small></div>`).join(''):`<small>${esc(vazio)}</small>`}</div>`;
+  }
   function photosFrom(c){
     const out=[], seen=new Set();
     function add(url,label){ if(!url||seen.has(url)) return; seen.add(url); out.push({url,label}); }
@@ -91,10 +122,13 @@
     if(!id && !os){
       box.innerHTML=`<div class="ci-head"><div><div class="ci-title">✅ Checklist Técnico Inteligente</div><div class="ci-sub">Salve a O.S. primeiro para vincular checklist técnico, fotos e entrega.</div></div><div class="ci-actions"><button class="ci-btn ok" type="button" data-ci-open>ABRIR APP CHECKLIST</button></div></div><div class="ci-empty">Nova O.S. ainda sem ID. Após salvar, o checklist pode ser anexado pelo app separado.</div>`;
     } else if(!c){
-      box.innerHTML=`<div class="ci-head"><div><div class="ci-title">✅ Checklist Técnico Inteligente</div><div class="ci-sub">O.S. ${esc(osRef||'-')} • Placa ${esc(placa||'-')} • mesmo Firebase do SaaS</div></div><div class="ci-actions"><button class="ci-btn ok" type="button" data-ci-open>ABRIR APP CHECKLIST</button><button class="ci-btn" type="button" data-ci-refresh>ATUALIZAR</button></div></div><div class="ci-empty">Nenhum checklist técnico inteligente anexado nesta O.S. ainda. Abra o app Checklist, selecione a O.S. pela placa, preencha e salve.</div>`;
+      box.innerHTML=`<div class="ci-head"><div><div class="ci-title">✅ Checklist Técnico Inteligente</div><div class="ci-sub">O.S. ${esc(osRef||'-')} • Placa ${esc(placa||'-')} • mesmo Firebase do SaaS</div></div><div class="ci-actions"><button class="ci-btn ok" type="button" data-ci-open>ABRIR APP CHECKLIST</button><button class="ci-btn" type="button" data-ci-refresh>ATUALIZAR</button></div></div><div class="ci-empty">Nenhum checklist técnico inteligente anexado nesta O.S. ainda. Abra o CHECKLIS_SOS, selecione a O.S. pela placa, preencha e salve. Tudo será anexado nesta O.S.</div>`;
     } else {
-      const st=statsFrom(c), crit=criticosFrom(c), fotos=photosFrom(c);
-      box.innerHTML=`<div class="ci-head"><div><div class="ci-title">✅ Checklist Técnico Inteligente</div><div class="ci-sub">${esc(c.placa||placa||'-')} • O.S. ${esc(c.osRef||osRef||'-')} • Técnico: ${esc(c.tecnicoChecklist||c.responsavel||'-')} • Conferente: ${esc(c.verificadorEntrega||entrega?.conferente||'-')} • ${fmtDate(c.atualizadoEm||c.criadoEm||os?.checklistAtualizadoEm)}</div></div><div class="ci-actions"><button class="ci-btn ok" type="button" data-ci-open>ABRIR APP</button><button class="ci-btn" type="button" data-ci-view>VER COMPLETO</button><button class="ci-btn" type="button" data-ci-pdf>PDF</button><button class="ci-btn" type="button" data-ci-xlsx>XLSX</button><button class="ci-btn" type="button" data-ci-print>IMPRIMIR</button><button class="ci-btn" type="button" data-ci-refresh>ATUALIZAR</button></div></div><div class="ci-grid"><div class="ci-kpi"><small>OK</small><b>${Number(st.ok||0)}</b></div><div class="ci-kpi"><small>Atenção</small><b>${Number(st.atencao||0)}</b></div><div class="ci-kpi"><small>Trocar</small><b>${Number(st.trocar||0)}</b></div><div class="ci-kpi"><small>Ações técnicas</small><b>${Number(st.tecnicas||0)}</b></div><div class="ci-kpi"><small>Pendentes</small><b>${Number(st.pending||0)}</b></div><div class="ci-kpi"><small>Fotos</small><b>${fotos.length}</b></div></div>${entrega?`<div class="ci-delivery"><b>Registro de entrega:</b> ${esc(entrega.status||'-')} • Verificador: ${esc(entrega.verificadorEntrega||entrega.conferente||'-')} • Entregue por: ${esc(entrega.entreguePor||'-')} • Recebido por: ${esc(entrega.recebidoPor||'-')} • ${fmtDate(entrega.dataEntrega||entrega.criadoEm)}</div>`:''}<div class="ci-list">${crit.length?crit.slice(0,60).map(i=>`<div class="ci-item"><b>${esc(i.secao||'Seção')} • ${esc(i.item||'Item')}</b><small>Ação: ${esc(i.acaoLabel||i.acao||'-')}${i.obs?' • Obs.: '+esc(i.obs):''}${(i.fotoUrls||[]).length?' • Fotos: '+i.fotoUrls.length:''}</small></div>`).join(''):'<div class="ci-empty">Checklist sem itens críticos. Tudo marcado como OK/N/A ou sem ação de serviço.</div>'}</div>${fotos.length?`<div class="ci-photos">${fotos.slice(0,12).map(p=>`<a class="ci-photo" href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="foto"><span>${esc(p.label)}</span></a>`).join('')}</div>`:''}`;
+      const st=statsFrom(c), crit=criticosFrom(c), fotos=photosFrom(c), op=operacionalFrom(os,c);
+      const progresso=Number(c?.progressoPercent ?? st?.percent ?? 0);
+      const statusChecklist=String(c?.statusChecklist||'').toLowerCase()==='concluido'?'Concluído':(progresso?`Em produção • ${progresso}%`:'Registrado');
+      const operacionalHtml=`<div class="ci-op"><div class="ci-op-title">Saída operacional do CHECKLIS_SOS • ${esc(statusChecklist)}</div><div class="ci-op-grid">${operacionalGrupoHtml('🧾 Peças para trocar / cotar',op.pecasTrocar,'Nenhuma peça marcada para troca.')}${operacionalGrupoHtml('🛠️ Serviços / ações a executar',op.servicosExecutar,'Nenhum serviço técnico separado.')}${operacionalGrupoHtml('⚠️ Atenções / revisar',op.atencoes,'Nenhum item marcado para atenção.')}</div></div>`;
+      box.innerHTML=`<div class="ci-head"><div><div class="ci-title">✅ Checklist Técnico Inteligente</div><div class="ci-sub">${esc(c.placa||placa||'-')} • O.S. ${esc(c.osRef||osRef||'-')} • Técnico: ${esc(c.tecnicoChecklist||c.responsavel||'-')} • Conferente: ${esc(c.verificadorEntrega||entrega?.conferente||'-')} • ${fmtDate(c.atualizadoEm||c.criadoEm||os?.checklistAtualizadoEm)}</div></div><div class="ci-actions"><button class="ci-btn ok" type="button" data-ci-open>ABRIR APP</button><button class="ci-btn" type="button" data-ci-view>VER COMPLETO</button><button class="ci-btn" type="button" data-ci-pdf>PDF</button><button class="ci-btn" type="button" data-ci-xlsx>XLSX</button><button class="ci-btn" type="button" data-ci-print>IMPRIMIR</button><button class="ci-btn" type="button" data-ci-refresh>ATUALIZAR</button></div></div><div class="ci-grid"><div class="ci-kpi"><small>OK</small><b>${Number(st.ok||0)}</b></div><div class="ci-kpi"><small>Atenção</small><b>${Number(st.atencao||0)}</b></div><div class="ci-kpi"><small>Trocar</small><b>${Number(st.trocar||0)}</b></div><div class="ci-kpi"><small>Ações técnicas</small><b>${Number(st.tecnicas||0)}</b></div><div class="ci-kpi"><small>Pendentes</small><b>${Number(st.pending||0)}</b></div><div class="ci-kpi"><small>Fotos</small><b>${fotos.length}</b></div></div>${entrega?`<div class="ci-delivery"><b>Registro de entrega:</b> ${esc(entrega.status||'-')} • Verificador: ${esc(entrega.verificadorEntrega||entrega.conferente||'-')} • Entregue por: ${esc(entrega.entreguePor||'-')} • Recebido por: ${esc(entrega.recebidoPor||'-')} • ${fmtDate(entrega.dataEntrega||entrega.criadoEm)}</div>`:''}${operacionalHtml}<div class="ci-list">${crit.length?crit.slice(0,60).map(i=>`<div class="ci-item"><b>${esc(i.secao||'Seção')} • ${esc(i.item||'Item')}</b><small>Ação: ${esc(i.acaoLabel||i.acao||'-')}${i.obs?' • Obs.: '+esc(i.obs):''}${(i.fotoUrls||[]).length?' • Fotos: '+i.fotoUrls.length:''}</small></div>`).join(''):'<div class="ci-empty">Checklist sem itens críticos. Tudo marcado como OK/N/A ou sem ação de serviço.</div>'}</div>${fotos.length?`<div class="ci-photos">${fotos.slice(0,12).map(p=>`<a class="ci-photo" href="${esc(p.url)}" target="_blank" rel="noopener"><img src="${esc(p.url)}" alt="foto"><span>${esc(p.label)}</span></a>`).join('')}</div>`:''}`;
     }
     box.querySelector('[data-ci-open]')?.addEventListener('click',abrirApp);
     box.querySelector('[data-ci-refresh]')?.addEventListener('click',async()=>{ box.innerHTML='<div class="ci-empty">Atualizando checklist da O.S...</div>'; render(await fetchFreshOS()); });
@@ -124,6 +158,7 @@
     doc.setFont('helvetica','bold'); doc.setFontSize(14); doc.text('CHECKLIST TÉCNICO INTELIGENTE',12,y); y+=7;
     doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.text(`Placa: ${c.placa||'-'}   O.S.: ${c.osRef||'-'}   Técnico: ${c.tecnicoChecklist||c.responsavel||'-'}`,12,y); y+=6; doc.text(`Conferente: ${c.verificadorEntrega||entrega?.conferente||'-'}   Data: ${fmtDate(c.criadoEm)}   Fotos: ${photosFrom(c).length}`,12,y); y+=8;
     if(entrega){ doc.setFont('helvetica','bold'); doc.text('Registro de entrega',12,y); y+=5; doc.setFont('helvetica','normal'); const lines=doc.splitTextToSize(`Status: ${entrega.status||'-'} • Entregue por: ${entrega.entreguePor||'-'} • Recebido por: ${entrega.recebidoPor||'-'} • ${fmtDate(entrega.dataEntrega||entrega.criadoEm)} • ${entrega.observacaoFinal||''}`,180); doc.text(lines,12,y); y+=lines.length*4+4; }
+    const op=operacionalFrom(currentOS(),c); doc.setFont('helvetica','bold'); doc.text('Saída operacional do checklist',12,y); y+=5; doc.setFont('helvetica','normal'); doc.text(`Peças para trocar/cotar: ${op.pecasTrocar.length}   Serviços/ações: ${op.servicosExecutar.length}   Atenções/revisar: ${op.atencoes.length}`,12,y); y+=7;
     doc.setFont('helvetica','bold'); doc.text('Itens críticos / ações técnicas',12,y); y+=6; doc.setFont('helvetica','normal');
     (crit.length?crit:[{secao:'Resumo',item:'Sem itens críticos',acaoLabel:'OK / N/A'}]).forEach(i=>{ if(y>280){doc.addPage(); y=12;} doc.text(`${i.secao||''} • ${i.item||''} — ${i.acaoLabel||i.acao||''}`,12,y); y+=5; if(i.obs){ const lines=doc.splitTextToSize('Obs.: '+i.obs,180); doc.text(lines,14,y); y+=lines.length*4; }});
     doc.save(`CHECKLIST_OS_${c.osRef||c.placa||'OS'}.pdf`);
