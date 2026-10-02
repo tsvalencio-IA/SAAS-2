@@ -20,6 +20,11 @@
   let bridgeAuth = null;
   let bridgeDb = null;
   let chatUnsub = null;
+  let globalEventsUnsub = null;
+  let bridgeEvents = [];
+  let bridgeEventsInitialized = false;
+  let authObserverInstalled = false;
+  let importedEventIds = new Set();
   let pendingAuthResolve = null;
   let pendingAuthReject = null;
 
@@ -57,6 +62,13 @@
     bridgeAuth = app.auth();
     bridgeDb = app.firestore();
     try { bridgeAuth.setPersistence(W.firebase.auth.Auth.Persistence.LOCAL); } catch (_) {}
+    if (!authObserverInstalled) {
+      authObserverInstalled = true;
+      bridgeAuth.onAuthStateChanged(user => {
+        if (user && manager()) startGlobalBridgeListener();
+        else stopGlobalBridgeListener();
+      });
+    }
     return { app: bridgeApp, auth: bridgeAuth, db: bridgeDb };
   }
 
@@ -74,12 +86,240 @@
       .sf-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}.sf-btn{border:0;border-radius:8px;padding:9px 13px;font-size:.7rem;font-weight:800;cursor:pointer}.sf-primary{background:#d4ad45;color:#111b2b}.sf-ghost{background:#243044;color:#e7eef8}
       .sf-chat{height:360px;overflow:auto;background:#09111c;padding:12px;display:flex;flex-direction:column;gap:8px}.sf-msg{max-width:78%;padding:8px 10px;border-radius:10px;font-size:.73rem;line-height:1.45}.sf-msg.jarvis{align-self:flex-end;background:#17365e}.sf-msg.sigfrota{align-self:flex-start;background:#1d2734}.sf-msg small{display:block;font-size:.55rem;color:#8fa1b4;margin-bottom:3px}.sf-chat-form{display:flex;gap:8px;padding:10px;border-top:1px solid rgba(255,255,255,.09)}.sf-chat-form input{flex:1;background:#0c1420;border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:10px}
       .sf-spinner{display:inline-block;width:12px;height:12px;border:2px solid rgba(0,0,0,.2);border-top-color:#111;border-radius:50%;animation:sfspin .7s linear infinite}@keyframes sfspin{to{transform:rotate(360deg)}}
-      @media(max-width:620px){.sf-grid{grid-template-columns:1fr}.sf-modal{width:100%;max-height:94vh}.sf-chat{height:55vh}}
+      .k-card{position:relative}.sf-kanban-badge{position:absolute;right:7px;top:7px;z-index:6;display:flex;align-items:center;gap:5px;background:#ef4444;color:#fff;border:1px solid rgba(255,255,255,.35);box-shadow:0 5px 18px rgba(239,68,68,.28);border-radius:999px;padding:4px 7px;font-family:var(--fm);font-size:.54rem;font-weight:800;letter-spacing:.4px;pointer-events:none}
+      .sf-os-update-banner{display:none;margin:0 18px 12px;padding:10px 12px;border:1px solid rgba(245,158,11,.45);background:rgba(245,158,11,.10);border-radius:6px;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;color:var(--text)}
+      .sf-os-update-banner.show{display:flex}.sf-os-update-banner strong{font-family:var(--fd);font-size:.82rem;color:#fbbf24}.sf-os-update-banner span{display:block;margin-top:2px;font-family:var(--fm);font-size:.58rem;color:var(--muted2)}.sf-os-update-banner button{border:1px solid rgba(96,165,250,.5);background:rgba(96,165,250,.12);color:#93c5fd;border-radius:4px;padding:7px 10px;font-family:var(--fm);font-size:.62rem;cursor:pointer}
+      @media(max-width:620px){.sf-grid{grid-template-columns:1fr}.sf-modal{width:100%;max-height:94vh}.sf-chat{height:55vh}.sf-os-update-banner{margin:0 8px 8px}}
     `;
     document.head.appendChild(style);
   }
 
   function closeModal(id) { document.getElementById(id)?.remove(); }
+
+  function jarvisUserMeta() {
+    return {
+      name: String(W.J?.nome || sessionStorage.getItem('j_nome') || 'Jarvis'),
+      role: String(W.J?.role || sessionStorage.getItem('j_role') || ''),
+      uid: String(W.J?.fid || sessionStorage.getItem('j_fid') || ''),
+      email: String(W.J?.email || sessionStorage.getItem('j_email') || '')
+    };
+  }
+
+  function eventTs(e) {
+    const t = Number(e?.ts || 0);
+    if (Number.isFinite(t) && t > 0) return t;
+    const p = Date.parse(e?.created_at || e?.date_time || '');
+    return Number.isFinite(p) ? p : 0;
+  }
+
+  function importedStorageKey() { return 'sigfrota:imported-events:' + String(W.J?.tid || 'tenant'); }
+  function loadImportedEventIds() {
+    try { importedEventIds = new Set(JSON.parse(localStorage.getItem(importedStorageKey()) || '[]')); } catch (_) { importedEventIds = new Set(); }
+  }
+  function rememberImportedEvent(id) {
+    if (!id) return;
+    importedEventIds.add(String(id));
+    if (importedEventIds.size > 500) importedEventIds = new Set([...importedEventIds].slice(-350));
+    try { localStorage.setItem(importedStorageKey(), JSON.stringify([...importedEventIds])); } catch (_) {}
+  }
+
+  function incomingEventsForOrder(orderId) {
+    const id = String(orderId || '');
+    const os = (W.J?.os || []).find(o => String(o.id) === id);
+    const readTs = Number(os?.sigfrotaReadTs || 0);
+    return bridgeEvents.filter(e =>
+      String(e.order_id || '') === id &&
+      String(e.sender || '').toLowerCase() === 'sigfrota' &&
+      eventTs(e) > readTs
+    ).sort((a,b) => eventTs(a) - eventTs(b));
+  }
+
+  async function writeLocalAudit({ key, action, osId, userName, userRole, detail, source, eventType, at }) {
+    const database = W.J?.db || W.db;
+    if (!database || !W.J?.tid) return;
+    const ts = Number(at || Date.now());
+    const payload = {
+      tenantId: W.J.tid,
+      modulo: 'SIGFROTA',
+      entidade: 'ordens_servico',
+      osId: String(osId || ''),
+      usuario: String(userName || 'SIGFROTA'),
+      perfil: String(userRole || ''),
+      acao: String(action || 'Atualização SIGFROTA'),
+      detalhe: String(detail || ''),
+      origem: String(source || 'SIGFROTA'),
+      tipoEvento: String(eventType || ''),
+      ts,
+      createdAt: new Date(ts).toISOString()
+    };
+    const id = safeId('sf_' + String(key || ts));
+    await Promise.allSettled([
+      database.collection('lixeira_auditoria').doc(id).set(payload, { merge:true }),
+      database.collection('auditoria').doc(id).set(payload, { merge:true })
+    ]);
+  }
+
+  async function appendLocalTimeline(osId, entry, latestPatch) {
+    const database = W.J?.db || W.db;
+    if (!database || !osId) return;
+    await database.collection('ordens_servico').doc(String(osId)).set({
+      ...(latestPatch || {}),
+      timeline: W.firebase.firestore.FieldValue.arrayUnion(entry)
+    }, { merge:true });
+  }
+
+  async function importIncomingBridgeEvent(e) {
+    if (!e?.id || !e?.order_id || String(e.sender || '').toLowerCase() !== 'sigfrota') return;
+    if (String(e.tenant_id || '') !== String(W.J?.tid || '')) return;
+    if (importedEventIds.has(String(e.id))) return;
+    const osLocal = (W.J?.os || []).find(o => String(o.id) === String(e.order_id));
+    if (!osLocal) return;
+    if (Array.isArray(osLocal.timeline) && osLocal.timeline.some(t => String(t?.eventoId || '') === String(e.id))) { rememberImportedEvent(e.id); return; }
+    const ts = eventTs(e) || Date.now();
+    const senderName = String(e.sender_name || e.user_name || e.sender_email || 'SIGFROTA');
+    const senderRole = String(e.sender_role || e.role || 'SIGFROTA');
+    const isChat = String(e.event_type || '') === 'CHAT_MESSAGE';
+    const detail = isChat
+      ? String(e.message_text || e.text || e.message || 'Nova mensagem')
+      : String(e.message || e.event_type || 'Atualização recebida');
+    const action = isChat ? 'Mensagem recebida do SIGFROTA' : 'Atualização recebida do SIGFROTA';
+    const entry = {
+      tipo: isChat ? 'sigfrota_chat' : 'sigfrota_atualizacao',
+      origem: 'SIGFROTA', eventoId: String(e.id), acao: detail,
+      usuario: senderName, perfil: senderRole, data: new Date(ts).toISOString(), ts
+    };
+    try {
+      await appendLocalTimeline(e.order_id, entry, {
+        sigfrotaLastUpdateTs: ts,
+        sigfrotaLastUpdateAt: new Date(ts).toISOString(),
+        sigfrotaLastUpdateBy: senderName,
+        sigfrotaLastUpdateType: String(e.event_type || ''),
+        sigfrotaLastUpdateText: detail
+      });
+    } catch (err) { console.warn('[SIGFROTA] timeline local', err); }
+    await writeLocalAudit({
+      key:e.id, action, osId:e.order_id, userName:senderName, userRole:senderRole,
+      detail, source:'SIGFROTA', eventType:e.event_type, at:ts
+    });
+    rememberImportedEvent(e.id);
+  }
+
+  function decorateKanbanCards() {
+    if (!manager()) return;
+    document.querySelectorAll('.k-card').forEach(card => {
+      card.querySelectorAll('.sf-kanban-badge').forEach(x => x.remove());
+      const onclick = String(card.getAttribute('onclick') || '');
+      if (!onclick) return;
+      for (const os of (W.J?.os || [])) {
+        const pending = incomingEventsForOrder(os.id);
+        if (!pending.length || !onclick.includes(String(os.id))) continue;
+        const badge = document.createElement('div');
+        badge.className = 'sf-kanban-badge';
+        badge.textContent = '🔔 SIGFROTA ' + pending.length;
+        badge.title = pending.length + ' atualização(ões) do SIGFROTA ainda não lida(s)';
+        card.appendChild(badge);
+        break;
+      }
+    });
+  }
+
+  function ensureOSUpdateBanner() {
+    const foot = document.querySelector('#modalOS .modal-foot');
+    if (!foot) return null;
+    let banner = document.getElementById('sfOsUpdateBanner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'sfOsUpdateBanner';
+      banner.className = 'sf-os-update-banner';
+      foot.parentNode.insertBefore(banner, foot);
+    }
+    return banner;
+  }
+
+  function renderOSUpdateBanner() {
+    const os = currentOS();
+    const banner = ensureOSUpdateBanner();
+    if (!banner) return;
+    const pending = incomingEventsForOrder(os?.id);
+    const chatBtn = document.getElementById('btnSigfrotaChatOS');
+    if (!os || !pending.length) {
+      banner.classList.remove('show');
+      banner.innerHTML = '';
+      if (chatBtn && chatBtn.style.display !== 'none') chatBtn.textContent = '💬 CHAT SIGFROTA';
+      return;
+    }
+    const last = pending[pending.length - 1];
+    const sender = esc(last.sender_name || last.user_name || 'SIGFROTA');
+    const when = new Date(eventTs(last)).toLocaleString('pt-BR');
+    banner.innerHTML = '<div><strong>🔔 ' + pending.length + ' atualização(ões) do SIGFROTA</strong><span>Última: ' + sender + ' • ' + esc(when) + '</span></div><button type="button" id="sfOpenUpdatesBtn">VER ATUALIZAÇÕES / CHAT</button>';
+    banner.classList.add('show');
+    banner.querySelector('#sfOpenUpdatesBtn').onclick = () => openOrderChat(os);
+    if (chatBtn) chatBtn.textContent = '🔔 CHAT SIGFROTA (' + pending.length + ')';
+  }
+
+  function refreshPendingUI() {
+    decorateKanbanCards();
+    renderOSUpdateBanner();
+  }
+
+  async function markOrderUpdatesRead(os) {
+    if (!os?.id) return;
+    const pending = incomingEventsForOrder(os.id);
+    if (!pending.length) return;
+    const latestTs = Math.max(...pending.map(eventTs));
+    const meta = jarvisUserMeta();
+    const at = nowISO();
+    try {
+      await (W.J?.db || W.db).collection('ordens_servico').doc(String(os.id)).set({
+        sigfrotaReadTs: latestTs,
+        sigfrotaReadAt: at,
+        sigfrotaReadBy: meta.name,
+        sigfrotaReadRole: meta.role
+      }, { merge:true });
+      os.sigfrotaReadTs = latestTs;
+      await writeLocalAudit({
+        key:'read_' + os.id + '_' + latestTs,
+        action:'Atualizações do SIGFROTA visualizadas', osId:os.id,
+        userName:meta.name, userRole:meta.role,
+        detail:pending.length + ' atualização(ões) marcada(s) como lida(s)',
+        source:'SAAS2', eventType:'READ', at:Date.now()
+      });
+    } catch (err) { console.warn('[SIGFROTA] leitura', err); }
+    refreshPendingUI();
+  }
+
+  function stopGlobalBridgeListener() {
+    if (globalEventsUnsub) { try { globalEventsUnsub(); } catch (_) {} }
+    globalEventsUnsub = null;
+    bridgeEvents = [];
+    bridgeEventsInitialized = false;
+    refreshPendingUI();
+  }
+
+  function startGlobalBridgeListener() {
+    if (globalEventsUnsub || !bridgeDb || !W.J?.tid || !manager()) return;
+    loadImportedEventIds();
+    globalEventsUnsub = bridgeDb.collection('saas2_sync_events')
+      .where('tenant_id', '==', String(W.J.tid))
+      .onSnapshot(snap => {
+        bridgeEvents = snap.docs.map(d => ({ id:d.id, ...d.data() }))
+          .filter(e => String(e.sender || '').toLowerCase() === 'sigfrota')
+          .sort((a,b) => eventTs(a) - eventTs(b));
+        bridgeEvents.forEach(e => importIncomingBridgeEvent(e).catch(err => console.warn('[SIGFROTA] importar evento', err)));
+        if (bridgeEventsInitialized) {
+          snap.docChanges().forEach(change => {
+            if (change.type !== 'added') return;
+            const e = { id:change.doc.id, ...change.doc.data() };
+            if (String(e.sender || '').toLowerCase() !== 'sigfrota') return;
+            const os = (W.J?.os || []).find(x => String(x.id) === String(e.order_id || ''));
+            const placa = os ? (vehicleForOS(os)?.placa || os.placa || '') : '';
+            toast('🔔 SIGFROTA • ' + (placa ? placa + ' • ' : '') + String(e.sender_name || 'SIGFROTA') + ': ' + String(e.message_text || e.message || 'nova atualização'), 'info');
+          });
+        }
+        bridgeEventsInitialized = true;
+        refreshPendingUI();
+      }, err => console.warn('[SIGFROTA] listener global', err));
+  }
 
   function authModal() {
     ensureUi();
@@ -346,17 +586,24 @@
       const now = nowISO();
       const office = publicWorkshop();
       const official = publicClient(client);
-      const order = orderSnapshot(os, client, vehicle);
+      const meta = jarvisUserMeta();
+      const order = {
+        ...orderSnapshot(os, client, vehicle),
+        manual_sync: true, manual_sync_at: now, manual_sync_by: meta.name, manual_sync_role: meta.role
+      };
       const integrationRef = db.collection('saas2_integrations').doc(iid);
       const currentSnap = await integrationRef.get();
       const current = currentSnap.exists ? currentSnap.data() : {};
-      const orders = Array.isArray(current.orders) ? current.orders.slice() : [];
+      const orders = Array.isArray(current.orders) ? current.orders.filter(x => x && x.manual_sync === true) : [];
       const orderIndex = orders.findIndex(x => String(x.id) === String(order.id));
       if (orderIndex >= 0) orders[orderIndex] = order; else orders.push(order);
-      const vehicles = Array.isArray(current.vehicles) ? current.vehicles.slice() : [];
-      const publicV = order.vehicle;
-      const vehicleIndex = vehicles.findIndex(x => String(x.id) === String(publicV.id));
-      if (vehicleIndex >= 0) vehicles[vehicleIndex] = publicV; else vehicles.push(publicV);
+      const vehicles = [];
+      orders.forEach(x => {
+        const v = x?.vehicle;
+        if (!v?.id) return;
+        const i = vehicles.findIndex(y => String(y.id) === String(v.id));
+        if (i >= 0) vehicles[i] = v; else vehicles.push(v);
+      });
 
       const payload = {
         integration_id: iid,
@@ -370,7 +617,7 @@
         last_sync_at: now,
         last_sync_ts: Date.now(),
         updated_at: now,
-        synced_by: { uid: user.uid, email: user.email || '', saas2_user: W.J?.nome || '', saas2_role: role() },
+        synced_by: { uid: user.uid, email: user.email || '', saas2_user: meta.name, saas2_role: meta.role },
         chat_enabled: true
       };
 
@@ -395,7 +642,7 @@
       batch.set(eventRef, {
         integration_id: iid, order_id: order.id, order_number: order.number, event_type: 'OS_SYNC', tenant_id: W.J?.tid || '',
         official_client_id: client.id, official_client_name: official.name, workshop_name: workshopDoc.name,
-        message: `O.S. ${order.number} atualizada no SIGFROTA.`, created_at: now, ts: Date.now(), sender: 'jarvis'
+        message: `O.S. ${order.number} atualizada no SIGFROTA.`, created_at: now, ts: Date.now(), sender: 'jarvis', sender_name: meta.name, sender_role: meta.role, sender_uid: meta.uid, sender_email: meta.email
       });
       const auditRef = db.collection('audit_logs').doc();
       batch.set(auditRef, {
@@ -409,10 +656,22 @@
 
       const localSync = { integrationId: iid, orderId: order.id, lastSyncAt: now, lastSyncTs: Date.now(), projectId: CFG.projectId, status: 'SINCRONIZADO' };
       try {
-        await W.J.db.collection('ordens_servico').doc(os.id).update({ sigfrotaSync: localSync });
+        const localEntry = {
+          tipo:'sigfrota_envio', origem:'SAAS2', eventoId:eventRef.id, acao:'O.S. enviada/atualizada no SIGFROTA',
+          usuario:meta.name, perfil:meta.role, data:now, ts:Date.now()
+        };
+        await W.J.db.collection('ordens_servico').doc(os.id).set({
+          sigfrotaSync: localSync,
+          timeline: W.firebase.firestore.FieldValue.arrayUnion(localEntry)
+        }, { merge:true });
         os.sigfrotaSync = localSync;
+        await writeLocalAudit({
+          key:eventRef.id, action:'O.S. enviada/atualizada no SIGFROTA', osId:os.id, userName:meta.name, userRole:meta.role,
+          detail:'O.S. ' + order.number, source:'SAAS2', eventType:'OS_SYNC', at:Date.now()
+        });
       } catch (e) { console.warn('[SIGFROTA] espelho local não atualizado', e); }
       refreshButtons();
+      refreshPendingUI();
       toast(`✓ O.S. ${order.number} enviada ao SIGFROTA.`, 'ok');
     } catch (e) {
       console.error('[SIGFROTA sync]', e);
@@ -423,7 +682,7 @@
   function renderChat(messages) {
     const box = document.getElementById('sfChatMessages');
     if (!box) return;
-    box.innerHTML = messages.length ? messages.map(m => `<div class="sf-msg ${m.sender === 'jarvis' ? 'jarvis' : 'sigfrota'}"><small>${esc(m.sender_name || (m.sender === 'jarvis' ? 'Jarvis' : 'SIGFROTA'))} · ${esc(new Date(m.created_at || m.ts || Date.now()).toLocaleString('pt-BR'))}</small>${esc(m.text || '').replace(/\n/g, '<br>')}</div>`).join('') : '<div style="text-align:center;color:#8092a7;font-size:.7rem;padding:30px">Nenhuma mensagem ainda.</div>';
+    box.innerHTML = messages.length ? messages.map(m => `<div class="sf-msg ${m.sender === 'jarvis' ? 'jarvis' : 'sigfrota'}"><small>${esc(m.sender_name || (m.sender === 'jarvis' ? 'Jarvis' : 'SIGFROTA'))} · ${esc(new Date(m.created_at || m.ts || Date.now()).toLocaleString('pt-BR'))}${m.sender === 'jarvis' && m.read_sigfrota ? ' · ✓ lida' : ''}</small>${esc(m.text || '').replace(/\n/g, '<br>')}</div>`).join('') : '<div style="text-align:center;color:#8092a7;font-size:.7rem;padding:30px">Nenhuma mensagem ainda.</div>';
     box.scrollTop = box.scrollHeight;
   }
 
@@ -442,9 +701,13 @@
     overlay.innerHTML = `<div class="sf-modal"><div class="sf-head"><strong>Chat da O.S. ${esc(pick(os.numero, os.osNumero, os.codigo, String(os.id).slice(-6).toUpperCase()))}</strong><button class="sf-x" data-close>×</button></div><div id="sfChatMessages" class="sf-chat"></div><form id="sfChatForm" class="sf-chat-form"><input id="sfChatInput" placeholder="Mensagem para o SIGFROTA..."><button class="sf-btn sf-primary" type="submit">Enviar</button></form></div>`;
     document.body.appendChild(overlay);
     overlay.querySelector('[data-close]').onclick = () => { if (chatUnsub) { chatUnsub(); chatUnsub = null; } closeModal('sigfrotaChatModal'); };
+    await markOrderUpdatesRead(os);
     chatUnsub = bridgeDb.collection('saas2_chat').where('integration_id', '==', iid).where('order_id', '==', os.id).onSnapshot(snap => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      const list = snap.docs.map(d => ({ id:d.id, ref:d.ref, ...d.data() })).sort((a,b) => (a.ts || 0) - (b.ts || 0));
       renderChat(list);
+      list.filter(m => m.sender === 'sigfrota' && m.read_jarvis !== true).forEach(m => {
+        m.ref.update({ read_jarvis:true, read_jarvis_at:nowISO(), read_jarvis_by:jarvisUserMeta().name }).catch(()=>{});
+      });
     }, e => toast('Chat: ' + e.message, 'err'));
     overlay.querySelector('#sfChatForm').onsubmit = async ev => {
       ev.preventDefault();
@@ -452,16 +715,36 @@
       input.value = '';
       const now = nowISO();
       const number = String(pick(os.numero, os.osNumero, os.codigo, String(os.id).slice(-6).toUpperCase()));
-      await bridgeDb.collection('saas2_chat').add({
-        integration_id: iid, order_id: os.id, order_number: number, tenant_id: W.J?.tid || '', client_id: client.id,
-        workshop_name: W.J?.tnome || '', official_client_name: client.nome || '', sender: 'jarvis', sender_name: W.J?.nome || 'Jarvis',
-        text: msg, ts: Date.now(), created_at: now, read_jarvis: true, read_sigfrota: false
+      const meta = jarvisUserMeta();
+      const ts = Date.now();
+      const chatRef = await bridgeDb.collection('saas2_chat').add({
+        integration_id:iid, order_id:os.id, order_number:number, tenant_id:W.J?.tid || '', client_id:client.id,
+        workshop_name:W.J?.tnome || '', official_client_name:client.nome || '', sender:'jarvis', sender_name:meta.name,
+        sender_role:meta.role, sender_uid:meta.uid, sender_email:meta.email, sender_bridge_uid:bridgeAuth?.currentUser?.uid || '',
+        text:msg, ts, created_at:now, read_jarvis:true, read_sigfrota:false
       });
-      await bridgeDb.collection('saas2_sync_events').add({
-        integration_id: iid, order_id: os.id, order_number: number, event_type: 'CHAT_MESSAGE', tenant_id: W.J?.tid || '',
-        official_client_id: client.id, official_client_name: client.nome || '', workshop_name: W.J?.tnome || '',
-        message: `Nova mensagem na O.S. ${number}.`, created_at: now, ts: Date.now(), sender: 'jarvis'
+      const eventRef = await bridgeDb.collection('saas2_sync_events').add({
+        integration_id:iid, order_id:os.id, order_number:number, event_type:'CHAT_MESSAGE', tenant_id:W.J?.tid || '',
+        official_client_id:client.id, official_client_name:client.nome || '', workshop_name:W.J?.tnome || '',
+        message:`Nova mensagem na O.S. ${number}.`, message_text:msg, created_at:now, ts, sender:'jarvis',
+        sender_name:meta.name, sender_role:meta.role, sender_uid:meta.uid, sender_email:meta.email, chat_id:chatRef.id
       });
+      try {
+        await appendLocalTimeline(os.id, {
+          tipo:'sigfrota_chat', origem:'SAAS2', eventoId:eventRef.id, acao:msg, usuario:meta.name, perfil:meta.role, data:now, ts
+        });
+        await writeLocalAudit({
+          key:eventRef.id, action:'Mensagem enviada ao SIGFROTA', osId:os.id, userName:meta.name, userRole:meta.role,
+          detail:msg, source:'SAAS2', eventType:'CHAT_MESSAGE', at:ts
+        });
+        await bridgeDb.collection('audit_logs').doc().set({
+          user_id:bridgeAuth?.currentUser?.uid || '', user_name:meta.name, user_email:meta.email || bridgeAuth?.currentUser?.email || '',
+          role:meta.role || 'integracao_saas2', action:'MENSAGEM_JARVIS_ENVIADA', entity:'SAAS2Order', record_id:String(os.id),
+          previous_value:null, new_value:{integration_id:iid,order_number:number,chat_id:chatRef.id}, justification:null,
+          context:{source:'JARVIS_SAAS2',tenant_id:W.J?.tid || '',message:msg}, date_time:now,
+          created_at_server:W.firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch (auditErr) { console.warn('[SIGFROTA] auditoria mensagem', auditErr); }
     };
   }
 
@@ -475,17 +758,27 @@
     syncBtn.style.display = show ? '' : 'none';
     chatBtn.style.display = show && !!os?.sigfrotaSync?.integrationId ? '' : 'none';
     if (show) syncBtn.textContent = os?.sigfrotaSync?.integrationId ? '↗ ATUALIZAR NO SIGFROTA' : '↗ ENVIAR AO SIGFROTA';
+    renderOSUpdateBanner();
   }
 
   W.SIGFROTA_INTEGRACAO = {
     sincronizarOSAtual: () => syncOrder(currentOS()),
     abrirChatOSAtual: () => openOrderChat(currentOS()),
+    marcarAtualizacoesLidas: () => markOrderUpdatesRead(currentOS()),
     atualizarBotoes: refreshButtons
   };
 
   function boot() {
+    ensureUi();
+    try { ensureFirebase(); } catch (e) { console.warn('[SIGFROTA] inicialização da ponte', e); }
     refreshButtons();
-    setInterval(refreshButtons, 700);
+    refreshPendingUI();
+    setInterval(() => {
+      refreshButtons();
+      refreshPendingUI();
+      if (bridgeAuth?.currentUser && !globalEventsUnsub && manager()) startGlobalBridgeListener();
+      if (bridgeEvents.length) bridgeEvents.forEach(e => importIncomingBridgeEvent(e).catch(()=>{}));
+    }, 700);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
 })(window);
