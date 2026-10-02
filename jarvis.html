@@ -20,8 +20,8 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="https://www.gstatic.com/firebasejs/12.17.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/12.17.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.17.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.17.0/firebase-auth-compat.js"></script>
 <script src="js/config.js?v=26.13.0"></script>
 <script src="js/links-publicos.js?v=26.24.0"></script>
 <script src="js/tenant-modules.js"></script>
@@ -1618,6 +1618,8 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <button class="btn-ghost" id="btnGerarPDFOS" style="display:none;" onclick="window.gerarPDFOS()">📄 EXPORTAR LAUDO PDF</button>
     <button class="btn-ghost" id="btnExportarPMSP" style="display:none;background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.4);color:#A78BFA;" onclick="window.exportarOrcamentoPMSP()">🛡 EXPORTAR ORÇAMENTO PMSP (XLSX)</button>
     <button class="btn-ghost" id="btnExportarPMSPItens" style="display:none;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.36);color:#7DD3FC;" onclick="window.exportarOrcamentoPMSPItens()">📋 EXPORTAR ITENS AGRUPADOS (XLSX)</button>
+    <button class="btn-ghost" id="btnSigfrotaOS" style="display:none;background:rgba(52,211,153,.10);border:1px solid rgba(52,211,153,.50);color:#6EE7B7;" onclick="window.SIGFROTA_INTEGRACAO?.sincronizarOSAtual()">↗ ENVIAR / ATUALIZAR NO SIGFROTA</button>
+    <button class="btn-ghost" id="btnSigfrotaChatOS" style="display:none;background:rgba(96,165,250,.10);border:1px solid rgba(96,165,250,.48);color:#93C5FD;" onclick="window.SIGFROTA_INTEGRACAO?.abrirChatOSAtual()">💬 CHAT SIGFROTA</button>
     <button class="btn-ghost" id="btnExcluirOS" style="display:none;background:transparent;border:1px solid var(--danger);color:var(--danger);" onclick="window._excluirOSDoModal()">🗑 EXCLUIR O.S.</button>
     <button class="btn-ghost" onclick="fecharModal('modalOS')">CANCELAR</button>
     <button class="btn-outline" id="btnSalvarContinuarOS" style="border-color:rgba(0,255,136,.45);color:var(--success);" onclick="window.salvarOSContinuar && window.salvarOSContinuar()">💾 SALVAR E CONTINUAR</button>
@@ -3228,10 +3230,6 @@ window.renderClientes = function() {
       ? `<button class="btn-success" style="margin-right:4px" onclick="window._wppAcessoCliente('${c.id}')" title="Enviar acesso via WhatsApp">💬</button>`
       : '';
     const ehFrotistaLista = c.tipoCliente !== 'governo' && (c.frotista === true || String(c.categoriaComercial || '').toLowerCase() === 'frotista');
-    const podeSigfrotaLista = ['admin','gestor','gerente','superadmin','dono','proprietario','owner'].includes(String(window.J?.role || sessionStorage.getItem('j_role') || '').toLowerCase());
-    const btnSigfrota = c.tipoCliente === 'governo' && podeSigfrotaLista ? `
-      <button class="btn-ghost" style="margin-right:4px" onclick="window.SIGFROTA_INTEGRACAO?.sincronizarCliente('${c.id}')" title="Enviar/atualizar este Cliente Oficial no SIGFROTA somente agora">🔄 SIGFROTA</button>
-      ${c.sigfrotaSync?.status === 'SINCRONIZADO' ? `<button class="btn-ghost" style="margin-right:4px" onclick="window.SIGFROTA_INTEGRACAO?.abrirChat('${c.id}')" title="Chat direto SIGFROTA × Jarvis">💬 SIGFROTA</button>` : ''}` : '';
     const pillTipo = c.tipoCliente === 'governo'
       ? `<span class="pill" style="background:rgba(167,139,250,0.15);color:#A78BFA;border:1px solid rgba(167,139,250,0.4);font-size:0.6rem;margin-left:6px;">🛡 GOVERNO</span>`
       : (ehFrotistaLista ? `<span class="pill" style="background:rgba(34,197,94,0.12);color:var(--success,#00FF88);border:1px solid rgba(34,197,94,0.35);font-size:0.6rem;margin-left:6px;">🚚 FROTISTA</span>` : '');
@@ -3242,7 +3240,6 @@ window.renderClientes = function() {
       <td style="white-space:nowrap">
         <button class="btn-ghost" style="margin-right:4px" onclick="window.prepCliente('edit','${c.id}');abrirModal('modalCliente')">✏</button>
         ${ehFrotistaLista ? `<button class="btn-ghost" style="margin-right:4px" onclick="window.prepCliente('edit','${c.id}');abrirModal('modalCliente');setTimeout(()=>window.renderFrotistaJarvis?.(),30)" title="Gerenciar frota e tabela de peças">🚚 FROTA</button>` : ''}
-        ${btnSigfrota}
         ${btnWpp}
         <button class="btn-danger" onclick="window.deletarCliente('${c.id}')">🗑</button>
       </td>
@@ -4626,6 +4623,7 @@ window.iaAnalisarEstoque = function() { _jiaChamar('Quais pecas estao em estoque
 
 <script src="js/jarvis-firestore-profissional-v2612.js?v=26.13.0"></script>
 <script src="js/frotistas-jarvis.js?v=26.18.0"></script>
-<script src="js/sigfrota-integration.js?v=1.0.0"></script>
+
+<script src="js/sigfrota-integration.js?v=2.0.0"></script>
 </body>
 </html>
