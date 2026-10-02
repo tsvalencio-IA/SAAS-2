@@ -311,11 +311,46 @@ window.atualizarTerceirizadoServicoOS = function(input) {
   }
 };
 
+function normalizarDataISOInputOS(value) {
+  if (value == null || value === '') return '';
+  try {
+    if (typeof value?.toDate === 'function') value = value.toDate();
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      const y = value.getFullYear();
+      const m = String(value.getMonth() + 1).padStart(2, '0');
+      const d = String(value.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  } catch (_) {}
+  const raw = String(value).trim();
+  let m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = raw.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  m = raw.match(/^(\d{2})(\d{4})-(\d{2})-$/);
+  if (m) return `${m[2]}-${m[3]}-${m[1]}`;
+  return '';
+}
+
+function normalizarTimelineOS(value) {
+  if (Array.isArray(value)) return value.filter(v => v && typeof v === 'object');
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    if (!raw) return [];
+    try { return normalizarTimelineOS(JSON.parse(raw)); } catch (_) { return []; }
+  }
+  if (value && typeof value === 'object') {
+    return Object.values(value).filter(v => v && typeof v === 'object');
+  }
+  return [];
+}
+window.normalizarTimelineOS = normalizarTimelineOS;
+
 function dadosFinanceirosTerceirizadoOrigemOS(origem) {
   const o = origem || {};
   const pedidoFornecedor = String(o.terceirizadoPedidoFornecedor ?? o.pedidoFornecedor ?? o.numeroPedidoFornecedor ?? o.pedidoTerceirizado ?? o.pedido ?? '').trim();
   const documento = String(o.terceirizadoDocumento ?? o.terceirizadoNF ?? o.nfServicoTerceirizado ?? o.documentoServicoTerceirizado ?? o.nfNumero ?? o.nf ?? o.documento ?? '').trim();
-  const data = String(o.terceirizadoData ?? o.dataServicoTerceirizado ?? o.dataLancamentoTerceirizado ?? o.dataServico ?? o.dataLancamento ?? '').slice(0, 10);
+  const data = normalizarDataISOInputOS(o.terceirizadoData ?? o.dataServicoTerceirizado ?? o.dataLancamentoTerceirizado ?? o.dataServico ?? o.dataLancamento ?? '');
   const valor = numBR(o.terceirizadoValor ?? o.custoTerceirizado ?? o.valorServicoTerceirizado ?? o.valorFornecedorTerceirizado ?? 0);
   return { pedidoFornecedor, documento, data, valor };
 }
@@ -362,7 +397,7 @@ function lerTerceirizadoLinhaServicoOS(row) {
   }
   const pedidoFornecedor = String(row?.querySelector?.('.serv-terceirizado-pedido')?.value || row?.dataset?.terceirizadoPedidoFornecedor || '').trim();
   const documento = String(row?.querySelector?.('.serv-terceirizado-documento')?.value || row?.dataset?.terceirizadoDocumento || '').trim();
-  const data = String(row?.querySelector?.('.serv-terceirizado-data')?.value || row?.dataset?.terceirizadoData || '').slice(0, 10);
+  const data = normalizarDataISOInputOS(row?.querySelector?.('.serv-terceirizado-data')?.value || row?.dataset?.terceirizadoData || '');
   const valor = numBR(row?.querySelector?.('.serv-terceirizado-valor')?.value || row?.dataset?.terceirizadoValor || 0);
   return {
     tipoExecucao: 'terceirizada',
@@ -2700,8 +2735,8 @@ window.prepOS = function(mode, id = null) {
       if (o.chkDocumentos && $('chkDocumentos')) $('chkDocumentos').value = _toTri(o.chkDocumentos);
     }
 
-    if($('osTimelineData') && o.timeline) {
-        $('osTimelineData').value = JSON.stringify(o.timeline);
+    if($('osTimelineData')) {
+        $('osTimelineData').value = JSON.stringify(normalizarTimelineOS(o.timeline));
         window.renderTimelineOS();
     }
     window.renderObservacoesEquipeJarvisOS?.(o);
@@ -4822,7 +4857,7 @@ window.salvarOS = async function() {
 
   if (osId) {
       const oldOS = J.os.find(x => x.id === osId) || {};
-      tl = oldOS.timeline ? [...oldOS.timeline] : JSON.parse($('osTimelineData')?.value || '[]');
+      tl = normalizarTimelineOS(oldOS.timeline && (Array.isArray(oldOS.timeline) || typeof oldOS.timeline === 'object') ? oldOS.timeline : $('osTimelineData')?.value);
       let registouAlgo = false;
       let alterouCampoAuditavel = false;
       const addAuditoriaCampo = acao => {
@@ -5108,7 +5143,7 @@ window.salvarOS = async function() {
       
   } else {
       // Criação de Nova O.S. — preserva o evento legado e acrescenta auditoria estruturada dos dados iniciais.
-      tl = JSON.parse($('osTimelineData')?.value || '[]');
+      tl = normalizarTimelineOS($('osTimelineData')?.value);
       tl.push(eventoEstruturadoOS('os_aberta', `Abriu a O.S. (Status inicial: ${STATUS_MAP_LEGACY[payload.status] || payload.status})`, {
           statusNovo: payload.status || ''
       }));
@@ -5989,7 +6024,7 @@ window.renderObservacoesEquipeJarvisOS = function(os) {
 
 window.renderTimelineOS = function() {
   if(!$('osTimeline')) return;
-  const tl = JSON.parse($('osTimelineData')?.value || '[]');
+  const tl = normalizarTimelineOS($('osTimelineData')?.value);
   const visiveis = osSegredo177AtivoOS() ? tl : tl.filter(e => !osEventoPecaRealProtegidoOS(e));
   $('osTimeline').innerHTML = [...visiveis].reverse().map(e => `<div class="tl-item"><div class="tl-date">${dtHrBr(e.dt)}</div><div class="tl-user">${e.user}</div><div class="tl-action">${e.acao}</div></div>`).join('');
 };
@@ -8270,7 +8305,7 @@ function _orcamentoOSAplicarImportacao(parsed, fileName) {
   const tlEl = $('osTimelineData');
   if (tlEl) {
     try {
-      const tl = JSON.parse(tlEl.value || '[]');
+      const tl = normalizarTimelineOS(tlEl.value);
       tl.push({
         dt: new Date().toISOString(),
         user: J.nome || 'Gestor',

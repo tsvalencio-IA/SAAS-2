@@ -1,4 +1,4 @@
-const CACHE='oficin-ia-v26-19-0-sigfrota-bridge-20261002';
+const CACHE='oficin-ia-v26-24-1-sigfrota-manual-trigger-20261002';
 const ASSETS=[
   './jarvis.html','./js/sigfrota-integration.js',
   './checklist.html','./js/checklist.js','./js/config.js','./data/checklist-model.json',

@@ -62,13 +62,7 @@
     bridgeAuth = app.auth();
     bridgeDb = app.firestore();
     try { bridgeAuth.setPersistence(W.firebase.auth.Auth.Persistence.LOCAL); } catch (_) {}
-    if (!authObserverInstalled) {
-      authObserverInstalled = true;
-      bridgeAuth.onAuthStateChanged(user => {
-        if (user && manager()) startGlobalBridgeListener();
-        else stopGlobalBridgeListener();
-      });
-    }
+    // Não instala observer automático: o SIGFROTA só é acessado após ação explícita do gestor.
     return { app: bridgeApp, auth: bridgeAuth, db: bridgeDb };
   }
 
@@ -770,14 +764,14 @@
 
   function boot() {
     ensureUi();
-    try { ensureFirebase(); } catch (e) { console.warn('[SIGFROTA] inicialização da ponte', e); }
+    // Não inicializa o Firebase do SIGFROTA no carregamento do Jarvis.
+    // Envio/atualização e chat continuam disponíveis, mas somente após clique explícito do Gestor/Admin.
+    stopGlobalBridgeListener();
     refreshButtons();
     refreshPendingUI();
     setInterval(() => {
       refreshButtons();
       refreshPendingUI();
-      if (bridgeAuth?.currentUser && !globalEventsUnsub && manager()) startGlobalBridgeListener();
-      if (bridgeEvents.length) bridgeEvents.forEach(e => importIncomingBridgeEvent(e).catch(()=>{}));
     }, 700);
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
